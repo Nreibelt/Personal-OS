@@ -271,6 +271,7 @@ export function useStore() {
 
   const deepWorkMinutesForDate = useCallback(
     (date: string) => {
+      void tick
       let total = state.timeEntries
         .filter((e) => e.date === date && DEEP_WORK_IDS.includes(e.projectId))
         .reduce((s, e) => s + e.minutes, 0)

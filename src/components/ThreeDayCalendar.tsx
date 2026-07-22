@@ -235,7 +235,7 @@ export function ThreeDayCalendar({ store }: { store: Store }) {
         </div>
 
         <p className="three-day-hint">
-          CLICK + DRAG on a day column to create a titled block · CLICK a block to edit
+          CLICK + DRAG to create a block · CLICK a block to edit
         </p>
       </HudPanel>
 
