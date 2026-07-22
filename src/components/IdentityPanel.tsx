@@ -27,15 +27,14 @@ export function IdentityPanel({ store }: { store: Store }) {
 
   return (
     <HudPanel
-      label="IDENTITY PROTOCOL // 90-DAY WINDOW"
+      label="90-DAY IDENTITY"
       action={
         !editing ? (
           <button className="edit-btn" type="button" onClick={startEdit}>
-            ✎ EDIT
+            Edit
           </button>
         ) : null
       }
-      className="accent-amber"
     >
       {editing ? (
         <div className="identity-edit">

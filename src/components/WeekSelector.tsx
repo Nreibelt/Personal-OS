@@ -9,6 +9,8 @@ export function WeekSelector({ store }: { store: Store }) {
       {days.map((key) => {
         const { dow, day } = formatDayLabel(key)
         const active = key === store.state.selectedDate
+        const hasData = store.state.timeEntries.some((e) => e.date === key)
+        const hit = store.hitTarget(key)
         return (
           <button
             key={key}
@@ -20,6 +22,9 @@ export function WeekSelector({ store }: { store: Store }) {
           >
             <span>{dow}</span>
             <span className="num">{day}</span>
+            {(hasData || key === store.state.selectedDate) && (
+              <span className={`hit-dot ${hit ? 'yes' : 'no'}`} title={hit ? 'Target hit' : 'Below target'} />
+            )}
           </button>
         )
       })}

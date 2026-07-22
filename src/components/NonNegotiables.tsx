@@ -7,7 +7,7 @@ export function NonNegotiables({ store }: { store: Store }) {
   const [adding, setAdding] = useState(false)
 
   return (
-    <HudPanel label="NON-NEGOTIABLES // DAILY PROTOCOLS">
+    <HudPanel label="NON-NEGOTIABLES">
       <div className="habits-row">
         {store.state.habits.map((habit) => (
           <button
@@ -20,7 +20,7 @@ export function NonNegotiables({ store }: { store: Store }) {
             <span className="habit-name">{habit.name}</span>
             {habit.streak > 0 && (
               <span className="streak" title="Streak">
-                🔥 {habit.streak}
+                ×{habit.streak}
               </span>
             )}
           </button>
