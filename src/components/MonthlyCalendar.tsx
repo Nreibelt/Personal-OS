@@ -54,11 +54,12 @@ export function MonthlyCalendar({ store }: { store: Store }) {
           if (!date) return <div key={`e-${i}`} className="cal-cell empty" />
           const { map, total } = minutesByDayProject(date)
           const selected = date === store.state.selectedDate
+          const hit = store.hitTarget(date)
           return (
             <button
               key={date}
               type="button"
-              className={`cal-cell${selected ? ' selected' : ''}`}
+              className={`cal-cell${selected ? ' selected' : ''}${hit && total > 0 ? ' target-hit' : ''}`}
               onClick={() => store.setSelectedDate(date)}
             >
               <div className="cal-daynum">{Number(date.slice(-2))}</div>

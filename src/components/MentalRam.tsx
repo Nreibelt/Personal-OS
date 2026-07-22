@@ -6,7 +6,7 @@ export function MentalRam({ store }: { store: Store }) {
   const [text, setText] = useState('')
 
   return (
-    <HudPanel label="MENTAL RAM // EMPTY YOUR MIND. KEEP ONLY WHAT YOU'RE EXECUTING.">
+    <HudPanel label="MENTAL RAM — KEEP ONLY WHAT YOU'RE EXECUTING">
       <ul className="check-list">
         {store.state.openLoops.map((loop) => (
           <li key={loop.id} className="check-item">

@@ -1,10 +1,10 @@
-import type { AppState, Project } from '../types'
+import type { AppState, Project, Task } from '../types'
 
 export const PROJECTS: Project[] = [
-  { id: 'chase', name: 'Chase Build', color: '#3b9eff', glow: 'rgba(59, 158, 255, 0.45)' },
-  { id: 'myProject', name: 'My Project', color: '#2dd4a8', glow: 'rgba(45, 212, 168, 0.45)' },
-  { id: 'rav', name: 'Rav Work', color: '#f0a202', glow: 'rgba(240, 162, 2, 0.45)' },
-  { id: 'personal', name: 'Personal Time', color: '#a78bfa', glow: 'rgba(167, 139, 250, 0.45)' },
+  { id: 'chase', name: 'Chase Build', color: '#5b8def' },
+  { id: 'myProject', name: 'My Project', color: '#3d9b7a' },
+  { id: 'rav', name: 'Rav Work', color: '#c4922a' },
+  { id: 'personal', name: 'Personal Time', color: '#8b7ec8' },
 ]
 
 export const PROJECT_MAP = Object.fromEntries(PROJECTS.map((p) => [p.id, p])) as Record<
@@ -19,6 +19,10 @@ let idCounter = 0
 export function uid(prefix = 'id') {
   idCounter += 1
   return `${prefix}-${Date.now().toString(36)}-${idCounter}`
+}
+
+function task(text: string, forToday: boolean, done = false): Task {
+  return { id: uid('task'), text, done, forToday }
 }
 
 export function createSeedState(): AppState {
@@ -53,43 +57,44 @@ export function createSeedState(): AppState {
     ],
     tasks: {
       chase: [
-        { id: uid('task'), text: 'Finalise phone setup section', done: false },
-        { id: uid('task'), text: 'Integrate candidate vs client backend + front end', done: false },
-        { id: uid('task'), text: 'Contacts list 1x (toggle)', done: false },
-        { id: uid('task'), text: 'Pipelines 2x', done: false },
-        { id: uid('task'), text: 'Calendar 1x', done: false },
+        task('Finalise phone setup section', true),
+        task('Integrate candidate vs client backend + front end', true),
+        task('Contacts list 1x (toggle)', true),
+        task('Pipelines 2x', false),
+        task('Calendar 1x', false),
+        task('Candidate search filters polish', false),
+        task('Onboarding email sequences', false),
       ],
       myProject: [
-        { id: uid('task'), text: 'Creative Generation Academy', done: false },
-        { id: uid('task'), text: 'Media Buyer Academy', done: false },
-        { id: uid('task'), text: 'Head Of Research Academy', done: false },
-        { id: uid('task'), text: 'Complete CEO Academy', done: false },
+        task('Creative Generation Academy', true),
+        task('Media Buyer Academy', true),
+        task('Head Of Research Academy', false),
+        task('Complete CEO Academy', false),
+        task('Offer positioning rewrite', false),
       ],
-      rav: [{ id: uid('task'), text: 'Add To Stripe', done: false }],
+      rav: [
+        task('Add To Stripe', true),
+        task('Invoice follow-up batch', false),
+        task('Scope next deliverable', false),
+      ],
       personal: [
-        { id: uid('task'), text: 'Deep Reflection', done: false },
-        { id: uid('task'), text: 'Fuck You List', done: false },
-        { id: uid('task'), text: 'Move Attention OS To Vercel', done: false },
-        { id: uid('task'), text: 'Mumma Bday Card', done: false },
-        { id: uid('task'), text: 'Apartment Deposit + Finances', done: false },
+        task('Deep Reflection', true),
+        task('Fuck You List', false),
+        task('Move Attention OS To Vercel', false),
+        task('Mumma Bday Card', true),
+        task('Apartment Deposit + Finances', false),
       ],
     },
-    // Seeded from screenshots so Day / Week / Total + calendar match
     timeEntries: [
-      // Mon 20 Jul — ~4h deep work
       { id: uid('te'), projectId: 'chase', date: '2026-07-20', minutes: 180 },
       { id: uid('te'), projectId: 'myProject', date: '2026-07-20', minutes: 60 },
-      // Tue 21 Jul — 2h 34m
       { id: uid('te'), projectId: 'chase', date: '2026-07-21', minutes: 90 },
       { id: uid('te'), projectId: 'myProject', date: '2026-07-21', minutes: 50 },
       { id: uid('te'), projectId: 'rav', date: '2026-07-21', minutes: 14 },
-      // Wed 22 Jul — 8h 49m deep + 48m personal
       { id: uid('te'), projectId: 'chase', date: '2026-07-22', minutes: 414 },
       { id: uid('te'), projectId: 'myProject', date: '2026-07-22', minutes: 87 },
       { id: uid('te'), projectId: 'rav', date: '2026-07-22', minutes: 28 },
       { id: uid('te'), projectId: 'personal', date: '2026-07-22', minutes: 48 },
-      // Prior backlog to hit ~16h 11m all-time (remaining after above)
-      // Current sum: 180+60+90+50+14+414+87+28+48 = 971 ✓ (16h 11m)
     ],
     calendarBlocks: [
       {
@@ -136,5 +141,12 @@ export function createSeedState(): AppState {
     activeTimer: null,
     summaryMode: 'day',
     calendarMonth: '2026-07',
+    dailyDeepWorkTargetMinutes: 6 * 60, // 6h — aggressive, editable
+    showAllTasks: false,
+    dailyOneThing: {
+      '2026-07-22': 'Ship Chase phone setup + pipelines to done',
+      '2026-07-21': 'Clear Chase backend integration block',
+      '2026-07-20': 'Protect 4h deep work — no phone',
+    },
   }
 }

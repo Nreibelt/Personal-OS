@@ -4,13 +4,14 @@ export interface Project {
   id: ProjectId
   name: string
   color: string
-  glow: string
 }
 
 export interface Task {
   id: string
   text: string
   done: boolean
+  /** Planned for execution today vs backlog brain-dump */
+  forToday: boolean
 }
 
 export interface Habit {
@@ -51,6 +52,9 @@ export interface ActiveTimer {
   elapsedBefore: number
 }
 
+/** Per-day one-liner: the single outcome that matters */
+export type DailyOneThing = Record<string, string>
+
 export interface AppState {
   selectedDate: string
   identityTitle: string
@@ -66,6 +70,15 @@ export interface AppState {
   activeTimer: ActiveTimer | null
   summaryMode: 'day' | 'week' | 'total'
   calendarMonth: string // YYYY-MM
+  /** Daily deep work target in minutes (Chase + My Project + Rav) */
+  dailyDeepWorkTargetMinutes: number
+  /** Show backlog tasks across project cards */
+  showAllTasks: boolean
+  /** Date → most important outcome for that day */
+  dailyOneThing: DailyOneThing
 }
 
 export type SummaryMode = AppState['summaryMode']
+
+/** Projects that count toward deep work target */
+export const DEEP_WORK_IDS: ProjectId[] = ['chase', 'myProject', 'rav']

@@ -11,18 +11,39 @@ import type {
   Task,
   TimeEntry,
 } from '../types'
+import { DEEP_WORK_IDS } from '../types'
 import { addDays, parseDateKey, startOfWeekMonday, toDateKey, weekDays } from '../utils/time'
 
-const STORAGE_KEY = 'batcave-deep-work-os-v1'
+const STORAGE_KEY = 'batcave-deep-work-os-v2'
+
+function migrateTasks(tasks: AppState['tasks']): AppState['tasks'] {
+  const next = { ...tasks }
+  for (const id of Object.keys(next) as ProjectId[]) {
+    next[id] = (next[id] || []).map((t) => ({
+      ...t,
+      forToday: typeof t.forToday === 'boolean' ? t.forToday : true,
+    }))
+  }
+  return next
+}
 
 function loadState(): AppState {
+  const seed = createSeedState()
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return createSeedState()
-    const parsed = JSON.parse(raw) as AppState
-    return { ...createSeedState(), ...parsed }
+    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('batcave-deep-work-os-v1')
+    if (!raw) return seed
+    const parsed = JSON.parse(raw) as Partial<AppState>
+    return {
+      ...seed,
+      ...parsed,
+      tasks: migrateTasks((parsed.tasks as AppState['tasks']) || seed.tasks),
+      dailyDeepWorkTargetMinutes:
+        parsed.dailyDeepWorkTargetMinutes ?? seed.dailyDeepWorkTargetMinutes,
+      showAllTasks: parsed.showAllTasks ?? false,
+      dailyOneThing: { ...seed.dailyOneThing, ...(parsed.dailyOneThing || {}) },
+    }
   } catch {
-    return createSeedState()
+    return seed
   }
 }
 
@@ -53,6 +74,20 @@ export function useStore() {
   )
 
   const setWeekIntention = useCallback((weekIntention: string) => update({ weekIntention }), [update])
+
+  const setDailyTargetHours = useCallback((hours: number) => {
+    const clamped = Math.max(0.5, Math.min(16, hours))
+    update({ dailyDeepWorkTargetMinutes: Math.round(clamped * 60) })
+  }, [update])
+
+  const setShowAllTasks = useCallback((showAllTasks: boolean) => update({ showAllTasks }), [update])
+
+  const setOneThing = useCallback((date: string, text: string) => {
+    update((s) => ({
+      ...s,
+      dailyOneThing: { ...s.dailyOneThing, [date]: text },
+    }))
+  }, [update])
 
   const toggleLoop = useCallback((id: string) => {
     update((s) => ({
@@ -120,14 +155,29 @@ export function useStore() {
     }))
   }, [update])
 
-  const addTask = useCallback((projectId: ProjectId, text: string) => {
+  const setTaskForToday = useCallback((projectId: ProjectId, taskId: string, forToday: boolean) => {
+    update((s) => ({
+      ...s,
+      tasks: {
+        ...s.tasks,
+        [projectId]: s.tasks[projectId].map((t) =>
+          t.id === taskId ? { ...t, forToday } : t,
+        ),
+      },
+    }))
+  }, [update])
+
+  const addTask = useCallback((projectId: ProjectId, text: string, forToday = true) => {
     const trimmed = text.trim()
     if (!trimmed) return
     update((s) => ({
       ...s,
       tasks: {
         ...s.tasks,
-        [projectId]: [...s.tasks[projectId], { id: uid('task'), text: trimmed, done: false } satisfies Task],
+        [projectId]: [
+          ...s.tasks[projectId],
+          { id: uid('task'), text: trimmed, done: false, forToday } satisfies Task,
+        ],
       },
     }))
   }, [update])
@@ -156,10 +206,6 @@ export function useStore() {
       } satisfies ActiveTimer,
     }))
   }, [update])
-
-  const minimizeTimer = useCallback(() => {
-    // Keep running — overlay just closes via UI state; timer stays in store
-  }, [])
 
   const finishTimer = useCallback(() => {
     update((s) => {
@@ -223,6 +269,70 @@ export function useStore() {
     [state.timeEntries, state.selectedDate],
   )
 
+  const deepWorkMinutesForDate = useCallback(
+    (date: string) => {
+      void tick
+      let total = state.timeEntries
+        .filter((e) => e.date === date && DEEP_WORK_IDS.includes(e.projectId))
+        .reduce((s, e) => s + e.minutes, 0)
+      if (
+        state.activeTimer &&
+        state.selectedDate === date &&
+        DEEP_WORK_IDS.includes(state.activeTimer.projectId)
+      ) {
+        total += Math.floor(
+          (Date.now() - state.activeTimer.startedAt + state.activeTimer.elapsedBefore) / 60000,
+        )
+      }
+      return total
+    },
+    [state.timeEntries, state.activeTimer, state.selectedDate, tick],
+  )
+
+  const hitTarget = useCallback(
+    (date: string) => deepWorkMinutesForDate(date) >= state.dailyDeepWorkTargetMinutes,
+    [deepWorkMinutesForDate, state.dailyDeepWorkTargetMinutes],
+  )
+
+  const targetStreak = useMemo(() => {
+    // Count consecutive hit days ending at selectedDate (walking backward)
+    let streak = 0
+    let cursor = state.selectedDate
+    // If today hasn't hit yet, still count prior streak from yesterday
+    if (!hitTarget(cursor)) {
+      cursor = addDays(cursor, -1)
+    }
+    for (let i = 0; i < 365; i++) {
+      const mins = state.timeEntries
+        .filter((e) => e.date === cursor && DEEP_WORK_IDS.includes(e.projectId))
+        .reduce((s, e) => s + e.minutes, 0)
+      // Only count days that have some logged deep work OR are hits
+      const hasData = state.timeEntries.some((e) => e.date === cursor)
+      if (!hasData && mins === 0) break
+      if (mins >= state.dailyDeepWorkTargetMinutes) {
+        streak += 1
+        cursor = addDays(cursor, -1)
+      } else {
+        break
+      }
+    }
+    return streak
+  }, [state.selectedDate, state.timeEntries, state.dailyDeepWorkTargetMinutes, hitTarget])
+
+  const weekHitRate = useMemo(() => {
+    const days = weekDays(state.selectedDate)
+    let hits = 0
+    let counted = 0
+    for (const d of days) {
+      const hasData = state.timeEntries.some((e) => e.date === d)
+      if (!hasData && d > state.selectedDate) continue
+      if (!hasData && d !== state.selectedDate) continue
+      counted += 1
+      if (hitTarget(d)) hits += 1
+    }
+    return { hits, counted }
+  }, [state.selectedDate, state.timeEntries, hitTarget])
+
   const liveTimerSeconds = useMemo(() => {
     void tick
     if (!state.activeTimer) return 0
@@ -251,9 +361,16 @@ export function useStore() {
     projectMinutesToday,
     weekStart,
     weekEnd,
+    deepWorkMinutesForDate,
+    hitTarget,
+    targetStreak,
+    weekHitRate,
     setSelectedDate,
     setIdentity,
     setWeekIntention,
+    setDailyTargetHours,
+    setShowAllTasks,
+    setOneThing,
     toggleLoop,
     addLoop,
     removeLoop,
@@ -262,12 +379,12 @@ export function useStore() {
     toggleHabit,
     addHabit,
     toggleTask,
+    setTaskForToday,
     addTask,
     removeTask,
     setSummaryMode,
     setCalendarMonth,
     startTimer,
-    minimizeTimer,
     finishTimer,
     discardTimer,
     addCalendarBlock,

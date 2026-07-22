@@ -97,7 +97,7 @@ export function ThreeDayCalendar({ store }: { store: Store }) {
   return (
     <>
       <HudPanel
-        label="OPS CALENDAR // 3-DAY VIEW"
+        label="3-DAY CALENDAR"
         action={
           <div className="month-nav">
             <button
@@ -205,8 +205,7 @@ export function ThreeDayCalendar({ store }: { store: Store }) {
                       top,
                       height,
                       borderColor: color,
-                      background: `${color}22`,
-                      boxShadow: `0 0 12px ${color}33`,
+                      background: `${color}18`,
                     }}
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={() => openEdit(block)}
@@ -236,7 +235,7 @@ export function ThreeDayCalendar({ store }: { store: Store }) {
         </div>
 
         <p className="three-day-hint">
-          CLICK + DRAG on a day column to create a titled block · CLICK a block to edit
+          CLICK + DRAG to create a block · CLICK a block to edit
         </p>
       </HudPanel>
 

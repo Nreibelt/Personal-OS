@@ -19,7 +19,7 @@ export function WeekIntention({ store }: { store: Store }) {
               setEditing(true)
             }}
           >
-            ✎ EDIT
+            Edit
           </button>
         ) : null
       }
