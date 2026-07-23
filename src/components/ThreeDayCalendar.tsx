@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { PROJECT_MAP, PROJECTS } from '../data/seed'
 import type { CalendarBlock, ProjectId } from '../types'
 import type { Store } from '../hooks/useStore'
@@ -16,28 +16,51 @@ const DAY_END = 22 * 60 // 10 PM
 const RANGE = DAY_END - DAY_START
 const PX_PER_MIN = 1.1
 const HEIGHT = RANGE * PX_PER_MIN
+const SLOT = 15
 
-function snap(mins: number, step = 15) {
+function snap(mins: number, step = SLOT) {
   return Math.round(mins / step) * step
 }
+
+function buildTimeOptions() {
+  const opts: number[] = []
+  for (let m = DAY_START; m <= DAY_END; m += SLOT) opts.push(m)
+  return opts
+}
+
+const TIME_OPTIONS = buildTimeOptions()
+
+type RangeDraft = { date: string; start: number; end: number }
 
 export function ThreeDayCalendar({ store }: { store: Store }) {
   const center = store.state.selectedDate
   const days = useMemo(() => [addDays(center, -1), center, addDays(center, 1)], [center])
   const scrollRef = useRef<HTMLDivElement>(null)
+  const columnsRef = useRef<Map<string, HTMLElement>>(new Map())
 
-  const [draft, setDraft] = useState<{
-    date: string
-    start: number
-    end: number
-  } | null>(null)
+  // Modal create draft — only set after drag finishes
+  const [draft, setDraft] = useState<RangeDraft | null>(null)
+  // Live ghost while dragging to create (does not open modal)
+  const [createPreview, setCreatePreview] = useState<RangeDraft | null>(null)
+  // Live position while dragging an existing block
+  const [movePreview, setMovePreview] = useState<(RangeDraft & { id: string }) | null>(null)
+
   const [editing, setEditing] = useState<CalendarBlock | null>(null)
   const [title, setTitle] = useState('')
   const [projectId, setProjectId] = useState<ProjectId | ''>('chase')
-  const dragging = useRef<{ date: string; startY: number; origin: number } | null>(null)
+  const [startMinutes, setStartMinutes] = useState(DAY_START)
+  const [endMinutes, setEndMinutes] = useState(DAY_START + 60)
+
+  const createDrag = useRef<{ date: string; origin: number } | null>(null)
+  const moveDrag = useRef<{
+    id: string
+    duration: number
+    grabOffsetMins: number
+    startDate: string
+    moved: boolean
+  } | null>(null)
 
   useEffect(() => {
-    // Scroll to ~8am on mount
     if (scrollRef.current) {
       scrollRef.current.scrollTop = (8 * 60 - DAY_START) * PX_PER_MIN - 20
     }
@@ -53,29 +76,58 @@ export function ThreeDayCalendar({ store }: { store: Store }) {
     return snap(clamp(mins, DAY_START, DAY_END))
   }
 
+  const columnAtX = (clientX: number): { date: string; el: HTMLElement } | null => {
+    for (const date of days) {
+      const el = columnsRef.current.get(date)
+      if (!el) continue
+      const rect = el.getBoundingClientRect()
+      if (clientX >= rect.left && clientX <= rect.right) return { date, el }
+    }
+    return null
+  }
+
   const openCreate = (date: string, start: number, end: number) => {
     const s = Math.min(start, end)
     const e = Math.max(start, end)
-    if (e - s < 15) return
+    if (e - s < SLOT) return
     setDraft({ date, start: s, end: e })
     setTitle('')
     setProjectId('chase')
+    setStartMinutes(s)
+    setEndMinutes(e)
     setEditing(null)
+    setCreatePreview(null)
   }
 
   const openEdit = (block: CalendarBlock) => {
     setEditing(block)
     setTitle(block.title)
     setProjectId(block.projectId || '')
+    setStartMinutes(block.startMinutes)
+    setEndMinutes(block.endMinutes)
     setDraft(null)
+    setCreatePreview(null)
+  }
+
+  const closeModal = () => {
+    setDraft(null)
+    setEditing(null)
+    setCreatePreview(null)
   }
 
   const saveBlock = () => {
     const trimmed = title.trim() || 'Untitled block'
+    let start = snap(startMinutes)
+    let end = snap(endMinutes)
+    if (end <= start) end = Math.min(DAY_END, start + SLOT)
+    if (end <= start) start = Math.max(DAY_START, end - SLOT)
+
     if (editing) {
       store.updateCalendarBlock(editing.id, {
         title: trimmed,
         projectId: projectId || undefined,
+        startMinutes: start,
+        endMinutes: end,
       })
       setEditing(null)
       return
@@ -84,15 +136,146 @@ export function ThreeDayCalendar({ store }: { store: Store }) {
     store.addCalendarBlock({
       title: trimmed,
       date: draft.date,
-      startMinutes: draft.start,
-      endMinutes: draft.end,
+      startMinutes: start,
+      endMinutes: end,
       projectId: projectId || undefined,
     })
     setDraft(null)
   }
 
+  const onStartChange = (value: number) => {
+    const next = snap(value)
+    setStartMinutes(next)
+    if (endMinutes <= next) {
+      setEndMinutes(Math.min(DAY_END, next + SLOT))
+    }
+  }
+
+  const onEndChange = (value: number) => {
+    const next = snap(value)
+    setEndMinutes(next)
+    if (next <= startMinutes) {
+      setStartMinutes(Math.max(DAY_START, next - SLOT))
+    }
+  }
+
+  const beginCreateDrag = (date: string, col: HTMLElement, clientY: number) => {
+    const start = yToMinutes(clientY, col)
+    createDrag.current = { date, origin: start }
+    setCreatePreview({ date, start, end: start + 30 })
+    setDraft(null)
+    setEditing(null)
+
+    const onMove = (ev: MouseEvent) => {
+      if (!createDrag.current) return
+      const end = yToMinutes(ev.clientY, col)
+      setCreatePreview({
+        date: createDrag.current.date,
+        start: createDrag.current.origin,
+        end: end === createDrag.current.origin ? end + 30 : end,
+      })
+    }
+
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      if (!createDrag.current) return
+      const end = yToMinutes(ev.clientY, col)
+      const origin = createDrag.current.origin
+      const finalEnd = Math.abs(end - origin) < SLOT ? origin + 60 : end
+      const dateKey = createDrag.current.date
+      createDrag.current = null
+      setCreatePreview(null)
+      openCreate(dateKey, origin, finalEnd)
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  const beginMoveDrag = (
+    block: CalendarBlock,
+    col: HTMLElement,
+    clientY: number,
+    e: ReactMouseEvent,
+  ) => {
+    e.stopPropagation()
+    e.preventDefault()
+    const grabMins = yToMinutes(clientY, col)
+    const grabOffsetMins = grabMins - block.startMinutes
+    const duration = block.endMinutes - block.startMinutes
+    const previewRef: { current: RangeDraft & { id: string } } = {
+      current: {
+        id: block.id,
+        date: block.date,
+        start: block.startMinutes,
+        end: block.endMinutes,
+      },
+    }
+
+    moveDrag.current = {
+      id: block.id,
+      duration,
+      grabOffsetMins,
+      startDate: block.date,
+      moved: false,
+    }
+    setMovePreview(previewRef.current)
+
+    const onMove = (ev: MouseEvent) => {
+      const drag = moveDrag.current
+      if (!drag) return
+      const hit = columnAtX(ev.clientX) ?? { date: drag.startDate, el: col }
+      const pointerMins = yToMinutes(ev.clientY, hit.el)
+      let start = snap(pointerMins - drag.grabOffsetMins)
+      start = clamp(start, DAY_START, DAY_END - drag.duration)
+      const end = start + drag.duration
+      if (
+        start !== block.startMinutes ||
+        end !== block.endMinutes ||
+        hit.date !== block.date
+      ) {
+        drag.moved = true
+      }
+      previewRef.current = { id: drag.id, date: hit.date, start, end }
+      setMovePreview(previewRef.current)
+    }
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      const drag = moveDrag.current
+      moveDrag.current = null
+      const final = previewRef.current
+      setMovePreview(null)
+      if (drag?.moved) {
+        store.updateCalendarBlock(drag.id, {
+          date: final.date,
+          startMinutes: final.start,
+          endMinutes: final.end,
+        })
+      } else {
+        openEdit(block)
+      }
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
   const blocksFor = (date: string) =>
-    store.state.calendarBlocks.filter((b) => b.date === date)
+    store.state.calendarBlocks.filter((b) => {
+      if (movePreview?.id === b.id) return movePreview.date === date
+      return b.date === date
+    })
+
+  const ghostFor = (date: string): RangeDraft | null => {
+    if (createPreview?.date === date) return createPreview
+    if (draft && !editing && draft.date === date) return draft
+    return null
+  }
+
+  const modalOpen = Boolean(draft || editing)
 
   return (
     <>
@@ -153,34 +336,14 @@ export function ThreeDayCalendar({ store }: { store: Store }) {
               key={date}
               className="day-column"
               style={{ height: HEIGHT }}
+              ref={(el) => {
+                if (el) columnsRef.current.set(date, el)
+                else columnsRef.current.delete(date)
+              }}
               onMouseDown={(e) => {
                 if ((e.target as HTMLElement).closest('.cal-block')) return
-                const col = e.currentTarget
-                const start = yToMinutes(e.clientY, col)
-                dragging.current = { date, startY: e.clientY, origin: start }
-                setDraft({ date, start, end: start + 30 })
-
-                const onMove = (ev: MouseEvent) => {
-                  if (!dragging.current) return
-                  const end = yToMinutes(ev.clientY, col)
-                  setDraft({
-                    date: dragging.current.date,
-                    start: dragging.current.origin,
-                    end: end === dragging.current.origin ? end + 30 : end,
-                  })
-                }
-                const onUp = (ev: MouseEvent) => {
-                  window.removeEventListener('mousemove', onMove)
-                  window.removeEventListener('mouseup', onUp)
-                  if (!dragging.current) return
-                  const end = yToMinutes(ev.clientY, col)
-                  const origin = dragging.current.origin
-                  const finalEnd = Math.abs(end - origin) < 15 ? origin + 60 : end
-                  openCreate(dragging.current.date, origin, finalEnd)
-                  dragging.current = null
-                }
-                window.addEventListener('mousemove', onMove)
-                window.addEventListener('mouseup', onUp)
+                if (e.button !== 0) return
+                beginCreateDrag(date, e.currentTarget, e.clientY)
               }}
             >
               {hours.map((m) => (
@@ -195,52 +358,63 @@ export function ThreeDayCalendar({ store }: { store: Store }) {
                 const color = block.projectId
                   ? PROJECT_MAP[block.projectId].color
                   : block.color || '#00d4ff'
-                const top = (block.startMinutes - DAY_START) * PX_PER_MIN
-                const height = Math.max(24, (block.endMinutes - block.startMinutes) * PX_PER_MIN)
+                const live =
+                  movePreview?.id === block.id
+                    ? movePreview
+                    : { start: block.startMinutes, end: block.endMinutes }
+                const top = (live.start - DAY_START) * PX_PER_MIN
+                const height = Math.max(24, (live.end - live.start) * PX_PER_MIN)
+                const moving = movePreview?.id === block.id
                 return (
                   <div
                     key={block.id}
-                    className="cal-block"
+                    className={`cal-block${moving ? ' moving' : ''}`}
                     style={{
                       top,
                       height,
                       borderColor: color,
                       background: `${color}18`,
                     }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={() => openEdit(block)}
+                    onMouseDown={(e) => {
+                      if (e.button !== 0) return
+                      beginMoveDrag(block, e.currentTarget.parentElement as HTMLElement, e.clientY, e)
+                    }}
                   >
                     <p className="title">{block.title}</p>
                     <div className="time">
-                      {minutesToTimeLabel(block.startMinutes)} – {minutesToTimeLabel(block.endMinutes)}
+                      {minutesToTimeLabel(live.start)} – {minutesToTimeLabel(live.end)}
                     </div>
                   </div>
                 )
               })}
 
-              {draft && draft.date === date && !editing && (
-                <div
-                  className="drag-preview"
-                  style={{
-                    top: (Math.min(draft.start, draft.end) - DAY_START) * PX_PER_MIN,
-                    height: Math.max(
-                      20,
-                      Math.abs(draft.end - draft.start) * PX_PER_MIN,
-                    ),
-                  }}
-                />
-              )}
+              {(() => {
+                const ghost = ghostFor(date)
+                if (!ghost) return null
+                return (
+                  <div
+                    className="drag-preview"
+                    style={{
+                      top: (Math.min(ghost.start, ghost.end) - DAY_START) * PX_PER_MIN,
+                      height: Math.max(
+                        20,
+                        Math.abs(ghost.end - ghost.start) * PX_PER_MIN,
+                      ),
+                    }}
+                  />
+                )
+              })()}
             </div>
           ))}
         </div>
 
         <p className="three-day-hint">
-          CLICK + DRAG to create a block · CLICK a block to edit
+          DRAG empty space to create · DRAG a block to move · CLICK a block to edit
         </p>
       </HudPanel>
 
-      {(draft || editing) && (
-        <div className="modal-backdrop" role="presentation" onClick={() => { setDraft(null); setEditing(null) }}>
+      {modalOpen && (
+        <div className="modal-backdrop" role="presentation" onClick={closeModal}>
           <div
             className="modal"
             role="dialog"
@@ -258,13 +432,6 @@ export function ThreeDayCalendar({ store }: { store: Store }) {
               />
               {editing ? 'EDIT BLOCK' : 'NEW BLOCK'}
             </h2>
-            <p>
-              {editing
-                ? `${minutesToTimeLabel(editing.startMinutes)} – ${minutesToTimeLabel(editing.endMinutes)}`
-                : draft
-                  ? `${minutesToTimeLabel(Math.min(draft.start, draft.end))} – ${minutesToTimeLabel(Math.max(draft.start, draft.end))}`
-                  : ''}
-            </p>
             <input
               autoFocus
               value={title}
@@ -275,21 +442,41 @@ export function ThreeDayCalendar({ store }: { store: Store }) {
                 if (e.key === 'Enter') saveBlock()
               }}
             />
-            <label style={{ display: 'block', margin: '0.75rem 0 0.35rem', fontFamily: 'var(--font-mono)', fontSize: '0.72rem', letterSpacing: '0.1em', color: 'var(--text-dim)' }}>
-              PROJECT
-            </label>
+            <div className="time-fields">
+              <label>
+                START
+                <select
+                  value={startMinutes}
+                  onChange={(e) => onStartChange(Number(e.target.value))}
+                  aria-label="Start time"
+                >
+                  {TIME_OPTIONS.filter((m) => m < DAY_END).map((m) => (
+                    <option key={m} value={m}>
+                      {minutesToTimeLabel(m)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                FINISH
+                <select
+                  value={endMinutes}
+                  onChange={(e) => onEndChange(Number(e.target.value))}
+                  aria-label="Finish time"
+                >
+                  {TIME_OPTIONS.filter((m) => m > DAY_START).map((m) => (
+                    <option key={m} value={m}>
+                      {minutesToTimeLabel(m)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label className="field-label">PROJECT</label>
             <select
               value={projectId}
               onChange={(e) => setProjectId(e.target.value as ProjectId | '')}
-              style={{
-                width: '100%',
-                background: 'var(--bg-input)',
-                border: '1px solid var(--line)',
-                color: 'var(--text)',
-                padding: '0.55rem 0.75rem',
-                marginBottom: '1rem',
-                fontFamily: 'var(--font-ui)',
-              }}
+              className="field-select"
             >
               <option value="">Unassigned</option>
               {PROJECTS.map((p) => (
@@ -314,14 +501,7 @@ export function ThreeDayCalendar({ store }: { store: Store }) {
                   Delete
                 </button>
               )}
-              <button
-                className="btn-secondary"
-                type="button"
-                onClick={() => {
-                  setDraft(null)
-                  setEditing(null)
-                }}
-              >
+              <button className="btn-secondary" type="button" onClick={closeModal}>
                 Cancel
               </button>
             </div>
