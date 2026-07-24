@@ -1,4 +1,5 @@
 import type { AppState, Project, Task } from '../types'
+import { emptyFinanceLedger } from '../utils/finance'
 
 export const PROJECTS: Project[] = [
   { id: 'chase', name: 'Chase Build', color: '#5b8def' },
@@ -26,8 +27,11 @@ function task(text: string, forToday: boolean, done = false): Task {
 }
 
 export function createSeedState(): AppState {
+  const personalBillsId = uid('cat')
+  const companyBillsId = uid('cat')
   return {
     selectedDate: ANCHOR_DATE,
+    activeTab: 'deepWork',
     identityTitle: 'WHO I AM FOR THE NEXT 90 DAYS',
     identityQuestion: 'Constant Question: Is This A Decision From An Evolved Identity?',
     identityBody:
@@ -154,5 +158,7 @@ export function createSeedState(): AppState {
       '2026-07-21': 'Clear Chase backend integration block',
       '2026-07-20': 'Protect 4h deep work — no phone',
     },
+    personalFinance: emptyFinanceLedger(personalBillsId),
+    companyFinance: emptyFinanceLedger(companyBillsId),
   }
 }
