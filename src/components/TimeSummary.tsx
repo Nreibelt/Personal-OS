@@ -1,4 +1,4 @@
-import type { ProjectId } from '../types'
+import { DEEP_WORK_IDS } from '../types'
 import { PROJECTS } from '../data/seed'
 import type { Store } from '../hooks/useStore'
 import { formatLongDate, formatMinutes } from '../utils/time'
@@ -6,8 +6,7 @@ import { HudPanel } from './HudPanel'
 
 export function TimeSummary({ store }: { store: Store }) {
   const mode = store.state.summaryMode
-  const deepIds: ProjectId[] = ['chase', 'myProject', 'rav']
-  const deepTotal = deepIds.reduce((sum, id) => sum + store.minutesFor(id, mode), 0)
+  const deepTotal = DEEP_WORK_IDS.reduce((sum, id) => sum + store.minutesFor(id, mode), 0)
   const personal = store.minutesFor('personal', mode)
 
   const rows = PROJECTS.map((p) => {

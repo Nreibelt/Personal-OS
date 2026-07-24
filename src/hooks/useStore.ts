@@ -4,6 +4,8 @@ import type {
   ActiveTimer,
   AppState,
   CalendarBlock,
+  DailyDeepWorkSplit,
+  DeepWorkId,
   Habit,
   OpenLoop,
   ProjectId,
@@ -11,7 +13,12 @@ import type {
   Task,
   TimeEntry,
 } from '../types'
-import { DEEP_WORK_IDS } from '../types'
+import {
+  DEEP_WORK_IDS,
+  equalDeepWorkSplit,
+  isDeepWorkId,
+  scaleDeepWorkSplit,
+} from '../types'
 import { addDays, parseDateKey, startOfWeekMonday, toDateKey, weekDays } from '../utils/time'
 
 const STORAGE_KEY = 'batcave-deep-work-os-v2'
@@ -27,6 +34,25 @@ function migrateTasks(tasks: AppState['tasks']): AppState['tasks'] {
   return next
 }
 
+function migrateSplit(
+  raw: Partial<DailyDeepWorkSplit> | undefined,
+  totalMinutes: number,
+  fallback: DailyDeepWorkSplit,
+): DailyDeepWorkSplit {
+  if (!raw || typeof raw !== 'object') {
+    return scaleDeepWorkSplit(fallback, totalMinutes)
+  }
+  const split: DailyDeepWorkSplit = {
+    chase: Math.max(0, Math.round(Number(raw.chase) || 0)),
+    myProject: Math.max(0, Math.round(Number(raw.myProject) || 0)),
+    rav: Math.max(0, Math.round(Number(raw.rav) || 0)),
+  }
+  const sum = DEEP_WORK_IDS.reduce((s, id) => s + split[id], 0)
+  if (sum <= 0) return equalDeepWorkSplit(totalMinutes)
+  if (sum !== totalMinutes) return scaleDeepWorkSplit(split, totalMinutes)
+  return split
+}
+
 function loadState(): AppState {
   const seed = createSeedState()
   try {
@@ -39,6 +65,11 @@ function loadState(): AppState {
       tasks: migrateTasks((parsed.tasks as AppState['tasks']) || seed.tasks),
       dailyDeepWorkTargetMinutes:
         parsed.dailyDeepWorkTargetMinutes ?? seed.dailyDeepWorkTargetMinutes,
+      dailyDeepWorkSplit: migrateSplit(
+        parsed.dailyDeepWorkSplit,
+        parsed.dailyDeepWorkTargetMinutes ?? seed.dailyDeepWorkTargetMinutes,
+        seed.dailyDeepWorkSplit,
+      ),
       showAllTasks: parsed.showAllTasks ?? false,
       dailyOneThing: { ...seed.dailyOneThing, ...(parsed.dailyOneThing || {}) },
     }
@@ -77,7 +108,31 @@ export function useStore() {
 
   const setDailyTargetHours = useCallback((hours: number) => {
     const clamped = Math.max(0.5, Math.min(16, hours))
-    update({ dailyDeepWorkTargetMinutes: Math.round(clamped * 60) })
+    const minutes = Math.round(clamped * 60)
+    update((s) => ({
+      ...s,
+      dailyDeepWorkTargetMinutes: minutes,
+      dailyDeepWorkSplit: scaleDeepWorkSplit(s.dailyDeepWorkSplit, minutes),
+    }))
+  }, [update])
+
+  /** Set the full allocation from hours per section. Split sum becomes the new total. */
+  const setDailyDeepWorkSplit = useCallback((splitHours: Record<DeepWorkId, number>) => {
+    const split: DailyDeepWorkSplit = {
+      chase: Math.max(0, Math.round(splitHours.chase * 60)),
+      myProject: Math.max(0, Math.round(splitHours.myProject * 60)),
+      rav: Math.max(0, Math.round(splitHours.rav * 60)),
+    }
+    let total = DEEP_WORK_IDS.reduce((s, id) => s + split[id], 0)
+    total = Math.max(30, Math.min(16 * 60, total))
+    const normalized =
+      DEEP_WORK_IDS.reduce((s, id) => s + split[id], 0) === total
+        ? split
+        : scaleDeepWorkSplit(split, total)
+    update({
+      dailyDeepWorkTargetMinutes: total,
+      dailyDeepWorkSplit: normalized,
+    })
   }, [update])
 
   const setShowAllTasks = useCallback((showAllTasks: boolean) => update({ showAllTasks }), [update])
@@ -273,12 +328,12 @@ export function useStore() {
     (date: string) => {
       void tick
       let total = state.timeEntries
-        .filter((e) => e.date === date && DEEP_WORK_IDS.includes(e.projectId))
+        .filter((e) => e.date === date && isDeepWorkId(e.projectId))
         .reduce((s, e) => s + e.minutes, 0)
       if (
         state.activeTimer &&
         state.selectedDate === date &&
-        DEEP_WORK_IDS.includes(state.activeTimer.projectId)
+        isDeepWorkId(state.activeTimer.projectId)
       ) {
         total += Math.floor(
           (Date.now() - state.activeTimer.startedAt + state.activeTimer.elapsedBefore) / 60000,
@@ -304,7 +359,7 @@ export function useStore() {
     }
     for (let i = 0; i < 365; i++) {
       const mins = state.timeEntries
-        .filter((e) => e.date === cursor && DEEP_WORK_IDS.includes(e.projectId))
+        .filter((e) => e.date === cursor && isDeepWorkId(e.projectId))
         .reduce((s, e) => s + e.minutes, 0)
       // Only count days that have some logged deep work OR are hits
       const hasData = state.timeEntries.some((e) => e.date === cursor)
@@ -369,6 +424,7 @@ export function useStore() {
     setIdentity,
     setWeekIntention,
     setDailyTargetHours,
+    setDailyDeepWorkSplit,
     setShowAllTasks,
     setOneThing,
     toggleLoop,
