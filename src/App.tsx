@@ -1,3 +1,4 @@
+import { DashboardView } from './components/DashboardView'
 import { DeepWorkView } from './components/DeepWorkView'
 import { FinancesView } from './components/FinancesView'
 import { useStore } from './hooks/useStore'
@@ -5,6 +6,7 @@ import type { AppTab } from './types'
 import { formatLongDate, formatMinutes } from './utils/time'
 
 const TABS: { id: AppTab; label: string; sub: string }[] = [
+  { id: 'dashboard', label: 'Dashboard', sub: 'Dashboard' },
   { id: 'deepWork', label: 'Deep Work', sub: 'Deep Work' },
   { id: 'companyFinances', label: 'Company Finances', sub: 'Company Finances' },
   { id: 'personalFinances', label: 'Personal Finances', sub: 'Personal Finances' },
@@ -67,6 +69,7 @@ export default function App() {
         </div>
       </header>
 
+      {tab === 'dashboard' && <DashboardView />}
       {tab === 'deepWork' && <DeepWorkView store={store} />}
       {tab === 'personalFinances' && <FinancesView store={store} realm="personal" />}
       {tab === 'companyFinances' && <FinancesView store={store} realm="company" />}

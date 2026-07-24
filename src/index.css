@@ -1505,6 +1505,103 @@ select:focus {
   background: var(--brass-soft);
 }
 
+/* Dashboard — centering overview */
+.dashboard {
+  max-width: 42rem;
+  margin: 0.5rem auto 2rem;
+  padding: 0.5rem 0 1rem;
+  animation: rise 0.45s ease both;
+}
+
+.dashboard-lede {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 3.2vw, 2.15rem);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0 0 2.25rem;
+  animation: rise 0.55s ease both;
+}
+
+.dashboard-section {
+  margin-bottom: 2.35rem;
+  padding-top: 1.35rem;
+  border-top: 1px solid var(--line);
+  animation: rise 0.6s ease both;
+}
+
+.dashboard-section:nth-child(3) {
+  animation-delay: 0.06s;
+}
+
+.dashboard-section:nth-child(4) {
+  animation-delay: 0.12s;
+}
+
+.dashboard-heading {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--brass);
+  margin: 0 0 1rem;
+  font-weight: 500;
+}
+
+.dashboard-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: dash-step;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.dashboard-list li {
+  counter-increment: dash-step;
+  display: flex;
+  align-items: baseline;
+  gap: 0.85rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.dashboard-list li::before {
+  content: counter(dash-step, decimal-leading-zero);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  min-width: 1.6rem;
+}
+
+.dashboard-week {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.dashboard-week-block p {
+  margin: 0.35rem 0 0;
+  font-size: 1.12rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.dashboard-week-when {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
 /* Finance surfaces */
 .finance-view {
   animation: rise 0.4s ease both;
