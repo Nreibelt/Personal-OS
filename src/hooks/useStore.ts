@@ -3,12 +3,19 @@ import { createSeedState, PROJECTS, uid } from '../data/seed'
 import type {
   ActiveTimer,
   AppState,
+  AppTab,
   CalendarBlock,
+  CashAllocationLine,
   DailyDeepWorkSplit,
   DeepWorkId,
+  ExpenseCategory,
+  ExpenseFrequency,
+  FinanceLedger,
+  FinanceRealm,
   Habit,
   OpenLoop,
   ProjectId,
+  SpendEntry,
   SummaryMode,
   Task,
   TimeEntry,
@@ -53,6 +60,17 @@ function migrateSplit(
   return split
 }
 
+function migrateLedger(raw: Partial<FinanceLedger> | undefined, fallback: FinanceLedger): FinanceLedger {
+  if (!raw || typeof raw !== 'object') return fallback
+  const categories = Array.isArray(raw.categories) ? raw.categories : fallback.categories
+  const hasBills = categories.some((c) => c.isPreset && !c.parentId && c.name.toLowerCase() === 'bills')
+  return {
+    categories: hasBills ? categories : [...fallback.categories, ...categories],
+    allocations: Array.isArray(raw.allocations) ? raw.allocations : [],
+    spends: Array.isArray(raw.spends) ? raw.spends : [],
+  }
+}
+
 function loadState(): AppState {
   const seed = createSeedState()
   try {
@@ -62,6 +80,7 @@ function loadState(): AppState {
     return {
       ...seed,
       ...parsed,
+      activeTab: parsed.activeTab ?? 'deepWork',
       tasks: migrateTasks((parsed.tasks as AppState['tasks']) || seed.tasks),
       dailyDeepWorkTargetMinutes:
         parsed.dailyDeepWorkTargetMinutes ?? seed.dailyDeepWorkTargetMinutes,
@@ -72,10 +91,16 @@ function loadState(): AppState {
       ),
       showAllTasks: parsed.showAllTasks ?? false,
       dailyOneThing: { ...seed.dailyOneThing, ...(parsed.dailyOneThing || {}) },
+      personalFinance: migrateLedger(parsed.personalFinance, seed.personalFinance),
+      companyFinance: migrateLedger(parsed.companyFinance, seed.companyFinance),
     }
   } catch {
     return seed
   }
+}
+
+function ledgerKey(realm: FinanceRealm): 'personalFinance' | 'companyFinance' {
+  return realm === 'personal' ? 'personalFinance' : 'companyFinance'
 }
 
 export function useStore() {
@@ -96,7 +121,16 @@ export function useStore() {
     setState((s) => (typeof patch === 'function' ? patch(s) : { ...s, ...patch }))
   }, [])
 
+  const patchLedger = useCallback(
+    (realm: FinanceRealm, fn: (ledger: FinanceLedger) => FinanceLedger) => {
+      const key = ledgerKey(realm)
+      update((s) => ({ ...s, [key]: fn(s[key]) }))
+    },
+    [update],
+  )
+
   const setSelectedDate = useCallback((date: string) => update({ selectedDate: date }), [update])
+  const setActiveTab = useCallback((activeTab: AppTab) => update({ activeTab }), [update])
 
   const setIdentity = useCallback(
     (fields: Partial<Pick<AppState, 'identityTitle' | 'identityQuestion' | 'identityBody'>>) =>
@@ -303,6 +337,165 @@ export function useStore() {
     }))
   }, [update])
 
+  // ——— Finance ———
+
+  const addExpenseCategory = useCallback(
+    (
+      realm: FinanceRealm,
+      input: { name: string; frequency: ExpenseFrequency; amount: number; parentId?: string },
+    ) => {
+      const name = input.name.trim()
+      if (!name || input.amount < 0) return
+      patchLedger(realm, (ledger) => {
+        const parent = input.parentId
+          ? ledger.categories.find((c) => c.id === input.parentId)
+          : undefined
+        const cat: ExpenseCategory = {
+          id: uid('cat'),
+          name,
+          frequency: parent?.frequency ?? input.frequency,
+          amount: Math.round(input.amount * 100) / 100,
+          parentId: input.parentId,
+        }
+        return { ...ledger, categories: [...ledger.categories, cat] }
+      })
+    },
+    [patchLedger],
+  )
+
+  const updateExpenseCategory = useCallback(
+    (
+      realm: FinanceRealm,
+      id: string,
+      patch: Partial<Pick<ExpenseCategory, 'name' | 'frequency' | 'amount'>>,
+    ) => {
+      patchLedger(realm, (ledger) => ({
+        ...ledger,
+        categories: ledger.categories.map((c) => {
+          if (c.id !== id) {
+            // When parent frequency changes, sync children
+            if (
+              patch.frequency &&
+              c.parentId === id
+            ) {
+              return { ...c, frequency: patch.frequency }
+            }
+            return c
+          }
+          const next = { ...c, ...patch }
+          if (typeof patch.amount === 'number') {
+            next.amount = Math.round(patch.amount * 100) / 100
+          }
+          if (patch.name !== undefined) next.name = patch.name.trim() || c.name
+          return next
+        }),
+      }))
+    },
+    [patchLedger],
+  )
+
+  const removeExpenseCategory = useCallback(
+    (realm: FinanceRealm, id: string) => {
+      patchLedger(realm, (ledger) => {
+        const target = ledger.categories.find((c) => c.id === id)
+        if (!target || target.isPreset) return ledger
+        const removeIds = new Set([
+          id,
+          ...ledger.categories.filter((c) => c.parentId === id).map((c) => c.id),
+        ])
+        return {
+          ...ledger,
+          categories: ledger.categories.filter((c) => !removeIds.has(c.id)),
+        }
+      })
+    },
+    [patchLedger],
+  )
+
+  const addCashAllocation = useCallback(
+    (
+      realm: FinanceRealm,
+      input: {
+        date: string
+        totalAmount: number
+        note?: string
+        lines: Omit<CashAllocationLine, 'id'>[]
+      },
+    ) => {
+      if (input.totalAmount <= 0 || input.lines.length === 0) return
+      const lines: CashAllocationLine[] = input.lines
+        .filter((l) => l.amount > 0)
+        .map((l) => ({ ...l, id: uid('aline'), amount: Math.round(l.amount * 100) / 100 }))
+      if (lines.length === 0) return
+      patchLedger(realm, (ledger) => ({
+        ...ledger,
+        allocations: [
+          {
+            id: uid('alloc'),
+            date: input.date,
+            totalAmount: Math.round(input.totalAmount * 100) / 100,
+            note: input.note?.trim() || undefined,
+            lines,
+          },
+          ...ledger.allocations,
+        ],
+      }))
+    },
+    [patchLedger],
+  )
+
+  const removeCashAllocation = useCallback(
+    (realm: FinanceRealm, id: string) => {
+      patchLedger(realm, (ledger) => ({
+        ...ledger,
+        allocations: ledger.allocations.filter((a) => a.id !== id),
+      }))
+    },
+    [patchLedger],
+  )
+
+  const addSpend = useCallback(
+    (
+      realm: FinanceRealm,
+      input: {
+        date: string
+        amount: number
+        kind: SpendEntry['kind']
+        categoryId?: string
+        label?: string
+        note?: string
+      },
+    ) => {
+      if (input.amount <= 0) return
+      if (input.kind === 'category' && !input.categoryId) return
+      if (input.kind === 'unexpected' && !input.label?.trim()) return
+      const entry: SpendEntry = {
+        id: uid('spend'),
+        date: input.date,
+        amount: Math.round(input.amount * 100) / 100,
+        kind: input.kind,
+        categoryId: input.categoryId,
+        label: input.label?.trim() || undefined,
+        note: input.note?.trim() || undefined,
+      }
+      patchLedger(realm, (ledger) => ({
+        ...ledger,
+        spends: [entry, ...ledger.spends],
+      }))
+    },
+    [patchLedger],
+  )
+
+  const removeSpend = useCallback(
+    (realm: FinanceRealm, id: string) => {
+      patchLedger(realm, (ledger) => ({
+        ...ledger,
+        spends: ledger.spends.filter((s) => s.id !== id),
+      }))
+    },
+    [patchLedger],
+  )
+
   const resetToSeed = useCallback(() => {
     const seed = createSeedState()
     setState(seed)
@@ -350,10 +543,8 @@ export function useStore() {
   )
 
   const targetStreak = useMemo(() => {
-    // Count consecutive hit days ending at selectedDate (walking backward)
     let streak = 0
     let cursor = state.selectedDate
-    // If today hasn't hit yet, still count prior streak from yesterday
     if (!hitTarget(cursor)) {
       cursor = addDays(cursor, -1)
     }
@@ -361,7 +552,6 @@ export function useStore() {
       const mins = state.timeEntries
         .filter((e) => e.date === cursor && isDeepWorkId(e.projectId))
         .reduce((s, e) => s + e.minutes, 0)
-      // Only count days that have some logged deep work OR are hits
       const hasData = state.timeEntries.some((e) => e.date === cursor)
       if (!hasData && mins === 0) break
       if (mins >= state.dailyDeepWorkTargetMinutes) {
@@ -409,6 +599,11 @@ export function useStore() {
   const weekStart = startOfWeekMonday(state.selectedDate)
   const weekEnd = addDays(weekStart, 6)
 
+  const financeFor = useCallback(
+    (realm: FinanceRealm) => state[ledgerKey(realm)],
+    [state],
+  )
+
   return {
     state,
     projects: PROJECTS,
@@ -421,6 +616,7 @@ export function useStore() {
     targetStreak,
     weekHitRate,
     setSelectedDate,
+    setActiveTab,
     setIdentity,
     setWeekIntention,
     setDailyTargetHours,
@@ -446,6 +642,14 @@ export function useStore() {
     addCalendarBlock,
     updateCalendarBlock,
     removeCalendarBlock,
+    addExpenseCategory,
+    updateExpenseCategory,
+    removeExpenseCategory,
+    addCashAllocation,
+    removeCashAllocation,
+    addSpend,
+    removeSpend,
+    financeFor,
     minutesFor,
     resetToSeed,
     parseDateKey,

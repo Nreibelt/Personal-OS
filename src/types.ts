@@ -94,8 +94,63 @@ export function scaleDeepWorkSplit(
   return scaled
 }
 
+/** Top-level product surface */
+export type AppTab = 'deepWork' | 'personalFinances' | 'companyFinances'
+
+export type FinanceRealm = 'personal' | 'company'
+
+export type ExpenseFrequency = 'daily' | 'weekly' | 'monthly'
+
+/** Set-expense category / bucket. Bills is seeded as a preset parent for micro expenses. */
+export interface ExpenseCategory {
+  id: string
+  name: string
+  frequency: ExpenseFrequency
+  /** Budget for one frequency period. For parents with children, effective budget is sum of children. */
+  amount: number
+  /** Present when this is a micro-expense under Bills (or another parent). */
+  parentId?: string
+  /** Seeded presets like Bills cannot be deleted. */
+  isPreset?: boolean
+}
+
+export interface CashAllocationLine {
+  id: string
+  kind: 'category' | 'custom'
+  categoryId?: string
+  customLabel?: string
+  amount: number
+}
+
+/** Income event: total cash in, split across buckets and/or one-off expenses. */
+export interface CashAllocation {
+  id: string
+  date: string
+  totalAmount: number
+  note?: string
+  lines: CashAllocationLine[]
+}
+
+/** Outflow logged against a set expense or as unexpected / ad-hoc spend. */
+export interface SpendEntry {
+  id: string
+  date: string
+  amount: number
+  kind: 'category' | 'unexpected'
+  categoryId?: string
+  label?: string
+  note?: string
+}
+
+export interface FinanceLedger {
+  categories: ExpenseCategory[]
+  allocations: CashAllocation[]
+  spends: SpendEntry[]
+}
+
 export interface AppState {
   selectedDate: string
+  activeTab: AppTab
   identityTitle: string
   identityQuestion: string
   identityBody: string
@@ -117,6 +172,8 @@ export interface AppState {
   showAllTasks: boolean
   /** Date → most important outcome for that day */
   dailyOneThing: DailyOneThing
+  personalFinance: FinanceLedger
+  companyFinance: FinanceLedger
 }
 
 export type SummaryMode = AppState['summaryMode']
