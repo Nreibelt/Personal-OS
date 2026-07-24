@@ -60,6 +60,7 @@ export function DashboardView({
           <li>Coffee At Home</li>
           <li>Breathwork</li>
           <li>Water &amp; Salt</li>
+          <li>Write identity statement and set intentions</li>
           <li>Straight into deep work</li>
         </ol>
       </section>
