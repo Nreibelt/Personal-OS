@@ -1,9 +1,10 @@
+import { useState } from 'react'
 import { DashboardView } from './components/DashboardView'
 import { DeepWorkView } from './components/DeepWorkView'
 import { FinancesView } from './components/FinancesView'
 import { useStore } from './hooks/useStore'
-import type { AppTab } from './types'
-import { formatLongDate, formatMinutes } from './utils/time'
+import type { AppTab, DeepWorkId, ProjectId } from './types'
+import { formatLongDate, formatMinutes, todayDateKey } from './utils/time'
 
 const TABS: { id: AppTab; label: string; sub: string }[] = [
   { id: 'dashboard', label: 'Dashboard', sub: 'Dashboard' },
@@ -16,10 +17,22 @@ export default function App() {
   const store = useStore()
   const tab = store.state.activeTab
   const activeMeta = TABS.find((t) => t.id === tab) ?? TABS[0]
+  const [pendingSession, setPendingSession] = useState<ProjectId | null>(null)
 
   const deepToday = store.deepWorkMinutesForDate(store.state.selectedDate)
   const targetHit = store.hitTarget(store.state.selectedDate)
   const allTime = store.minutesFor('all', 'total')
+
+  const startFromDashboard = (projectId: DeepWorkId) => {
+    store.setSelectedDate(todayDateKey())
+    if (store.state.activeTimer?.projectId === projectId) {
+      store.setActiveTab('deepWork')
+      setPendingSession(null)
+      return
+    }
+    store.setActiveTab('deepWork')
+    setPendingSession(projectId)
+  }
 
   return (
     <div className="app-shell">
@@ -69,8 +82,16 @@ export default function App() {
         </div>
       </header>
 
-      {tab === 'dashboard' && <DashboardView />}
-      {tab === 'deepWork' && <DeepWorkView store={store} />}
+      {tab === 'dashboard' && (
+        <DashboardView store={store} onStartProject={startFromDashboard} />
+      )}
+      {tab === 'deepWork' && (
+        <DeepWorkView
+          store={store}
+          pendingSession={pendingSession}
+          onPendingSessionHandled={() => setPendingSession(null)}
+        />
+      )}
       {tab === 'personalFinances' && <FinancesView store={store} realm="personal" />}
       {tab === 'companyFinances' && <FinancesView store={store} realm="company" />}
     </div>

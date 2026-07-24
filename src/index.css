@@ -1524,6 +1524,77 @@ select:focus {
   animation: rise 0.55s ease both;
 }
 
+.dashboard-timers {
+  border-top: none;
+  padding-top: 0;
+}
+
+.dashboard-timer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.dashboard-timer-btn {
+  --project-color: var(--brass);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  text-align: left;
+  padding: 1rem 1.05rem;
+  background: var(--bg-panel);
+  border: 1px solid color-mix(in srgb, var(--project-color) 35%, var(--line));
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.dashboard-timer-btn:hover:not(:disabled) {
+  border-color: var(--project-color);
+  background: color-mix(in srgb, var(--project-color) 10%, var(--bg-panel));
+  transform: translateY(-1px);
+}
+
+.dashboard-timer-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dashboard-timer-btn.live {
+  border-color: var(--project-color);
+  background: color-mix(in srgb, var(--project-color) 14%, var(--bg-panel));
+}
+
+.dashboard-timer-name {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--project-color);
+}
+
+.dashboard-timer-hours {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.dashboard-timer-target {
+  color: var(--text-dim);
+}
+
+.dashboard-timer-cta {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-top: 0.35rem;
+}
+
 .dashboard-section {
   margin-bottom: 2.35rem;
   padding-top: 1.35rem;
@@ -1537,6 +1608,16 @@ select:focus {
 
 .dashboard-section:nth-child(4) {
   animation-delay: 0.12s;
+}
+
+.dashboard-section:nth-child(5) {
+  animation-delay: 0.18s;
+}
+
+@media (max-width: 720px) {
+  .dashboard-timer-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .dashboard-heading {

@@ -1,3 +1,6 @@
+/** Bali / Central Indonesia (WITA) — app wall-clock timezone */
+export const APP_TIMEZONE = 'Asia/Makassar'
+
 export function pad2(n: number) {
   return String(n).padStart(2, '0')
 }
@@ -20,6 +23,36 @@ export function formatTimer(seconds: number): string {
   return `${pad2(m)}:${pad2(sec)}`
 }
 
+/** Calendar parts for an instant in the app timezone (Bali). */
+export function zonedParts(
+  date: Date = new Date(),
+  timeZone: string = APP_TIMEZONE,
+): { year: number; month: number; day: number } {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+  const parts = fmt.formatToParts(date)
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((p) => p.type === type)?.value)
+  return { year: get('year'), month: get('month'), day: get('day') }
+}
+
+/** Today's YYYY-MM-DD in Bali (Asia/Makassar). */
+export function todayDateKey(date: Date = new Date()): string {
+  const { year, month, day } = zonedParts(date)
+  return `${year}-${pad2(month)}-${pad2(day)}`
+}
+
+/** YYYY-MM for the current Bali calendar month. */
+export function todayMonthKey(date: Date = new Date()): string {
+  const { year, month } = zonedParts(date)
+  return `${year}-${pad2(month)}`
+}
+
+/** Local calendar YYYY-MM-DD from a Date (for date-key math, not wall-clock “now”). */
 export function toDateKey(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
 }
