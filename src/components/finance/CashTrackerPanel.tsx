@@ -8,7 +8,7 @@ import {
   parseAmount,
   spentForCategory,
 } from '../../utils/finance'
-import { formatLongDate } from '../../utils/time'
+import { formatLongDate, todayDateKey } from '../../utils/time'
 import { HudPanel } from '../HudPanel'
 
 export function CashTrackerPanel({
@@ -22,7 +22,7 @@ export function CashTrackerPanel({
   mode: 'daily' | 'simple'
 }) {
   const ledger = store.financeFor(realm)
-  const date = store.state.selectedDate
+  const date = todayDateKey()
   const buckets = allocatableBuckets(ledger)
 
   const catLookup = useMemo(() => {

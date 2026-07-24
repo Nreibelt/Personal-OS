@@ -26,7 +26,15 @@ import {
   isDeepWorkId,
   scaleDeepWorkSplit,
 } from '../types'
-import { addDays, parseDateKey, startOfWeekMonday, toDateKey, weekDays } from '../utils/time'
+import {
+  addDays,
+  parseDateKey,
+  startOfWeekMonday,
+  toDateKey,
+  todayDateKey,
+  todayMonthKey,
+  weekDays,
+} from '../utils/time'
 
 const STORAGE_KEY = 'batcave-deep-work-os-v2'
 
@@ -73,6 +81,7 @@ function migrateLedger(raw: Partial<FinanceLedger> | undefined, fallback: Financ
 
 function loadState(): AppState {
   const seed = createSeedState()
+  const today = todayDateKey()
   try {
     const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('batcave-deep-work-os-v1')
     if (!raw) return seed
@@ -80,6 +89,9 @@ function loadState(): AppState {
     return {
       ...seed,
       ...parsed,
+      // Always open on Bali “today” so the day label matches WITA
+      selectedDate: today,
+      calendarMonth: todayMonthKey(),
       activeTab: parsed.activeTab ?? 'dashboard',
       tasks: migrateTasks((parsed.tasks as AppState['tasks']) || seed.tasks),
       dailyDeepWorkTargetMinutes:

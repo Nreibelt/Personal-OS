@@ -6,7 +6,7 @@ import {
   formatMoney,
   parseAmount,
 } from '../../utils/finance'
-import { formatLongDate } from '../../utils/time'
+import { formatLongDate, todayDateKey } from '../../utils/time'
 import { HudPanel } from '../HudPanel'
 
 type DraftLine = {
@@ -72,7 +72,7 @@ export function CashAllocationPanel({
     }
     if (built.length === 0) return
     store.addCashAllocation(realm, {
-      date: store.state.selectedDate,
+      date: todayDateKey(),
       totalAmount: parsedTotal,
       note,
       lines: built,

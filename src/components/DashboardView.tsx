@@ -1,7 +1,58 @@
-export function DashboardView() {
+import { PROJECT_MAP } from '../data/seed'
+import type { Store } from '../hooks/useStore'
+import { DEEP_WORK_IDS, type DeepWorkId } from '../types'
+import { formatMinutes, todayDateKey } from '../utils/time'
+
+export function DashboardView({
+  store,
+  onStartProject,
+}: {
+  store: Store
+  onStartProject: (projectId: DeepWorkId) => void
+}) {
+  const today = todayDateKey()
+  const busy = !!store.state.activeTimer
+
   return (
     <div className="dashboard">
       <p className="dashboard-lede">Center. Then move.</p>
+
+      <section className="dashboard-section dashboard-timers">
+        <h2 className="dashboard-heading">Start deep work</h2>
+        <div className="dashboard-timer-grid">
+          {DEEP_WORK_IDS.map((id) => {
+            const project = PROJECT_MAP[id]
+            let logged = store.minutesFor(id, 'day', today)
+            if (store.state.activeTimer?.projectId === id) {
+              logged += Math.floor(store.liveTimerSeconds / 60)
+            }
+            const target = store.state.dailyDeepWorkSplit[id]
+            const isLive = store.state.activeTimer?.projectId === id
+            return (
+              <button
+                key={id}
+                type="button"
+                className={`dashboard-timer-btn${isLive ? ' live' : ''}`}
+                style={{ ['--project-color' as string]: project.color }}
+                disabled={busy && !isLive}
+                onClick={() => onStartProject(id)}
+              >
+                <span className="dashboard-timer-name">{project.name}</span>
+                <span className="dashboard-timer-hours">
+                  {formatMinutes(logged)}
+                  <span className="dashboard-timer-target">
+                    {' '}
+                    / {formatMinutes(target)}
+                  </span>
+                </span>
+                <span className="dashboard-timer-cta">
+                  {isLive ? 'Timer running — open' : 'Start timer'}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
 
       <section className="dashboard-section">
         <h2 className="dashboard-heading">Morning</h2>

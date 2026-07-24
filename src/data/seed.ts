@@ -1,5 +1,6 @@
 import type { AppState, Project, Task } from '../types'
 import { emptyFinanceLedger } from '../utils/finance'
+import { todayDateKey, todayMonthKey } from '../utils/time'
 
 export const PROJECTS: Project[] = [
   { id: 'chase', name: 'Chase Build', color: '#5b8def' },
@@ -13,7 +14,7 @@ export const PROJECT_MAP = Object.fromEntries(PROJECTS.map((p) => [p.id, p])) as
   Project
 >
 
-/** Anchor date from screenshots: Wednesday 22 Jul 2026 */
+/** Demo seed date for sample time entries / blocks (not used as “today”). */
 export const ANCHOR_DATE = '2026-07-22'
 
 let idCounter = 0
@@ -29,8 +30,9 @@ function task(text: string, forToday: boolean, done = false): Task {
 export function createSeedState(): AppState {
   const personalBillsId = uid('cat')
   const companyBillsId = uid('cat')
+  const today = todayDateKey()
   return {
-    selectedDate: ANCHOR_DATE,
+    selectedDate: today,
     activeTab: 'dashboard',
     identityTitle: 'WHO I AM FOR THE NEXT 90 DAYS',
     identityQuestion: 'Constant Question: Is This A Decision From An Evolved Identity?',
@@ -144,7 +146,7 @@ export function createSeedState(): AppState {
     ],
     activeTimer: null,
     summaryMode: 'day',
-    calendarMonth: '2026-07',
+    calendarMonth: todayMonthKey(),
     dailyDeepWorkTargetMinutes: 6 * 60, // 6h — aggressive, editable
     // Allocate the 6h bar: Chase 2h · My Project 3h · Rav 1h
     dailyDeepWorkSplit: {

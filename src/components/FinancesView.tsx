@@ -4,7 +4,6 @@ import { formatMoney, totalAllocated, totalMonthlyExpenses, totalSpent } from '.
 import { CashAllocationPanel } from './finance/CashAllocationPanel'
 import { CashTrackerPanel } from './finance/CashTrackerPanel'
 import { SetExpensesPanel } from './finance/SetExpensesPanel'
-import { WeekSelector } from './WeekSelector'
 
 export function FinancesView({
   store,
@@ -20,8 +19,6 @@ export function FinancesView({
 
   return (
     <div className="layout-stack finance-view">
-      <WeekSelector store={store} />
-
       <div className="finance-overview">
         <div className="finance-stat">
           <span className="finance-stat-label">Monthly set expenses</span>

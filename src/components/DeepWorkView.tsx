@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Store } from '../hooks/useStore'
 import type { ProjectId } from '../types'
 import { AttentionAllocation } from './AttentionAllocation'
@@ -17,10 +17,30 @@ import { WeekSelector } from './WeekSelector'
 
 type CalView = 'ops' | 'month'
 
-export function DeepWorkView({ store }: { store: Store }) {
+export function DeepWorkView({
+  store,
+  pendingSession,
+  onPendingSessionHandled,
+}: {
+  store: Store
+  pendingSession?: ProjectId | null
+  onPendingSessionHandled?: () => void
+}) {
   const [sessionProject, setSessionProject] = useState<ProjectId | null>(null)
   const [timerMinimized, setTimerMinimized] = useState(false)
   const [calView, setCalView] = useState<CalView>('ops')
+
+  useEffect(() => {
+    if (!pendingSession) return
+    if (store.state.activeTimer?.projectId === pendingSession) {
+      setTimerMinimized(false)
+      onPendingSessionHandled?.()
+      return
+    }
+    setSessionProject(pendingSession)
+    setTimerMinimized(false)
+    onPendingSessionHandled?.()
+  }, [pendingSession, store.state.activeTimer?.projectId, onPendingSessionHandled])
 
   return (
     <>
