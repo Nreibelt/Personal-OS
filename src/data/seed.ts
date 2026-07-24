@@ -142,6 +142,12 @@ export function createSeedState(): AppState {
     summaryMode: 'day',
     calendarMonth: '2026-07',
     dailyDeepWorkTargetMinutes: 6 * 60, // 6h — aggressive, editable
+    // Allocate the 6h bar: Chase 2h · My Project 3h · Rav 1h
+    dailyDeepWorkSplit: {
+      chase: 2 * 60,
+      myProject: 3 * 60,
+      rav: 1 * 60,
+    },
     showAllTasks: false,
     dailyOneThing: {
       '2026-07-22': 'Ship Chase phone setup + pipelines to done',

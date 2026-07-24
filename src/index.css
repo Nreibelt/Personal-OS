@@ -743,11 +743,57 @@ select:focus {
   color: var(--text-dim);
 }
 
+.target-split {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+}
+
+.target-split-row {
+  display: grid;
+  grid-template-columns: auto minmax(5.5rem, 7rem) 1fr auto;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.target-split-name {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.target-bar.thin {
+  height: 4px;
+}
+
+.target-split-meta {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  min-width: 6.5rem;
+  text-align: right;
+}
+
+.target-edit-block {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
 .target-edit {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-top: 0.75rem;
 }
 
 .target-edit label {
@@ -757,11 +803,46 @@ select:focus {
   color: var(--text-dim);
   text-transform: uppercase;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 8.5rem;
 }
 
 .target-edit input {
   width: 4.5rem;
   text-align: center;
+}
+
+.target-split-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.target-split-edit-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.target-alloc-hint {
+  margin: 0.15rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  color: var(--brass-dim);
+}
+
+.target-alloc-hint.ok {
+  color: var(--success);
+}
+
+.target-edit-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .streak-row {
