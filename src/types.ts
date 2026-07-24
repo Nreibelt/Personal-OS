@@ -95,7 +95,7 @@ export function scaleDeepWorkSplit(
 }
 
 /** Top-level product surface */
-export type AppTab = 'deepWork' | 'personalFinances' | 'companyFinances'
+export type AppTab = 'dashboard' | 'deepWork' | 'personalFinances' | 'companyFinances'
 
 export type FinanceRealm = 'personal' | 'company'
 
