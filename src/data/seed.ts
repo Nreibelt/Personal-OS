@@ -31,7 +31,7 @@ export function createSeedState(): AppState {
   const companyBillsId = uid('cat')
   return {
     selectedDate: ANCHOR_DATE,
-    activeTab: 'deepWork',
+    activeTab: 'dashboard',
     identityTitle: 'WHO I AM FOR THE NEXT 90 DAYS',
     identityQuestion: 'Constant Question: Is This A Decision From An Evolved Identity?',
     identityBody:

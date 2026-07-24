@@ -80,7 +80,7 @@ function loadState(): AppState {
     return {
       ...seed,
       ...parsed,
-      activeTab: parsed.activeTab ?? 'deepWork',
+      activeTab: parsed.activeTab ?? 'dashboard',
       tasks: migrateTasks((parsed.tasks as AppState['tasks']) || seed.tasks),
       dailyDeepWorkTargetMinutes:
         parsed.dailyDeepWorkTargetMinutes ?? seed.dailyDeepWorkTargetMinutes,
