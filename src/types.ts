@@ -17,8 +17,10 @@ export interface Task {
 export interface Habit {
   id: string
   name: string
-  done: boolean
+  /** Consecutive days completed ending on lastCompletedDate */
   streak: number
+  /** YYYY-MM-DD of the last day this was ticked (Bali calendar) */
+  lastCompletedDate: string | null
 }
 
 export interface OpenLoop {

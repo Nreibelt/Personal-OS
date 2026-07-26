@@ -52,6 +52,47 @@ function migrateTasks(tasks: AppState['tasks']): AppState['tasks'] {
   return next
 }
 
+/** Active streak only if last tick was today or yesterday; otherwise broken → 0. */
+export function habitDisplayStreak(habit: Habit, today = todayDateKey()): number {
+  if (!habit.lastCompletedDate || habit.streak <= 0) return 0
+  const yesterday = addDays(today, -1)
+  if (habit.lastCompletedDate === today || habit.lastCompletedDate === yesterday) {
+    return habit.streak
+  }
+  return 0
+}
+
+export function isHabitDoneOn(habit: Habit, date: string): boolean {
+  return habit.lastCompletedDate === date
+}
+
+function migrateHabits(raw: unknown, today: string): Habit[] {
+  if (!Array.isArray(raw)) return []
+  const yesterday = addDays(today, -1)
+  return raw.map((item) => {
+    const h = item as Partial<Habit> & { done?: boolean }
+    const id = typeof h.id === 'string' && h.id ? h.id : uid('habit')
+    const name = typeof h.name === 'string' ? h.name : 'Habit'
+    let lastCompletedDate: string | null =
+      typeof h.lastCompletedDate === 'string' && h.lastCompletedDate
+        ? h.lastCompletedDate
+        : null
+    let streak = Math.max(0, Math.round(Number(h.streak) || 0))
+
+    // Legacy boolean `done` → treat as completed today so it stays locked for the day
+    if (!lastCompletedDate && h.done) {
+      lastCompletedDate = today
+      streak = Math.max(1, streak)
+    }
+
+    if (lastCompletedDate && lastCompletedDate !== today && lastCompletedDate !== yesterday) {
+      streak = 0
+    }
+
+    return { id, name, streak, lastCompletedDate } satisfies Habit
+  })
+}
+
 function migrateSplit(
   raw: Partial<DailyDeepWorkSplit> | undefined,
   totalMinutes: number,
@@ -213,6 +254,7 @@ function loadState(): AppState {
       ),
       showAllTasks: parsed.showAllTasks ?? false,
       dailyOneThing: { ...seed.dailyOneThing, ...(parsed.dailyOneThing || {}) },
+      habits: migrateHabits(parsed.habits ?? seed.habits, today),
       personalFinance,
       companyFinance,
       revolutSync: migrateRevolutSync(parsed.revolutSync, seed.revolutSync),
@@ -332,16 +374,21 @@ export function useStore() {
     update((s) => ({ ...s, reminders: s.reminders.filter((_, i) => i !== index) }))
   }, [update])
 
-  const toggleHabit = useCallback((id: string) => {
+  /** Tick a non-negotiable for Bali today — locks for the day and advances the streak. */
+  const completeHabit = useCallback((id: string) => {
+    const today = todayDateKey()
+    const yesterday = addDays(today, -1)
     update((s) => ({
       ...s,
       habits: s.habits.map((h) => {
         if (h.id !== id) return h
-        const done = !h.done
+        if (h.lastCompletedDate === today) return h
+        const continued = h.lastCompletedDate === yesterday
+        const prior = continued ? habitDisplayStreak(h, today) : 0
         return {
           ...h,
-          done,
-          streak: done ? Math.max(1, h.streak) : h.streak,
+          lastCompletedDate: today,
+          streak: prior + 1,
         } satisfies Habit
       }),
     }))
@@ -352,8 +399,15 @@ export function useStore() {
     if (!trimmed) return
     update((s) => ({
       ...s,
-      habits: [...s.habits, { id: uid('habit'), name: trimmed, done: false, streak: 0 }],
+      habits: [
+        ...s.habits,
+        { id: uid('habit'), name: trimmed, streak: 0, lastCompletedDate: null },
+      ],
     }))
+  }, [update])
+
+  const removeHabit = useCallback((id: string) => {
+    update((s) => ({ ...s, habits: s.habits.filter((h) => h.id !== id) }))
   }, [update])
 
   const toggleTask = useCallback((projectId: ProjectId, taskId: string) => {
@@ -875,8 +929,9 @@ export function useStore() {
     removeLoop,
     addReminder,
     removeReminder,
-    toggleHabit,
+    completeHabit,
     addHabit,
+    removeHabit,
     toggleTask,
     setTaskForToday,
     addTask,
