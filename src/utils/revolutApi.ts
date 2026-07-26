@@ -29,6 +29,7 @@ export interface RevolutTxnDto {
 }
 
 const SECRET_STORAGE_KEY = 'batcave-revolut-app-secret'
+const REFRESH_STORAGE_KEY = 'batcave-revolut-refresh-token'
 
 export function loadRevolutAppSecret(): string {
   try {
@@ -47,17 +48,45 @@ export function saveRevolutAppSecret(secret: string) {
   }
 }
 
+export function loadRevolutRefreshToken(): string {
+  try {
+    return localStorage.getItem(REFRESH_STORAGE_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
+export function saveRevolutRefreshToken(token: string) {
+  try {
+    if (token.trim()) localStorage.setItem(REFRESH_STORAGE_KEY, token.trim())
+    else localStorage.removeItem(REFRESH_STORAGE_KEY)
+  } catch {
+    // ignore
+  }
+}
+
+function captureRotatedToken(data: { refreshToken?: string }) {
+  if (typeof data.refreshToken === 'string' && data.refreshToken.trim()) {
+    saveRevolutRefreshToken(data.refreshToken)
+  }
+}
+
 async function revolutRequest<T>(path: string, appSecret: string): Promise<T> {
-  const response = await fetch(path, {
-    headers: {
-      Accept: 'application/json',
-      'x-revolut-app-secret': appSecret,
-    },
-  })
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'x-revolut-app-secret': appSecret,
+  }
+  const refreshToken = loadRevolutRefreshToken()
+  if (refreshToken) headers['x-revolut-refresh-token'] = refreshToken
+
+  const response = await fetch(path, { headers })
 
   const data = (await response.json().catch(() => ({}))) as {
     error?: string
+    refreshToken?: string
   } & T
+
+  captureRotatedToken(data)
 
   if (!response.ok) {
     throw new Error(data.error || `Request failed (${response.status})`)
@@ -66,10 +95,16 @@ async function revolutRequest<T>(path: string, appSecret: string): Promise<T> {
 }
 
 export async function fetchRevolutStatus(appSecret: string) {
-  return revolutRequest<{ ok: boolean; env: string; missing: string[] }>(
-    '/api/revolut/status',
-    appSecret,
-  )
+  return revolutRequest<{
+    ok: boolean
+    serverReady?: boolean
+    env: string
+    missing: string[]
+    hasRefreshToken?: boolean
+    authOk?: boolean
+    authError?: string
+    refreshToken?: string
+  }>('/api/revolut/status', appSecret)
 }
 
 export async function fetchRevolutAccounts(appSecret: string, displayCurrency = 'AUD') {
@@ -78,6 +113,7 @@ export async function fetchRevolutAccounts(appSecret: string, displayCurrency = 
     accounts: RevolutAccountDto[]
     displayCurrency: string
     rates: Record<string, number>
+    refreshToken?: string
   }>(`/api/revolut/accounts?${params}`, appSecret)
 }
 
@@ -94,6 +130,7 @@ export async function fetchRevolutTransactions(
     date: string
     count: number
     transactions: RevolutTxnDto[]
+    refreshToken?: string
   }>(`/api/revolut/transactions?${params}`, appSecret)
 }
 

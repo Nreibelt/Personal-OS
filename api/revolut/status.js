@@ -1,5 +1,9 @@
 import { assertAppSecret, jsonError } from '../_lib/http.js'
-import { isRevolutConfigured } from '../_lib/revolut.js'
+import {
+  createRevolutClient,
+  isRevolutConfigured,
+  refreshTokenFromRequest,
+} from '../_lib/revolut.js'
 
 export default async function handler(req, res) {
   try {
@@ -8,13 +12,37 @@ export default async function handler(req, res) {
     }
     if (!assertAppSecret(req, res)) return
 
-    const status = isRevolutConfigured()
-    return res.status(200).json({
-      ok: status.configured,
+    const refreshToken = refreshTokenFromRequest(req)
+    const status = isRevolutConfigured(Boolean(refreshToken))
+
+    let authOk = false
+    let authError = ''
+    let refreshTokenRotated = null
+
+    if (status.serverReady && refreshToken) {
+      try {
+        const client = createRevolutClient(refreshToken)
+        // Cheap authenticated call — proves refresh token works
+        await client.listAccounts()
+        authOk = true
+        refreshTokenRotated = client.getRotatedRefreshToken()
+      } catch (error) {
+        authError = error instanceof Error ? error.message : 'Auth failed'
+      }
+    }
+
+    const payload = {
+      ok: status.serverReady && authOk,
+      serverReady: status.serverReady,
       env: status.env,
       missing: status.missing,
-      hasRefreshToken: status.hasRefreshToken,
-    })
+      hasRefreshToken: Boolean(refreshToken),
+      authOk,
+      authError: authError || undefined,
+    }
+    if (refreshTokenRotated) payload.refreshToken = refreshTokenRotated
+
+    return res.status(200).json(payload)
   } catch (error) {
     console.error('revolut status failed', error)
     const message = error instanceof Error ? error.message : 'Status check failed'

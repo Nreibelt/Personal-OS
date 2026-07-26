@@ -44,13 +44,13 @@ Redeploy after saving env vars.
 
 ## 3. One-time OAuth (get refresh token)
 
-1. Deploy with everything except `REVOLUT_REFRESH_TOKEN` set (or a placeholder).
+1. Deploy with the vars above (refresh token optional at first).
 2. Visit: `https://YOUR_VERCEL_DOMAIN/api/revolut/oauth/start`
-3. Approve access in Revolut
-4. Callback page shows a **refresh token** — copy it
-5. Set `REVOLUT_REFRESH_TOKEN` in Vercel and redeploy
+3. Approve access in Revolut (READ only)
+4. Callback page **auto-saves** the refresh token in this browser and shows it
+5. Optional backup: also set `REVOLUT_REFRESH_TOKEN` in Vercel and redeploy
 
-If consent expires later (~90 days), repeat this OAuth step and update the env var.
+If you see “token expired / invalid”, click **Reconnect Revolut** in the app (or visit `/api/revolut/oauth/start` again). Revolut often rotates refresh tokens; the app now stores the latest one in the browser and keeps it updated when Revolut rotates.
 
 ## 4. In the app
 

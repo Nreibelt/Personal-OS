@@ -20,8 +20,8 @@ function escapeHtml(value) {
 }
 
 /**
- * One-time OAuth callback. Exchanges ?code= for tokens and shows the refresh
- * token so you can paste it into Vercel as REVOLUT_REFRESH_TOKEN.
+ * OAuth callback. Exchanges ?code= for tokens, auto-saves refresh token in
+ * localStorage for this origin, and shows it for optional Vercel backup.
  */
 export default async function handler(req, res) {
   try {
@@ -55,14 +55,22 @@ export default async function handler(req, res) {
     }
 
     const tokens = await exchangeAuthorizationCode(code)
+    const tokenJson = JSON.stringify(tokens.refresh_token)
+
     return html(
       res,
       200,
       `<!doctype html><html><body style="font-family:sans-serif;padding:2rem;max-width:720px">
         <h1>Revolut connected</h1>
-        <p>Copy this refresh token into Vercel → Environment Variables as <code>REVOLUT_REFRESH_TOKEN</code>, then redeploy.</p>
+        <p><strong>Saved in this browser.</strong> You can close this tab and go back to Personal OS — sync should work now.</p>
+        <p style="color:#666">Optional backup: also paste into Vercel as <code>REVOLUT_REFRESH_TOKEN</code> and redeploy.</p>
         <textarea readonly style="width:100%;height:8rem;font-family:monospace">${escapeHtml(tokens.refresh_token)}</textarea>
-        <p style="color:#666;margin-top:1.5rem">You can close this tab after saving the token. Do not share it.</p>
+        <p style="margin-top:1.25rem"><a href="/">Back to app</a></p>
+        <script>
+          try {
+            localStorage.setItem('batcave-revolut-refresh-token', ${tokenJson});
+          } catch (e) {}
+        </script>
       </body></html>`,
     )
   } catch (err) {
