@@ -1,19 +1,18 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { jsonError, revolutEnv, requireEnv } from '../../_lib/revolut'
+import { jsonError } from '../../_lib/http'
+import { revolutEnv, requireEnv } from '../../_lib/revolut'
 
 /**
  * Redirects to Revolut's app-confirm consent page.
  * Use once during setup to obtain an authorization code → refresh token.
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'GET') {
-    return jsonError(res, 405, 'Method not allowed')
-  }
-
+export default async function handler(req: any, res: any) {
   try {
+    if (req.method !== 'GET') {
+      return jsonError(res, 405, 'Method not allowed')
+    }
+
     const clientId = requireEnv('REVOLUT_CLIENT_ID')
     const redirectUri = requireEnv('REVOLUT_REDIRECT_URI')
-    // READ is enough for accounts + transactions sync
     const scope = 'READ'
     const base =
       revolutEnv() === 'sandbox'
@@ -30,6 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Location', url.toString())
     res.end()
   } catch (error) {
+    console.error('revolut oauth start failed', error)
     const message = error instanceof Error ? error.message : 'OAuth start failed'
     return jsonError(res, 503, message)
   }

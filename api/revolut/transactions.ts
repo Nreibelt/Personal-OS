@@ -1,9 +1,7 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { assertAppSecret, jsonError } from '../_lib/http'
 import {
-  assertAppSecret,
   dayBoundsIso,
   isRevolutConfigured,
-  jsonError,
   listAccounts,
   listTransactionsForAccount,
   type RevolutTransaction,
@@ -45,10 +43,6 @@ function normalizeTransaction(
   dateKey: string,
   accountFilter: Set<string>,
 ): NormalizedTxn[] {
-  if (txn.state && txn.state !== 'completed' && txn.state !== 'pending') {
-    // Still include pending card auth / transfers — user can discard
-  }
-
   const merchant = txn.merchant?.name?.trim() || ''
   const items: NormalizedTxn[] = []
 
@@ -83,32 +77,32 @@ function normalizeTransaction(
   return items
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'GET') {
-    return jsonError(res, 405, 'Method not allowed')
-  }
-  if (!assertAppSecret(req, res)) return
-
-  const status = isRevolutConfigured()
-  if (!status.configured) {
-    return jsonError(
-      res,
-      503,
-      `Revolut is not fully configured. Missing: ${status.missing.join(', ')}`,
-    )
-  }
-
-  const date = firstQuery(req.query.date)
-  const accountIds = normalizeAccountIds(req.query.accounts)
-
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return jsonError(res, 400, 'Query param "date" (YYYY-MM-DD) is required.')
-  }
-  if (accountIds.length === 0) {
-    return jsonError(res, 400, 'Query param "accounts" (comma-separated IDs) is required.')
-  }
-
+export default async function handler(req: any, res: any) {
   try {
+    if (req.method !== 'GET') {
+      return jsonError(res, 405, 'Method not allowed')
+    }
+    if (!assertAppSecret(req, res)) return
+
+    const status = isRevolutConfigured()
+    if (!status.configured) {
+      return jsonError(
+        res,
+        503,
+        `Revolut is not fully configured. Missing: ${status.missing.join(', ')}`,
+      )
+    }
+
+    const date = firstQuery(req.query.date)
+    const accountIds = normalizeAccountIds(req.query.accounts)
+
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return jsonError(res, 400, 'Query param "date" (YYYY-MM-DD) is required.')
+    }
+    if (accountIds.length === 0) {
+      return jsonError(res, 400, 'Query param "accounts" (comma-separated IDs) is required.')
+    }
+
     const { from, to } = dayBoundsIso(date)
     const accounts = await listAccounts()
     const accountNames = new Map(accounts.map((a) => [a.id, a.name]))
@@ -143,6 +137,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       transactions,
     })
   } catch (error) {
+    console.error('revolut transactions failed', error)
     const message = error instanceof Error ? error.message : 'Failed to fetch transactions'
     return jsonError(res, 502, message)
   }

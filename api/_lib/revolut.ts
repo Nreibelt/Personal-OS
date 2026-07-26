@@ -1,5 +1,4 @@
-import { SignJWT, importPKCS8 } from 'jose'
-import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { createPrivateKey, sign } from 'node:crypto'
 
 export type RevolutEnv = 'production' | 'sandbox'
 
@@ -71,7 +70,14 @@ export function revolutAuthBase(): string {
 }
 
 export function normalizePrivateKey(raw: string): string {
-  return raw.includes('\\n') ? raw.replace(/\\n/g, '\n') : raw
+  let key = raw.trim()
+  if (
+    (key.startsWith('"') && key.endsWith('"')) ||
+    (key.startsWith("'") && key.endsWith("'"))
+  ) {
+    key = key.slice(1, -1)
+  }
+  return key.replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim()
 }
 
 export function requireEnv(name: string): string {
@@ -80,30 +86,12 @@ export function requireEnv(name: string): string {
   return value
 }
 
-export function getAppSecret(): string {
-  return requireEnv('REVOLUT_APP_SECRET')
+function base64urlJson(value: unknown): string {
+  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url')
 }
 
-export function assertAppSecret(req: VercelRequest, res: VercelResponse): boolean {
-  const expected = process.env.REVOLUT_APP_SECRET?.trim()
-  if (!expected) {
-    res.status(503).json({ error: 'REVOLUT_APP_SECRET is not configured on the server.' })
-    return false
-  }
-  const header = req.headers['x-revolut-app-secret']
-  const provided = Array.isArray(header) ? header[0] : header
-  if (!provided || provided !== expected) {
-    res.status(401).json({ error: 'Invalid or missing app secret.' })
-    return false
-  }
-  return true
-}
-
-export function jsonError(res: VercelResponse, status: number, error: string) {
-  res.status(status).json({ error })
-}
-
-async function buildClientAssertion(): Promise<string> {
+/** RS256 client_assertion JWT using Node crypto (no jose dependency). */
+export function buildClientAssertion(): string {
   const clientId = requireEnv('REVOLUT_CLIENT_ID')
   const privateKeyPem = normalizePrivateKey(requireEnv('REVOLUT_PRIVATE_KEY'))
   const redirectUri = process.env.REVOLUT_REDIRECT_URI?.trim()
@@ -114,32 +102,30 @@ async function buildClientAssertion(): Promise<string> {
     throw new Error('Set REVOLUT_JWT_ISS or REVOLUT_REDIRECT_URI for JWT iss claim.')
   }
 
-  const key = await importPKCS8(privateKeyPem, 'RS256')
   const now = Math.floor(Date.now() / 1000)
-  return new SignJWT({})
-    .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
-    .setIssuer(iss)
-    .setSubject(clientId)
-    .setAudience('https://revolut.com')
-    .setIssuedAt(now)
-    .setExpirationTime(now + 5 * 60)
-    .sign(key)
+  const header = base64urlJson({ alg: 'RS256', typ: 'JWT' })
+  const payload = base64urlJson({
+    iss,
+    sub: clientId,
+    aud: 'https://revolut.com',
+    iat: now,
+    exp: now + 5 * 60,
+  })
+  const data = `${header}.${payload}`
+
+  try {
+    const key = createPrivateKey(privateKeyPem)
+    const signature = sign('RSA-SHA256', Buffer.from(data, 'utf8'), key)
+    return `${data}.${signature.toString('base64url')}`
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'unknown key error'
+    throw new Error(
+      `Failed to read REVOLUT_PRIVATE_KEY (${detail}). Paste the full PEM including BEGIN/END lines; use real newlines or \\n.`,
+    )
+  }
 }
 
-export async function exchangeAuthorizationCode(code: string): Promise<{
-  access_token: string
-  refresh_token: string
-  token_type?: string
-  expires_in?: number
-}> {
-  const assertion = await buildClientAssertion()
-  const body = new URLSearchParams({
-    grant_type: 'authorization_code',
-    code,
-    client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-    client_assertion: assertion,
-  })
-
+async function postToken(body: URLSearchParams): Promise<Record<string, unknown>> {
   const response = await fetch(`${revolutAuthBase()}/api/1.0/auth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -148,12 +134,34 @@ export async function exchangeAuthorizationCode(code: string): Promise<{
 
   const data = (await response.json()) as Record<string, unknown>
   if (!response.ok) {
-    throw new Error(
-      typeof data.message === 'string'
-        ? data.message
-        : `Token exchange failed (${response.status})`,
-    )
+    const message =
+      typeof data.error_description === 'string'
+        ? data.error_description
+        : typeof data.message === 'string'
+          ? data.message
+          : typeof data.error === 'string'
+            ? data.error
+            : `Token request failed (${response.status})`
+    throw new Error(message)
   }
+  return data
+}
+
+export async function exchangeAuthorizationCode(code: string): Promise<{
+  access_token: string
+  refresh_token: string
+  token_type?: string
+  expires_in?: number
+}> {
+  const assertion = buildClientAssertion()
+  const body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code,
+    client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+    client_assertion: assertion,
+  })
+
+  const data = await postToken(body)
   if (typeof data.access_token !== 'string' || typeof data.refresh_token !== 'string') {
     throw new Error('Token exchange response missing access_token / refresh_token.')
   }
@@ -167,7 +175,7 @@ export async function exchangeAuthorizationCode(code: string): Promise<{
 
 async function refreshAccessToken(): Promise<TokenCache> {
   const refreshToken = requireEnv('REVOLUT_REFRESH_TOKEN')
-  const assertion = await buildClientAssertion()
+  const assertion = buildClientAssertion()
   const body = new URLSearchParams({
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
@@ -175,29 +183,14 @@ async function refreshAccessToken(): Promise<TokenCache> {
     client_assertion: assertion,
   })
 
-  const response = await fetch(`${revolutAuthBase()}/api/1.0/auth/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-  })
-
-  const data = (await response.json()) as Record<string, unknown>
-  if (!response.ok) {
-    throw new Error(
-      typeof data.message === 'string'
-        ? data.message
-        : `Failed to refresh Revolut token (${response.status})`,
-    )
-  }
+  const data = await postToken(body)
   if (typeof data.access_token !== 'string') {
     throw new Error('Refresh response missing access_token.')
   }
 
-  const expiresIn =
-    typeof data.expires_in === 'number' ? data.expires_in : 40 * 60
+  const expiresIn = typeof data.expires_in === 'number' ? data.expires_in : 40 * 60
   return {
     accessToken: data.access_token,
-    // Refresh a minute early
     expiresAt: Date.now() + Math.max(60, expiresIn - 60) * 1000,
   }
 }
@@ -282,21 +275,19 @@ export function isRevolutConfigured(): {
   configured: boolean
   missing: string[]
   env: RevolutEnv
+  hasRefreshToken: boolean
 } {
-  const required = [
-    'REVOLUT_CLIENT_ID',
-    'REVOLUT_PRIVATE_KEY',
-    'REVOLUT_REFRESH_TOKEN',
-    'REVOLUT_APP_SECRET',
-  ]
+  const required = ['REVOLUT_CLIENT_ID', 'REVOLUT_PRIVATE_KEY', 'REVOLUT_APP_SECRET']
   const missing = required.filter((key) => !process.env[key]?.trim())
   const hasIss =
     Boolean(process.env.REVOLUT_JWT_ISS?.trim()) ||
     Boolean(process.env.REVOLUT_REDIRECT_URI?.trim())
   if (!hasIss) missing.push('REVOLUT_JWT_ISS or REVOLUT_REDIRECT_URI')
+  const hasRefreshToken = Boolean(process.env.REVOLUT_REFRESH_TOKEN?.trim())
   return {
-    configured: missing.length === 0,
-    missing,
+    configured: missing.length === 0 && hasRefreshToken,
+    missing: hasRefreshToken ? missing : [...missing, 'REVOLUT_REFRESH_TOKEN'],
     env: revolutEnv(),
+    hasRefreshToken,
   }
 }
