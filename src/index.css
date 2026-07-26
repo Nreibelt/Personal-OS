@@ -2000,6 +2000,19 @@ select:focus {
   margin-bottom: 0.85rem;
 }
 
+.revolut-card-warn {
+  border-color: rgba(201, 80, 80, 0.45);
+  background: rgba(201, 80, 80, 0.08);
+}
+
+a.btn-primary.compact,
+a.btn-secondary.compact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .revolut-card-head {
   margin-bottom: 0.85rem;
 }

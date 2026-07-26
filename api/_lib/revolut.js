@@ -1,7 +1,5 @@
 import { createPrivateKey, sign } from 'node:crypto'
 
-let tokenCache = null
-
 export function revolutEnv() {
   const raw = (process.env.REVOLUT_ENV || 'production').toLowerCase()
   return raw === 'sandbox' ? 'sandbox' : 'production'
@@ -97,6 +95,24 @@ async function postToken(body) {
   return data
 }
 
+export function refreshTokenFromRequest(req) {
+  const header = req.headers['x-revolut-refresh-token']
+  const fromHeader = (Array.isArray(header) ? header[0] : header)?.trim()
+  if (fromHeader) return fromHeader
+  return process.env.REVOLUT_REFRESH_TOKEN?.trim() || ''
+}
+
+export function friendlyAuthError(error) {
+  const message = error instanceof Error ? error.message : String(error)
+  if (/access token|refresh token|invalid|expired|unauthorized|authoris/i.test(message)) {
+    return (
+      'Revolut login expired or was replaced. Click Reconnect, approve access again — ' +
+      'the new token saves in this browser automatically. Also update Vercel REVOLUT_REFRESH_TOKEN if you use it.'
+    )
+  }
+  return message
+}
+
 export async function exchangeAuthorizationCode(code) {
   const assertion = buildClientAssertion()
   const body = new URLSearchParams({
@@ -118,111 +134,140 @@ export async function exchangeAuthorizationCode(code) {
   }
 }
 
-async function refreshAccessToken() {
-  const refreshToken = requireEnv('REVOLUT_REFRESH_TOKEN')
-  const assertion = buildClientAssertion()
-  const body = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken,
-    client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-    client_assertion: assertion,
-  })
-
-  const data = await postToken(body)
-  if (typeof data.access_token !== 'string') {
-    throw new Error('Refresh response missing access_token.')
+/**
+ * Per-request Revolut client. Handles access-token refresh and refresh-token rotation.
+ * When Revolut issues a new refresh token, `rotatedRefreshToken` is set so the browser can store it.
+ */
+export function createRevolutClient(refreshToken) {
+  if (!refreshToken) {
+    throw new Error(
+      'Missing Revolut refresh token. Click Reconnect to sign in again, or set REVOLUT_REFRESH_TOKEN on Vercel.',
+    )
   }
 
-  const expiresIn = typeof data.expires_in === 'number' ? data.expires_in : 40 * 60
-  return {
-    accessToken: data.access_token,
-    expiresAt: Date.now() + Math.max(60, expiresIn - 60) * 1000,
-  }
-}
+  let currentRefresh = refreshToken
+  let rotatedRefreshToken = null
+  let accessToken = null
+  let accessExpiresAt = 0
 
-export async function getAccessToken() {
-  if (tokenCache && tokenCache.expiresAt > Date.now()) {
-    return tokenCache.accessToken
-  }
-  tokenCache = await refreshAccessToken()
-  return tokenCache.accessToken
-}
+  async function ensureAccessToken() {
+    if (accessToken && accessExpiresAt > Date.now()) return accessToken
 
-export async function revolutFetch(path, init) {
-  const token = await getAccessToken()
-  const response = await fetch(`${revolutApiBase()}${path}`, {
-    ...init,
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(init?.headers || {}),
-    },
-  })
-
-  if (!response.ok) {
-    let detail = `Revolut API ${response.status}`
-    try {
-      const err = await response.json()
-      if (err.message) detail = err.message
-    } catch {
-      // ignore
-    }
-    throw new Error(detail)
-  }
-
-  if (response.status === 204) return undefined
-  return response.json()
-}
-
-export async function listAccounts() {
-  return revolutFetch('/accounts')
-}
-
-/** Sell exchange rate: 1 unit of `from` → `to`. */
-export async function getExchangeRate(from, to, amount = 1) {
-  if (from === to) {
-    return { rate: 1, from, to, toAmount: amount }
-  }
-  const query = new URLSearchParams({
-    from,
-    to,
-    amount: String(amount),
-  })
-  const data = await revolutFetch(`/rate?${query}`)
-  const rate = typeof data.rate === 'number' ? data.rate : null
-  const toAmount =
-    typeof data.to?.amount === 'number'
-      ? data.to.amount
-      : rate !== null
-        ? Math.round(amount * rate * 100) / 100
-        : null
-  if (rate === null || toAmount === null) {
-    throw new Error(`No exchange rate for ${from} → ${to}`)
-  }
-  return { rate, from, to, toAmount }
-}
-
-export async function listTransactionsForAccount(params) {
-  const all = []
-  let to = params.to
-
-  for (let page = 0; page < 20; page++) {
-    const query = new URLSearchParams({
-      account: params.accountId,
-      from: params.from,
-      to,
-      count: '1000',
+    const assertion = buildClientAssertion()
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: currentRefresh,
+      client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+      client_assertion: assertion,
     })
-    const batch = await revolutFetch(`/transactions?${query}`)
-    if (!batch.length) break
-    all.push(...batch)
-    if (batch.length < 1000) break
-    const oldest = batch[batch.length - 1]?.created_at
-    if (!oldest || oldest <= params.from) break
-    to = oldest
+
+    let data
+    try {
+      data = await postToken(body)
+    } catch (error) {
+      throw new Error(friendlyAuthError(error))
+    }
+
+    if (typeof data.access_token !== 'string') {
+      throw new Error('Refresh response missing access_token.')
+    }
+
+    accessToken = data.access_token
+    const expiresIn = typeof data.expires_in === 'number' ? data.expires_in : 40 * 60
+    accessExpiresAt = Date.now() + Math.max(60, expiresIn - 60) * 1000
+
+    if (
+      typeof data.refresh_token === 'string' &&
+      data.refresh_token &&
+      data.refresh_token !== currentRefresh
+    ) {
+      currentRefresh = data.refresh_token
+      rotatedRefreshToken = data.refresh_token
+    }
+
+    return accessToken
   }
 
-  return all
+  async function fetchJson(path, init) {
+    const token = await ensureAccessToken()
+    const response = await fetch(`${revolutApiBase()}${path}`, {
+      ...init,
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(init?.headers || {}),
+      },
+    })
+
+    if (!response.ok) {
+      let detail = `Revolut API ${response.status}`
+      try {
+        const err = await response.json()
+        if (err.message) detail = err.message
+        else if (err.error_description) detail = err.error_description
+        else if (err.error) detail = err.error
+      } catch {
+        // ignore
+      }
+      throw new Error(friendlyAuthError(new Error(detail)))
+    }
+
+    if (response.status === 204) return undefined
+    return response.json()
+  }
+
+  return {
+    fetchJson,
+    listAccounts: () => fetchJson('/accounts'),
+    getExchangeRate: async (from, to, amount = 1) => {
+      if (from === to) return { rate: 1, from, to, toAmount: amount }
+      const query = new URLSearchParams({
+        from,
+        to,
+        amount: String(amount),
+      })
+      const data = await fetchJson(`/rate?${query}`)
+      const rate = typeof data.rate === 'number' ? data.rate : null
+      const toAmount =
+        typeof data.to?.amount === 'number'
+          ? data.to.amount
+          : rate !== null
+            ? Math.round(amount * rate * 100) / 100
+            : null
+      if (rate === null || toAmount === null) {
+        throw new Error(`No exchange rate for ${from} → ${to}`)
+      }
+      return { rate, from, to, toAmount }
+    },
+    listTransactionsForAccount: async (params) => {
+      const all = []
+      let to = params.to
+      for (let page = 0; page < 20; page++) {
+        const query = new URLSearchParams({
+          account: params.accountId,
+          from: params.from,
+          to,
+          count: '1000',
+        })
+        const batch = await fetchJson(`/transactions?${query}`)
+        if (!batch.length) break
+        all.push(...batch)
+        if (batch.length < 1000) break
+        const oldest = batch[batch.length - 1]?.created_at
+        if (!oldest || oldest <= params.from) break
+        to = oldest
+      }
+      return all
+    },
+    getRotatedRefreshToken: () => rotatedRefreshToken,
+    getRefreshToken: () => currentRefresh,
+  }
+}
+
+export function withRotatedToken(payload, client) {
+  const rotated = client.getRotatedRefreshToken()
+  if (rotated) return { ...payload, refreshToken: rotated }
+  return payload
 }
 
 /** Inclusive local calendar day in Asia/Makassar (WITA, UTC+8, no DST). */
@@ -236,17 +281,19 @@ export function dayBoundsIso(dateKey) {
   }
 }
 
-export function isRevolutConfigured() {
+export function isRevolutConfigured(hasClientRefreshToken = false) {
   const required = ['REVOLUT_CLIENT_ID', 'REVOLUT_PRIVATE_KEY', 'REVOLUT_APP_SECRET']
   const missing = required.filter((key) => !process.env[key]?.trim())
   const hasIss =
     Boolean(process.env.REVOLUT_JWT_ISS?.trim()) ||
     Boolean(process.env.REVOLUT_REDIRECT_URI?.trim())
   if (!hasIss) missing.push('REVOLUT_JWT_ISS or REVOLUT_REDIRECT_URI')
-  const hasRefreshToken = Boolean(process.env.REVOLUT_REFRESH_TOKEN?.trim())
+  const hasEnvRefresh = Boolean(process.env.REVOLUT_REFRESH_TOKEN?.trim())
+  const hasRefreshToken = hasEnvRefresh || hasClientRefreshToken
   return {
+    serverReady: missing.length === 0,
     configured: missing.length === 0 && hasRefreshToken,
-    missing: hasRefreshToken ? missing : [...missing, 'REVOLUT_REFRESH_TOKEN'],
+    missing: hasRefreshToken ? missing : [...missing, 'refresh token (reconnect in app or REVOLUT_REFRESH_TOKEN)'],
     env: revolutEnv(),
     hasRefreshToken,
   }

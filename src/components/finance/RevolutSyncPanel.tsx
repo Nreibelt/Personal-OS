@@ -11,7 +11,9 @@ import {
   fetchRevolutStatus,
   fetchRevolutTransactions,
   loadRevolutAppSecret,
+  loadRevolutRefreshToken,
   saveRevolutAppSecret,
+  saveRevolutRefreshToken,
   type RevolutAccountDto,
 } from '../../utils/revolutApi'
 import { todayDateKey } from '../../utils/time'
@@ -52,10 +54,12 @@ export function RevolutSyncPanel({
   const [accounts, setAccounts] = useState<RevolutAccountDto[]>([])
   const [statusOk, setStatusOk] = useState<boolean | null>(null)
   const [statusDetail, setStatusDetail] = useState('')
+  const [needsReconnect, setNeedsReconnect] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [picks, setPicks] = useState<Record<string, CategoryPick>>({})
+  const [authTick, setAuthTick] = useState(0)
 
   const accountById = useMemo(
     () => new Map(accounts.map((a) => [a.id, a])),
@@ -70,6 +74,7 @@ export function RevolutSyncPanel({
     if (!appSecret) {
       setStatusOk(null)
       setStatusDetail('')
+      setNeedsReconnect(false)
       return
     }
     let cancelled = false
@@ -77,26 +82,49 @@ export function RevolutSyncPanel({
       try {
         const status = await fetchRevolutStatus(appSecret)
         if (cancelled) return
-        setStatusOk(status.ok)
-        setStatusDetail(
-          status.ok
-            ? `Connected · ${status.env}`
-            : `Missing on server: ${status.missing.join(', ')}`,
-        )
+
         if (status.ok) {
+          setStatusOk(true)
+          setNeedsReconnect(false)
+          setStatusDetail(`Connected · ${status.env}`)
           const { accounts: list } = await fetchRevolutAccounts(appSecret)
           if (!cancelled) setAccounts(list)
+          return
+        }
+
+        setStatusOk(false)
+        if (status.authError || (!status.hasRefreshToken && status.serverReady)) {
+          setNeedsReconnect(true)
+          setStatusDetail(status.authError || 'Revolut login needed')
+        } else {
+          setNeedsReconnect(false)
+          setStatusDetail(
+            status.missing?.length
+              ? `Missing on server: ${status.missing.join(', ')}`
+              : 'Not connected',
+          )
         }
       } catch (err) {
         if (cancelled) return
+        const message = err instanceof Error ? err.message : 'Connection failed'
         setStatusOk(false)
-        setStatusDetail(err instanceof Error ? err.message : 'Connection failed')
+        setStatusDetail(message)
+        setNeedsReconnect(/expired|invalid|refresh token|reconnect|login/i.test(message))
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [appSecret])
+  }, [appSecret, authTick])
+
+  // After OAuth callback saves refresh token, pick it up when returning to the tab
+  useEffect(() => {
+    const onFocus = () => {
+      if (loadRevolutRefreshToken()) setAuthTick((t) => t + 1)
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [])
 
   // First-time: open account editor once connected and nothing saved yet
   useEffect(() => {
@@ -122,12 +150,14 @@ export function RevolutSyncPanel({
 
   const clearSecret = () => {
     saveRevolutAppSecret('')
+    saveRevolutRefreshToken('')
     setAppSecret('')
     setSecretDraft('')
     setEditingSecret(true)
     setAccounts([])
     setStatusOk(null)
     setStatusDetail('')
+    setNeedsReconnect(false)
   }
 
   const startEditAccounts = () => {
@@ -284,6 +314,30 @@ export function RevolutSyncPanel({
           </div>
         </div>
       ) : null}
+
+      {needsReconnect && appSecret && !editingSecret && (
+        <div className="revolut-card revolut-card-warn">
+          <div className="revolut-card-head">
+            <h3>Revolut login expired</h3>
+            <p>
+              Revolut replaced or expired the refresh token (common after re-approving access).
+              Reconnect once — the new token is saved in this browser automatically.
+            </p>
+          </div>
+          <div className="revolut-actions">
+            <a className="btn-primary compact" href="/api/revolut/oauth/start">
+              Reconnect Revolut
+            </a>
+            <button
+              type="button"
+              className="btn-secondary compact"
+              onClick={() => setAuthTick((t) => t + 1)}
+            >
+              I’ve reconnected — retry
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Step 2: account linking */}
       {appSecret && statusOk && editingAccounts && (

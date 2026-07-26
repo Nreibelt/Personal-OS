@@ -1,9 +1,10 @@
 import { assertAppSecret, jsonError } from '../_lib/http.js'
 import {
+  createRevolutClient,
   dayBoundsIso,
   isRevolutConfigured,
-  listAccounts,
-  listTransactionsForAccount,
+  refreshTokenFromRequest,
+  withRotatedToken,
 } from '../_lib/revolut.js'
 
 function firstQuery(value) {
@@ -59,12 +60,20 @@ export default async function handler(req, res) {
     }
     if (!assertAppSecret(req, res)) return
 
-    const status = isRevolutConfigured()
-    if (!status.configured) {
+    const refreshToken = refreshTokenFromRequest(req)
+    const status = isRevolutConfigured(Boolean(refreshToken))
+    if (!status.serverReady) {
       return jsonError(
         res,
         503,
         `Revolut is not fully configured. Missing: ${status.missing.join(', ')}`,
+      )
+    }
+    if (!refreshToken) {
+      return jsonError(
+        res,
+        401,
+        'Missing Revolut refresh token. Click Reconnect in the app to sign in again.',
       )
     }
 
@@ -78,8 +87,9 @@ export default async function handler(req, res) {
       return jsonError(res, 400, 'Query param "accounts" (comma-separated IDs) is required.')
     }
 
+    const client = createRevolutClient(refreshToken)
     const { from, to } = dayBoundsIso(date)
-    const accounts = await listAccounts()
+    const accounts = await client.listAccounts()
     const accountNames = new Map(accounts.map((a) => [a.id, a.name]))
     const accountFilter = new Set(accountIds)
 
@@ -92,7 +102,7 @@ export default async function handler(req, res) {
     const transactions = []
 
     for (const accountId of accountIds) {
-      const raw = await listTransactionsForAccount({ accountId, from, to })
+      const raw = await client.listTransactionsForAccount({ accountId, from, to })
       for (const txn of raw) {
         for (const item of normalizeTransaction(txn, accountNames, date, accountFilter)) {
           if (seen.has(item.id)) continue
@@ -104,13 +114,18 @@ export default async function handler(req, res) {
 
     transactions.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
-    return res.status(200).json({
-      date,
-      from,
-      to,
-      count: transactions.length,
-      transactions,
-    })
+    return res.status(200).json(
+      withRotatedToken(
+        {
+          date,
+          from,
+          to,
+          count: transactions.length,
+          transactions,
+        },
+        client,
+      ),
+    )
   } catch (error) {
     console.error('revolut transactions failed', error)
     const message = error instanceof Error ? error.message : 'Failed to fetch transactions'
