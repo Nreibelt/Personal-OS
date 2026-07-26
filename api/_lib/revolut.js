@@ -1,75 +1,25 @@
 import { createPrivateKey, sign } from 'node:crypto'
 
-export type RevolutEnv = 'production' | 'sandbox'
+let tokenCache = null
 
-export interface RevolutAccount {
-  id: string
-  name: string
-  balance: number
-  currency: string
-  state: string
-  public: boolean
-  created_at: string
-  updated_at: string
-}
-
-export interface RevolutTxnLeg {
-  leg_id: string
-  account_id: string
-  amount: number
-  currency: string
-  description?: string
-  fee?: number
-  bill_amount?: number
-  bill_currency?: string
-}
-
-export interface RevolutTransaction {
-  id: string
-  type: string
-  state: string
-  created_at: string
-  updated_at: string
-  completed_at?: string
-  reference?: string
-  merchant?: {
-    name?: string
-    city?: string
-    category_code?: string
-    country?: string
-  }
-  legs: RevolutTxnLeg[]
-  card?: {
-    id?: string
-    card_number?: string
-  }
-}
-
-interface TokenCache {
-  accessToken: string
-  expiresAt: number
-}
-
-let tokenCache: TokenCache | null = null
-
-export function revolutEnv(): RevolutEnv {
+export function revolutEnv() {
   const raw = (process.env.REVOLUT_ENV || 'production').toLowerCase()
   return raw === 'sandbox' ? 'sandbox' : 'production'
 }
 
-export function revolutApiBase(): string {
+export function revolutApiBase() {
   return revolutEnv() === 'sandbox'
     ? 'https://sandbox-b2b.revolut.com/api/1.0'
     : 'https://b2b.revolut.com/api/1.0'
 }
 
-export function revolutAuthBase(): string {
+export function revolutAuthBase() {
   return revolutEnv() === 'sandbox'
     ? 'https://sandbox-b2b.revolut.com'
     : 'https://b2b.revolut.com'
 }
 
-export function normalizePrivateKey(raw: string): string {
+export function normalizePrivateKey(raw) {
   let key = raw.trim()
   if (
     (key.startsWith('"') && key.endsWith('"')) ||
@@ -80,18 +30,18 @@ export function normalizePrivateKey(raw: string): string {
   return key.replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim()
 }
 
-export function requireEnv(name: string): string {
+export function requireEnv(name) {
   const value = process.env[name]?.trim()
   if (!value) throw new Error(`Missing env var: ${name}`)
   return value
 }
 
-function base64urlJson(value: unknown): string {
+function base64urlJson(value) {
   return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url')
 }
 
-/** RS256 client_assertion JWT using Node crypto (no jose dependency). */
-export function buildClientAssertion(): string {
+/** RS256 client_assertion JWT using Node crypto. */
+export function buildClientAssertion() {
   const clientId = requireEnv('REVOLUT_CLIENT_ID')
   const privateKeyPem = normalizePrivateKey(requireEnv('REVOLUT_PRIVATE_KEY'))
   const redirectUri = process.env.REVOLUT_REDIRECT_URI?.trim()
@@ -125,14 +75,14 @@ export function buildClientAssertion(): string {
   }
 }
 
-async function postToken(body: URLSearchParams): Promise<Record<string, unknown>> {
+async function postToken(body) {
   const response = await fetch(`${revolutAuthBase()}/api/1.0/auth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   })
 
-  const data = (await response.json()) as Record<string, unknown>
+  const data = await response.json()
   if (!response.ok) {
     const message =
       typeof data.error_description === 'string'
@@ -147,12 +97,7 @@ async function postToken(body: URLSearchParams): Promise<Record<string, unknown>
   return data
 }
 
-export async function exchangeAuthorizationCode(code: string): Promise<{
-  access_token: string
-  refresh_token: string
-  token_type?: string
-  expires_in?: number
-}> {
+export async function exchangeAuthorizationCode(code) {
   const assertion = buildClientAssertion()
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
@@ -173,7 +118,7 @@ export async function exchangeAuthorizationCode(code: string): Promise<{
   }
 }
 
-async function refreshAccessToken(): Promise<TokenCache> {
+async function refreshAccessToken() {
   const refreshToken = requireEnv('REVOLUT_REFRESH_TOKEN')
   const assertion = buildClientAssertion()
   const body = new URLSearchParams({
@@ -195,7 +140,7 @@ async function refreshAccessToken(): Promise<TokenCache> {
   }
 }
 
-export async function getAccessToken(): Promise<string> {
+export async function getAccessToken() {
   if (tokenCache && tokenCache.expiresAt > Date.now()) {
     return tokenCache.accessToken
   }
@@ -203,7 +148,7 @@ export async function getAccessToken(): Promise<string> {
   return tokenCache.accessToken
 }
 
-export async function revolutFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function revolutFetch(path, init) {
   const token = await getAccessToken()
   const response = await fetch(`${revolutApiBase()}${path}`, {
     ...init,
@@ -217,7 +162,7 @@ export async function revolutFetch<T>(path: string, init?: RequestInit): Promise
   if (!response.ok) {
     let detail = `Revolut API ${response.status}`
     try {
-      const err = (await response.json()) as { message?: string }
+      const err = await response.json()
       if (err.message) detail = err.message
     } catch {
       // ignore
@@ -225,20 +170,16 @@ export async function revolutFetch<T>(path: string, init?: RequestInit): Promise
     throw new Error(detail)
   }
 
-  if (response.status === 204) return undefined as T
-  return (await response.json()) as T
+  if (response.status === 204) return undefined
+  return response.json()
 }
 
-export async function listAccounts(): Promise<RevolutAccount[]> {
-  return revolutFetch<RevolutAccount[]>('/accounts')
+export async function listAccounts() {
+  return revolutFetch('/accounts')
 }
 
-export async function listTransactionsForAccount(params: {
-  accountId: string
-  from: string
-  to: string
-}): Promise<RevolutTransaction[]> {
-  const all: RevolutTransaction[] = []
+export async function listTransactionsForAccount(params) {
+  const all = []
   let to = params.to
 
   for (let page = 0; page < 20; page++) {
@@ -248,7 +189,7 @@ export async function listTransactionsForAccount(params: {
       to,
       count: '1000',
     })
-    const batch = await revolutFetch<RevolutTransaction[]>(`/transactions?${query}`)
+    const batch = await revolutFetch(`/transactions?${query}`)
     if (!batch.length) break
     all.push(...batch)
     if (batch.length < 1000) break
@@ -261,7 +202,7 @@ export async function listTransactionsForAccount(params: {
 }
 
 /** Inclusive local calendar day in Asia/Makassar (WITA, UTC+8, no DST). */
-export function dayBoundsIso(dateKey: string): { from: string; to: string } {
+export function dayBoundsIso(dateKey) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
     throw new Error('date must be YYYY-MM-DD')
   }
@@ -271,12 +212,7 @@ export function dayBoundsIso(dateKey: string): { from: string; to: string } {
   }
 }
 
-export function isRevolutConfigured(): {
-  configured: boolean
-  missing: string[]
-  env: RevolutEnv
-  hasRefreshToken: boolean
-} {
+export function isRevolutConfigured() {
   const required = ['REVOLUT_CLIENT_ID', 'REVOLUT_PRIVATE_KEY', 'REVOLUT_APP_SECRET']
   const missing = required.filter((key) => !process.env[key]?.trim())
   const hasIss =

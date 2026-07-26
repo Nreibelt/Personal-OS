@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-export function jsonError(res: any, status: number, error: string) {
+export function jsonError(res, status, error) {
   res.status(status).json({ error })
 }
 
-export function assertAppSecret(req: any, res: any): boolean {
+export function assertAppSecret(req, res) {
   const expected = process.env.REVOLUT_APP_SECRET?.trim()
   if (!expected) {
     res.status(503).json({ error: 'REVOLUT_APP_SECRET is not configured on the server.' })
