@@ -3,6 +3,7 @@ import type { FinanceRealm } from '../types'
 import { formatMoney, totalAllocated, totalMonthlyExpenses, totalSpent } from '../utils/finance'
 import { CashAllocationPanel } from './finance/CashAllocationPanel'
 import { CashTrackerPanel } from './finance/CashTrackerPanel'
+import { RevolutSyncPanel } from './finance/RevolutSyncPanel'
 import { SetExpensesPanel } from './finance/SetExpensesPanel'
 
 export function FinancesView({
@@ -38,6 +39,8 @@ export function FinancesView({
         <CashAllocationPanel store={store} realm={realm} />
         <SetExpensesPanel store={store} realm={realm} />
       </div>
+
+      <RevolutSyncPanel store={store} realm={realm} />
 
       <CashTrackerPanel
         store={store}

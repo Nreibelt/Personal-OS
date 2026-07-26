@@ -140,12 +140,45 @@ export interface SpendEntry {
   categoryId?: string
   label?: string
   note?: string
+  /** Revolut leg key (`txnId:legId`) when imported from sync */
+  revolutId?: string
 }
 
 export interface FinanceLedger {
   categories: ExpenseCategory[]
   allocations: CashAllocation[]
   spends: SpendEntry[]
+}
+
+/** Pending Revolut row awaiting categorize / discard in a finance realm. */
+export interface RevolutReviewItem {
+  id: string
+  revolutTransactionId: string
+  legId: string
+  accountId: string
+  accountName: string
+  date: string
+  createdAt: string
+  amount: number
+  currency: string
+  direction: 'in' | 'out'
+  type: string
+  state: string
+  merchant: string
+  description: string
+  reference?: string
+  cardLastFour?: string
+}
+
+export interface RevolutSyncState {
+  /** Revolut account IDs synced into Personal Finances */
+  personalAccountIds: string[]
+  /** Revolut account IDs synced into Company Finances */
+  companyAccountIds: string[]
+  personalQueue: RevolutReviewItem[]
+  companyQueue: RevolutReviewItem[]
+  /** Settled review ids (categorized or discarded) — skipped on later syncs */
+  settledIds: string[]
 }
 
 export interface AppState {
@@ -174,6 +207,7 @@ export interface AppState {
   dailyOneThing: DailyOneThing
   personalFinance: FinanceLedger
   companyFinance: FinanceLedger
+  revolutSync: RevolutSyncState
 }
 
 export type SummaryMode = AppState['summaryMode']

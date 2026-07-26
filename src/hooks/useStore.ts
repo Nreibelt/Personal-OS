@@ -15,6 +15,8 @@ import type {
   Habit,
   OpenLoop,
   ProjectId,
+  RevolutReviewItem,
+  RevolutSyncState,
   SpendEntry,
   SummaryMode,
   Task,
@@ -79,6 +81,28 @@ function migrateLedger(raw: Partial<FinanceLedger> | undefined, fallback: Financ
   }
 }
 
+function migrateRevolutSync(
+  raw: Partial<RevolutSyncState> | undefined,
+  fallback: RevolutSyncState,
+): RevolutSyncState {
+  if (!raw || typeof raw !== 'object') return fallback
+  return {
+    personalAccountIds: Array.isArray(raw.personalAccountIds) ? raw.personalAccountIds : [],
+    companyAccountIds: Array.isArray(raw.companyAccountIds) ? raw.companyAccountIds : [],
+    personalQueue: Array.isArray(raw.personalQueue) ? raw.personalQueue : [],
+    companyQueue: Array.isArray(raw.companyQueue) ? raw.companyQueue : [],
+    settledIds: Array.isArray(raw.settledIds) ? raw.settledIds : [],
+  }
+}
+
+function queueKey(realm: FinanceRealm): 'personalQueue' | 'companyQueue' {
+  return realm === 'personal' ? 'personalQueue' : 'companyQueue'
+}
+
+function accountIdsKey(realm: FinanceRealm): 'personalAccountIds' | 'companyAccountIds' {
+  return realm === 'personal' ? 'personalAccountIds' : 'companyAccountIds'
+}
+
 function loadState(): AppState {
   const seed = createSeedState()
   const today = todayDateKey()
@@ -105,6 +129,7 @@ function loadState(): AppState {
       dailyOneThing: { ...seed.dailyOneThing, ...(parsed.dailyOneThing || {}) },
       personalFinance: migrateLedger(parsed.personalFinance, seed.personalFinance),
       companyFinance: migrateLedger(parsed.companyFinance, seed.companyFinance),
+      revolutSync: migrateRevolutSync(parsed.revolutSync, seed.revolutSync),
     }
   } catch {
     return seed
@@ -476,6 +501,7 @@ export function useStore() {
         categoryId?: string
         label?: string
         note?: string
+        revolutId?: string
       },
     ) => {
       if (input.amount <= 0) return
@@ -489,6 +515,7 @@ export function useStore() {
         categoryId: input.categoryId,
         label: input.label?.trim() || undefined,
         note: input.note?.trim() || undefined,
+        revolutId: input.revolutId,
       }
       patchLedger(realm, (ledger) => ({
         ...ledger,
@@ -506,6 +533,118 @@ export function useStore() {
       }))
     },
     [patchLedger],
+  )
+
+  const setRevolutAccountIds = useCallback(
+    (realm: FinanceRealm, accountIds: string[]) => {
+      const key = accountIdsKey(realm)
+      update((s) => ({
+        ...s,
+        revolutSync: {
+          ...s.revolutSync,
+          [key]: [...new Set(accountIds)],
+        },
+      }))
+    },
+    [update],
+  )
+
+  const mergeRevolutReviewItems = useCallback(
+    (realm: FinanceRealm, items: RevolutReviewItem[]) => {
+      const qKey = queueKey(realm)
+      update((s) => {
+        const settled = new Set(s.revolutSync.settledIds)
+        // Also treat already-imported spends as settled
+        for (const spend of s.personalFinance.spends) {
+          if (spend.revolutId) settled.add(spend.revolutId)
+        }
+        for (const spend of s.companyFinance.spends) {
+          if (spend.revolutId) settled.add(spend.revolutId)
+        }
+        const existing = new Map(s.revolutSync[qKey].map((item) => [item.id, item]))
+        for (const item of items) {
+          if (settled.has(item.id)) continue
+          if (!existing.has(item.id)) existing.set(item.id, item)
+        }
+        return {
+          ...s,
+          revolutSync: {
+            ...s.revolutSync,
+            [qKey]: [...existing.values()].sort((a, b) =>
+              b.createdAt.localeCompare(a.createdAt),
+            ),
+          },
+        }
+      })
+    },
+    [update],
+  )
+
+  const discardRevolutReviewItem = useCallback(
+    (realm: FinanceRealm, id: string) => {
+      const qKey = queueKey(realm)
+      update((s) => ({
+        ...s,
+        revolutSync: {
+          ...s.revolutSync,
+          [qKey]: s.revolutSync[qKey].filter((item) => item.id !== id),
+          settledIds: s.revolutSync.settledIds.includes(id)
+            ? s.revolutSync.settledIds
+            : [...s.revolutSync.settledIds, id],
+        },
+      }))
+    },
+    [update],
+  )
+
+  const categorizeRevolutReviewItem = useCallback(
+    (
+      realm: FinanceRealm,
+      id: string,
+      input: {
+        kind: SpendEntry['kind']
+        categoryId?: string
+        label?: string
+      },
+    ) => {
+      if (input.kind === 'category' && !input.categoryId) return
+      if (input.kind === 'unexpected' && !input.label?.trim()) return
+
+      const qKey = queueKey(realm)
+      const ledger = ledgerKey(realm)
+
+      update((s) => {
+        const item = s.revolutSync[qKey].find((row) => row.id === id)
+        if (!item || item.direction !== 'out' || item.amount <= 0) return s
+
+        const entry: SpendEntry = {
+          id: uid('spend'),
+          date: item.date,
+          amount: Math.round(item.amount * 100) / 100,
+          kind: input.kind,
+          categoryId: input.categoryId,
+          label: input.label?.trim() || undefined,
+          note: [item.merchant, item.description].filter(Boolean).join(' · ') || undefined,
+          revolutId: item.id,
+        }
+
+        return {
+          ...s,
+          [ledger]: {
+            ...s[ledger],
+            spends: [entry, ...s[ledger].spends],
+          },
+          revolutSync: {
+            ...s.revolutSync,
+            [qKey]: s.revolutSync[qKey].filter((row) => row.id !== id),
+            settledIds: s.revolutSync.settledIds.includes(id)
+              ? s.revolutSync.settledIds
+              : [...s.revolutSync.settledIds, id],
+          },
+        }
+      })
+    },
+    [update],
   )
 
   const resetToSeed = useCallback(() => {
@@ -661,6 +800,10 @@ export function useStore() {
     removeCashAllocation,
     addSpend,
     removeSpend,
+    setRevolutAccountIds,
+    mergeRevolutReviewItems,
+    discardRevolutReviewItem,
+    categorizeRevolutReviewItem,
     financeFor,
     minutesFor,
     resetToSeed,
