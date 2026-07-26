@@ -1,5 +1,9 @@
 import { assertAppSecret, jsonError } from '../_lib/http.js'
-import { isRevolutConfigured, listAccounts } from '../_lib/revolut.js'
+import {
+  getExchangeRate,
+  isRevolutConfigured,
+  listAccounts,
+} from '../_lib/revolut.js'
 
 export default async function handler(req, res) {
   try {
@@ -17,15 +21,47 @@ export default async function handler(req, res) {
       )
     }
 
+    const toParam = Array.isArray(req.query.to) ? req.query.to[0] : req.query.to
+    const displayCurrency = (toParam || 'AUD').toUpperCase()
+
     const accounts = await listAccounts()
-    return res.status(200).json({
-      accounts: accounts.map((a) => ({
+    const rateCache = new Map()
+
+    const enriched = []
+    for (const a of accounts) {
+      const currency = (a.currency || '').toUpperCase()
+      const balance = typeof a.balance === 'number' ? a.balance : 0
+      let displayBalance = balance
+      let rate = 1
+
+      if (currency && currency !== displayCurrency) {
+        const cacheKey = `${currency}:${displayCurrency}`
+        if (!rateCache.has(cacheKey)) {
+          rateCache.set(cacheKey, await getExchangeRate(currency, displayCurrency, 1))
+        }
+        const fx = rateCache.get(cacheKey)
+        rate = fx.rate
+        displayBalance = Math.round(balance * rate * 100) / 100
+      }
+
+      enriched.push({
         id: a.id,
         name: a.name,
-        balance: a.balance,
-        currency: a.currency,
+        balance,
+        currency,
         state: a.state,
-      })),
+        displayCurrency,
+        displayBalance,
+        rate,
+      })
+    }
+
+    return res.status(200).json({
+      displayCurrency,
+      accounts: enriched,
+      rates: Object.fromEntries(
+        [...rateCache.entries()].map(([key, value]) => [key, value.rate]),
+      ),
     })
   } catch (error) {
     console.error('revolut accounts failed', error)

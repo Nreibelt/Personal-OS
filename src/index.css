@@ -1976,27 +1976,212 @@ select:focus {
   font-size: 0.9rem;
 }
 
-.revolut-setup {
-  margin-bottom: 0.85rem;
-}
-
-.revolut-status {
-  margin: 0.45rem 0 0;
+.revolut-pill {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-dim);
 }
 
-.revolut-status.ok,
-.revolut-feedback.ok {
+.revolut-pill.ok {
   color: var(--brass);
 }
 
-.revolut-status.bad,
-.revolut-feedback.bad {
+.revolut-pill.bad {
   color: var(--danger);
+}
+
+.revolut-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.015);
+  padding: 1rem 1.05rem;
+  margin-bottom: 0.85rem;
+}
+
+.revolut-card-head {
+  margin-bottom: 0.85rem;
+}
+
+.revolut-card-head h3 {
+  margin: 0 0 0.25rem;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--text);
+}
+
+.revolut-card-head p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.revolut-card-head code {
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+  color: var(--brass);
+}
+
+.revolut-inline,
+.revolut-actions,
+.revolut-sync-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.revolut-inline input,
+.revolut-sync-row input[type='date'] {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.revolut-account-grid {
+  list-style: none;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.5rem;
+}
+
+.revolut-account-tile {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.revolut-account-tile:hover {
+  border-color: var(--brass-dim);
+}
+
+.revolut-account-tile.on {
+  border-color: var(--brass-dim);
+  background: var(--brass-soft);
+}
+
+.revolut-account-tile input {
+  margin-top: 0.2rem;
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--brass);
+}
+
+.revolut-account-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.revolut-account-name {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.revolut-account-meta {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.revolut-ready {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-bottom: 0.35rem;
+}
+
+.revolut-linked-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+  margin-bottom: 0.55rem;
+}
+
+.revolut-linked-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.revolut-linked-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.revolut-text-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--brass);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.revolut-text-btn:hover {
+  color: var(--text);
+}
+
+.revolut-text-btn.muted,
+.revolut-text-btn:disabled {
+  color: var(--text-dim);
+}
+
+.revolut-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.revolut-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.revolut-chip em {
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.revolut-sync-row .finance-field {
+  min-width: 10rem;
+}
+
+.revolut-hint {
+  margin-top: 0.25rem;
 }
 
 .revolut-feedback {
@@ -2004,73 +2189,193 @@ select:focus {
   font-size: 0.88rem;
 }
 
-.revolut-account-list {
+.revolut-feedback.ok {
+  color: var(--brass);
+}
+
+.revolut-feedback.bad {
+  color: var(--danger);
+}
+
+.revolut-review {
+  margin-top: 1.1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line-soft);
+}
+
+.revolut-review-head {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.75rem;
+}
+
+.revolut-txn-list {
   list-style: none;
-  margin: 0 0 0.85rem;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-}
-
-.revolut-account-row {
-  display: flex;
-  align-items: flex-start;
   gap: 0.65rem;
-  cursor: pointer;
-  padding: 0.35rem 0;
 }
 
-.revolut-account-main {
+.revolut-txn {
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.revolut-txn-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+  margin-bottom: 0.7rem;
+}
+
+.revolut-txn-main {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.2rem;
   min-width: 0;
 }
 
-.revolut-sync-bar {
+.revolut-txn-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.revolut-txn-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.65rem;
-  align-items: flex-end;
-  margin-bottom: 0.35rem;
+  gap: 0.35rem 0.65rem;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
 }
 
-.revolut-sync-bar .finance-field {
-  min-width: 10rem;
+.revolut-txn-meta .dir.out {
+  color: var(--brass);
 }
 
-.revolut-review-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.45rem 0.75rem;
-  align-items: center;
-  padding-bottom: 0.7rem;
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.revolut-review-row .finance-expense-amount.in {
+.revolut-txn-meta .dir.in {
   color: var(--text-muted);
 }
 
-.revolut-review-actions {
-  grid-column: 1 / -1;
+.revolut-txn-amt {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--brass);
+  white-space: nowrap;
+}
+
+.revolut-txn-amt.in {
+  color: var(--text-muted);
+}
+
+.revolut-txn-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
   align-items: center;
 }
 
-.revolut-review-actions select {
-  min-width: 12rem;
-  flex: 1;
+.revolut-txn-actions select {
+  min-width: 9rem;
+  flex: 1 1 9rem;
 }
 
 .revolut-income-tag {
   font-family: var(--font-mono);
   font-size: 0.62rem;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  color: var(--text-dim);
+  margin-right: auto;
+}
+
+.company-buckets {
+  animation: rise 0.35s ease both;
+}
+
+.company-buckets-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.65rem;
+}
+
+.company-buckets-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.company-buckets-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.company-buckets-stamp {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.company-bucket-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.65rem;
+}
+
+.company-bucket {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-height: 6.2rem;
+}
+
+.company-bucket-name {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.company-bucket-aud {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--text);
+  line-height: 1.15;
+}
+
+.company-bucket-fx {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.company-bucket-fx.muted {
   color: var(--text-dim);
 }
 
@@ -2096,8 +2401,12 @@ select:focus {
     grid-template-columns: 1fr;
   }
 
-  .revolut-review-row {
-    grid-template-columns: 1fr;
+  .revolut-txn-top {
+    flex-direction: column;
+  }
+
+  .company-bucket-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .finance-remaining {

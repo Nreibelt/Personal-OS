@@ -4,6 +4,9 @@ export interface RevolutAccountDto {
   balance: number
   currency: string
   state: string
+  displayCurrency?: string
+  displayBalance?: number
+  rate?: number
 }
 
 export interface RevolutTxnDto {
@@ -44,10 +47,7 @@ export function saveRevolutAppSecret(secret: string) {
   }
 }
 
-async function revolutRequest<T>(
-  path: string,
-  appSecret: string,
-): Promise<T> {
+async function revolutRequest<T>(path: string, appSecret: string): Promise<T> {
   const response = await fetch(path, {
     headers: {
       Accept: 'application/json',
@@ -72,11 +72,13 @@ export async function fetchRevolutStatus(appSecret: string) {
   )
 }
 
-export async function fetchRevolutAccounts(appSecret: string) {
-  return revolutRequest<{ accounts: RevolutAccountDto[] }>(
-    '/api/revolut/accounts',
-    appSecret,
-  )
+export async function fetchRevolutAccounts(appSecret: string, displayCurrency = 'AUD') {
+  const params = new URLSearchParams({ to: displayCurrency })
+  return revolutRequest<{
+    accounts: RevolutAccountDto[]
+    displayCurrency: string
+    rates: Record<string, number>
+  }>(`/api/revolut/accounts?${params}`, appSecret)
 }
 
 export async function fetchRevolutTransactions(
@@ -93,4 +95,25 @@ export async function fetchRevolutTransactions(
     count: number
     transactions: RevolutTxnDto[]
   }>(`/api/revolut/transactions?${params}`, appSecret)
+}
+
+export function formatAud(amount: number): string {
+  const n = Number.isFinite(amount) ? amount : 0
+  const abs = Math.abs(n)
+  const formatted = abs.toLocaleString(undefined, {
+    minimumFractionDigits: abs % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  })
+  return n < 0 ? `−A$${formatted}` : `A$${formatted}`
+}
+
+export function formatFx(amount: number, currency: string): string {
+  const n = Number.isFinite(amount) ? amount : 0
+  const abs = Math.abs(n)
+  const formatted = abs.toLocaleString(undefined, {
+    minimumFractionDigits: abs % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  })
+  const prefix = currency === 'USD' ? 'US$' : `${currency} `
+  return n < 0 ? `−${prefix}${formatted}` : `${prefix}${formatted}`
 }

@@ -178,6 +178,30 @@ export async function listAccounts() {
   return revolutFetch('/accounts')
 }
 
+/** Sell exchange rate: 1 unit of `from` → `to`. */
+export async function getExchangeRate(from, to, amount = 1) {
+  if (from === to) {
+    return { rate: 1, from, to, toAmount: amount }
+  }
+  const query = new URLSearchParams({
+    from,
+    to,
+    amount: String(amount),
+  })
+  const data = await revolutFetch(`/rate?${query}`)
+  const rate = typeof data.rate === 'number' ? data.rate : null
+  const toAmount =
+    typeof data.to?.amount === 'number'
+      ? data.to.amount
+      : rate !== null
+        ? Math.round(amount * rate * 100) / 100
+        : null
+  if (rate === null || toAmount === null) {
+    throw new Error(`No exchange rate for ${from} → ${to}`)
+  }
+  return { rate, from, to, toAmount }
+}
+
 export async function listTransactionsForAccount(params) {
   const all = []
   let to = params.to

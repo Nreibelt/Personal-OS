@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import type { Store } from '../hooks/useStore'
 import type { FinanceRealm } from '../types'
 import { formatMoney, totalAllocated, totalMonthlyExpenses, totalSpent } from '../utils/finance'
 import { CashAllocationPanel } from './finance/CashAllocationPanel'
 import { CashTrackerPanel } from './finance/CashTrackerPanel'
+import { CompanyRevolutBuckets } from './finance/CompanyRevolutBuckets'
 import { RevolutSyncPanel } from './finance/RevolutSyncPanel'
 import { SetExpensesPanel } from './finance/SetExpensesPanel'
 
@@ -17,9 +19,14 @@ export function FinancesView({
   const monthly = totalMonthlyExpenses(ledger)
   const allocated = totalAllocated(ledger)
   const spent = totalSpent(ledger)
+  const [balanceTick, setBalanceTick] = useState(0)
 
   return (
     <div className="layout-stack finance-view">
+      {realm === 'company' && (
+        <CompanyRevolutBuckets store={store} refreshTick={balanceTick} />
+      )}
+
       <div className="finance-overview">
         <div className="finance-stat">
           <span className="finance-stat-label">Monthly set expenses</span>
@@ -40,7 +47,11 @@ export function FinancesView({
         <SetExpensesPanel store={store} realm={realm} />
       </div>
 
-      <RevolutSyncPanel store={store} realm={realm} />
+      <RevolutSyncPanel
+        store={store}
+        realm={realm}
+        onSynced={() => setBalanceTick((t) => t + 1)}
+      />
 
       <CashTrackerPanel
         store={store}
