@@ -3,10 +3,10 @@ import { emptyFinanceLedger } from '../utils/finance'
 import { todayDateKey, todayMonthKey } from '../utils/time'
 
 export const PROJECTS: Project[] = [
-  { id: 'chase', name: 'Chase Build', color: '#5b8def' },
-  { id: 'myProject', name: 'My Project', color: '#3d9b7a' },
-  { id: 'rav', name: 'Rav Work', color: '#c4922a' },
-  { id: 'personal', name: 'Personal Time', color: '#8b7ec8' },
+  { id: 'chase', name: 'Chase Build', color: '#7a91a8' },
+  { id: 'myProject', name: 'My Project', color: '#6f8f78' },
+  { id: 'rav', name: 'Rav Work', color: '#c9b896' },
+  { id: 'personal', name: 'Personal Time', color: '#8a8478' },
 ]
 
 export const PROJECT_MAP = Object.fromEntries(PROJECTS.map((p) => [p.id, p])) as Record<

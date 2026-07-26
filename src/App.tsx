@@ -36,21 +36,6 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <nav className="app-tabs" role="tablist" aria-label="Platform sections">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            className={`app-tab${tab === t.id ? ' active' : ''}`}
-            onClick={() => store.setActiveTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
-
       <header className="command-bar">
         <div className="brand-lockup">
           <span className="brand-name">BATCAVE</span>
@@ -86,6 +71,21 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      <nav className="app-tabs" role="tablist" aria-label="Platform sections">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            className={`app-tab${tab === t.id ? ' active' : ''}`}
+            onClick={() => store.setActiveTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
       {tab === 'dashboard' && (
         <DashboardView store={store} onStartProject={startFromDashboard} />
