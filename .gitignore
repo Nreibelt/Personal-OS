@@ -11,6 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+privatecert.pem
+publiccert.cer
+*.pem
 
 # Editor directories and files
 .vscode/*

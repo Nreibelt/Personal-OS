@@ -1976,6 +1976,104 @@ select:focus {
   font-size: 0.9rem;
 }
 
+.revolut-setup {
+  margin-bottom: 0.85rem;
+}
+
+.revolut-status {
+  margin: 0.45rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.revolut-status.ok,
+.revolut-feedback.ok {
+  color: var(--brass);
+}
+
+.revolut-status.bad,
+.revolut-feedback.bad {
+  color: var(--danger);
+}
+
+.revolut-feedback {
+  margin: 0.55rem 0 0;
+  font-size: 0.88rem;
+}
+
+.revolut-account-list {
+  list-style: none;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.revolut-account-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  cursor: pointer;
+  padding: 0.35rem 0;
+}
+
+.revolut-account-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.revolut-sync-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: flex-end;
+  margin-bottom: 0.35rem;
+}
+
+.revolut-sync-bar .finance-field {
+  min-width: 10rem;
+}
+
+.revolut-review-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.45rem 0.75rem;
+  align-items: center;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.revolut-review-row .finance-expense-amount.in {
+  color: var(--text-muted);
+}
+
+.revolut-review-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.revolut-review-actions select {
+  min-width: 12rem;
+  flex: 1;
+}
+
+.revolut-income-tag {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
 .btn-primary.compact,
 .btn-secondary.compact {
   padding: 0.45rem 0.7rem;
@@ -1995,6 +2093,10 @@ select:focus {
   .finance-form-grid.two,
   .finance-alloc-line,
   .finance-tracker-form .finance-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .revolut-review-row {
     grid-template-columns: 1fr;
   }
 

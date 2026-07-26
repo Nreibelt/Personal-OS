@@ -162,5 +162,12 @@ export function createSeedState(): AppState {
     },
     personalFinance: emptyFinanceLedger(personalBillsId),
     companyFinance: emptyFinanceLedger(companyBillsId),
+    revolutSync: {
+      personalAccountIds: [],
+      companyAccountIds: [],
+      personalQueue: [],
+      companyQueue: [],
+      settledIds: [],
+    },
   }
 }
