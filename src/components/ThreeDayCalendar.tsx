@@ -357,7 +357,7 @@ export function ThreeDayCalendar({ store }: { store: Store }) {
               {blocksFor(date).map((block) => {
                 const color = block.projectId
                   ? PROJECT_MAP[block.projectId].color
-                  : block.color || '#00d4ff'
+                  : block.color || '#c9b896'
                 const live =
                   movePreview?.id === block.id
                     ? movePreview
@@ -426,8 +426,8 @@ export function ThreeDayCalendar({ store }: { store: Store }) {
               <span
                 className="dot"
                 style={{
-                  background: projectId ? PROJECT_MAP[projectId].color : '#00d4ff',
-                  color: projectId ? PROJECT_MAP[projectId].color : '#00d4ff',
+                  background: projectId ? PROJECT_MAP[projectId].color : '#c9b896',
+                  color: projectId ? PROJECT_MAP[projectId].color : '#c9b896',
                 }}
               />
               {editing ? 'EDIT BLOCK' : 'NEW BLOCK'}

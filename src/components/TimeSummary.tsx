@@ -62,14 +62,14 @@ export function TimeSummary({ store }: { store: Store }) {
         ))}
       {personal > 0 && (
         <div className="breakdown-row" style={{ marginTop: '0.75rem', opacity: 0.85 }}>
-          <span className="dot" style={{ background: '#a78bfa', color: '#a78bfa' }} />
+          <span className="dot" style={{ background: '#8a8478', color: '#8a8478' }} />
           <span style={{ minWidth: '7rem' }}>Personal Time</span>
           <div className="bar">
             <i
               style={{
                 width: `${Math.min(100, Math.round((personal / (deepTotal + personal || 1)) * 100))}%`,
-                background: '#a78bfa',
-                color: '#a78bfa',
+                background: '#8a8478',
+                color: '#8a8478',
               }}
             />
           </div>
