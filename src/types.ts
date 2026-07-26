@@ -177,7 +177,10 @@ export interface RevolutSyncState {
   companyAccountIds: string[]
   personalQueue: RevolutReviewItem[]
   companyQueue: RevolutReviewItem[]
-  /** Settled review ids (categorized or discarded) — skipped on later syncs */
+  /**
+   * Legacy field. Discarded txns are no longer stored here — only logged spends
+   * (via SpendEntry.revolutId) are skipped on re-sync. Kept empty for older clients.
+   */
   settledIds: string[]
 }
 

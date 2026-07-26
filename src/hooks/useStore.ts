@@ -39,6 +39,7 @@ import {
 } from '../utils/time'
 
 const STORAGE_KEY = 'batcave-deep-work-os-v2'
+const FINANCE_BACKUP_KEY = 'batcave-finance-backup-v1'
 
 function migrateTasks(tasks: AppState['tasks']): AppState['tasks'] {
   const next = { ...tasks }
@@ -81,6 +82,56 @@ function migrateLedger(raw: Partial<FinanceLedger> | undefined, fallback: Financ
   }
 }
 
+/** True when the ledger has more than a bare empty Bills preset. */
+function isRichLedger(ledger: FinanceLedger): boolean {
+  const cats = ledger.categories || []
+  if (cats.length === 0) return false
+  if (cats.length > 1) return true
+  const only = cats[0]
+  if (!only) return false
+  if (only.name.toLowerCase() !== 'bills') return true
+  if (only.amount > 0) return true
+  return cats.some((c) => c.parentId)
+}
+
+function preferRicherLedger(current: FinanceLedger, candidate: FinanceLedger): FinanceLedger {
+  if (!isRichLedger(current) && isRichLedger(candidate)) return candidate
+  if (candidate.categories.length > current.categories.length) return candidate
+  return current
+}
+
+function readFinanceBackup(): {
+  personalFinance?: FinanceLedger
+  companyFinance?: FinanceLedger
+} | null {
+  try {
+    const raw = localStorage.getItem(FINANCE_BACKUP_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as {
+      personalFinance?: FinanceLedger
+      companyFinance?: FinanceLedger
+    }
+  } catch {
+    return null
+  }
+}
+
+function writeFinanceBackup(personal: FinanceLedger, company: FinanceLedger) {
+  if (!isRichLedger(personal) && !isRichLedger(company)) return
+  try {
+    localStorage.setItem(
+      FINANCE_BACKUP_KEY,
+      JSON.stringify({
+        personalFinance: personal,
+        companyFinance: company,
+        savedAt: Date.now(),
+      }),
+    )
+  } catch {
+    // ignore quota errors
+  }
+}
+
 function migrateRevolutSync(
   raw: Partial<RevolutSyncState> | undefined,
   fallback: RevolutSyncState,
@@ -91,7 +142,8 @@ function migrateRevolutSync(
     companyAccountIds: Array.isArray(raw.companyAccountIds) ? raw.companyAccountIds : [],
     personalQueue: Array.isArray(raw.personalQueue) ? raw.personalQueue : [],
     companyQueue: Array.isArray(raw.companyQueue) ? raw.companyQueue : [],
-    settledIds: Array.isArray(raw.settledIds) ? raw.settledIds : [],
+    // Drop legacy discard settlements — discarded txns should reappear on sync
+    settledIds: [],
   }
 }
 
@@ -107,9 +159,43 @@ function loadState(): AppState {
   const seed = createSeedState()
   const today = todayDateKey()
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('batcave-deep-work-os-v1')
+    const rawV2 = localStorage.getItem(STORAGE_KEY)
+    const rawV1 = localStorage.getItem('batcave-deep-work-os-v1')
+    const raw = rawV2 ?? rawV1
     if (!raw) return seed
     const parsed = JSON.parse(raw) as Partial<AppState>
+
+    let personalFinance = migrateLedger(parsed.personalFinance, seed.personalFinance)
+    let companyFinance = migrateLedger(parsed.companyFinance, seed.companyFinance)
+
+    // Recover wiped set-expenses from older snapshots / finance backup when possible
+    if (rawV1 && rawV2) {
+      try {
+        const older = JSON.parse(rawV1) as Partial<AppState>
+        personalFinance = preferRicherLedger(
+          personalFinance,
+          migrateLedger(older.personalFinance, seed.personalFinance),
+        )
+        companyFinance = preferRicherLedger(
+          companyFinance,
+          migrateLedger(older.companyFinance, seed.companyFinance),
+        )
+      } catch {
+        // ignore
+      }
+    }
+    const backup = readFinanceBackup()
+    if (backup) {
+      personalFinance = preferRicherLedger(
+        personalFinance,
+        migrateLedger(backup.personalFinance, seed.personalFinance),
+      )
+      companyFinance = preferRicherLedger(
+        companyFinance,
+        migrateLedger(backup.companyFinance, seed.companyFinance),
+      )
+    }
+
     return {
       ...seed,
       ...parsed,
@@ -127,8 +213,8 @@ function loadState(): AppState {
       ),
       showAllTasks: parsed.showAllTasks ?? false,
       dailyOneThing: { ...seed.dailyOneThing, ...(parsed.dailyOneThing || {}) },
-      personalFinance: migrateLedger(parsed.personalFinance, seed.personalFinance),
-      companyFinance: migrateLedger(parsed.companyFinance, seed.companyFinance),
+      personalFinance,
+      companyFinance,
       revolutSync: migrateRevolutSync(parsed.revolutSync, seed.revolutSync),
     }
   } catch {
@@ -146,6 +232,7 @@ export function useStore() {
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    writeFinanceBackup(state.personalFinance, state.companyFinance)
   }, [state])
 
   useEffect(() => {
@@ -553,23 +640,24 @@ export function useStore() {
     (realm: FinanceRealm, items: RevolutReviewItem[]) => {
       const qKey = queueKey(realm)
       update((s) => {
-        const settled = new Set(s.revolutSync.settledIds)
-        // Also treat already-imported spends as settled
+        // Only skip txns already logged as spends — discarded ones come back on re-sync
+        const logged = new Set<string>()
         for (const spend of s.personalFinance.spends) {
-          if (spend.revolutId) settled.add(spend.revolutId)
+          if (spend.revolutId) logged.add(spend.revolutId)
         }
         for (const spend of s.companyFinance.spends) {
-          if (spend.revolutId) settled.add(spend.revolutId)
+          if (spend.revolutId) logged.add(spend.revolutId)
         }
         const existing = new Map(s.revolutSync[qKey].map((item) => [item.id, item]))
         for (const item of items) {
-          if (settled.has(item.id)) continue
-          if (!existing.has(item.id)) existing.set(item.id, item)
+          if (logged.has(item.id)) continue
+          existing.set(item.id, item)
         }
         return {
           ...s,
           revolutSync: {
             ...s.revolutSync,
+            settledIds: [],
             [qKey]: [...existing.values()].sort((a, b) =>
               b.createdAt.localeCompare(a.createdAt),
             ),
@@ -587,10 +675,8 @@ export function useStore() {
         ...s,
         revolutSync: {
           ...s.revolutSync,
+          // Remove from queue only — do not permanently settle (re-sync can show again)
           [qKey]: s.revolutSync[qKey].filter((item) => item.id !== id),
-          settledIds: s.revolutSync.settledIds.includes(id)
-            ? s.revolutSync.settledIds
-            : [...s.revolutSync.settledIds, id],
         },
       }))
     },
@@ -637,9 +723,6 @@ export function useStore() {
           revolutSync: {
             ...s.revolutSync,
             [qKey]: s.revolutSync[qKey].filter((row) => row.id !== id),
-            settledIds: s.revolutSync.settledIds.includes(id)
-              ? s.revolutSync.settledIds
-              : [...s.revolutSync.settledIds, id],
           },
         }
       })
@@ -648,9 +731,22 @@ export function useStore() {
   )
 
   const resetToSeed = useCallback(() => {
+    const ok = window.confirm(
+      'Reset deep-work data (tasks, timers, habits)?\n\nPersonal and company finances are kept.',
+    )
+    if (!ok) return
     const seed = createSeedState()
-    setState(seed)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(seed))
+    setState((s) => {
+      const next = {
+        ...seed,
+        personalFinance: s.personalFinance,
+        companyFinance: s.companyFinance,
+        revolutSync: s.revolutSync,
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+      writeFinanceBackup(next.personalFinance, next.companyFinance)
+      return next
+    })
   }, [])
 
   const minutesFor = useCallback(

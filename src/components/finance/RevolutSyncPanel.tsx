@@ -483,7 +483,10 @@ export function RevolutSyncPanel({
             </span>
           </div>
           {queue.length === 0 ? (
-            <p className="finance-empty">No pending transactions. Sync a day to pull them in.</p>
+            <p className="finance-empty">
+              No pending transactions. Sync a day to pull them in. Discarded ones come back on
+              re-sync; logged spends stay hidden.
+            </p>
           ) : (
             <ul className="revolut-txn-list">
               {queue.map((item) => {
