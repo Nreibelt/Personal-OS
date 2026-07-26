@@ -1,56 +1,31 @@
-import { assertAppSecret, jsonError } from '../_lib/http'
+import { assertAppSecret, jsonError } from '../_lib/http.js'
 import {
   dayBoundsIso,
   isRevolutConfigured,
   listAccounts,
   listTransactionsForAccount,
-  type RevolutTransaction,
-} from '../_lib/revolut'
+} from '../_lib/revolut.js'
 
-function firstQuery(value: string | string[] | undefined): string | undefined {
+function firstQuery(value) {
   if (Array.isArray(value)) return value[0]
   return value
 }
 
-function normalizeAccountIds(raw: string | string[] | undefined): string[] {
+function normalizeAccountIds(raw) {
   if (!raw) return []
   const joined = Array.isArray(raw) ? raw.join(',') : raw
   return [...new Set(joined.split(',').map((s) => s.trim()).filter(Boolean))]
 }
 
-export interface NormalizedTxn {
-  id: string
-  revolutTransactionId: string
-  legId: string
-  accountId: string
-  accountName: string
-  date: string
-  createdAt: string
-  amount: number
-  currency: string
-  direction: 'in' | 'out'
-  type: string
-  state: string
-  merchant: string
-  description: string
-  reference?: string
-  cardLastFour?: string
-}
-
-function normalizeTransaction(
-  txn: RevolutTransaction,
-  accountNames: Map<string, string>,
-  dateKey: string,
-  accountFilter: Set<string>,
-): NormalizedTxn[] {
+function normalizeTransaction(txn, accountNames, dateKey, accountFilter) {
   const merchant = txn.merchant?.name?.trim() || ''
-  const items: NormalizedTxn[] = []
+  const items = []
 
   for (const leg of txn.legs || []) {
     if (!accountFilter.has(leg.account_id)) continue
     if (typeof leg.amount !== 'number' || leg.amount === 0) continue
 
-    const direction: 'in' | 'out' = leg.amount < 0 ? 'out' : 'in'
+    const direction = leg.amount < 0 ? 'out' : 'in'
     const amount = Math.round(Math.abs(leg.amount) * 100) / 100
     const description = leg.description?.trim() || merchant || txn.reference || txn.type
 
@@ -77,7 +52,7 @@ function normalizeTransaction(
   return items
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req, res) {
   try {
     if (req.method !== 'GET') {
       return jsonError(res, 405, 'Method not allowed')
@@ -113,8 +88,8 @@ export default async function handler(req: any, res: any) {
       return jsonError(res, 400, `Unknown account id(s): ${unknown.join(', ')}`)
     }
 
-    const seen = new Set<string>()
-    const transactions: NormalizedTxn[] = []
+    const seen = new Set()
+    const transactions = []
 
     for (const accountId of accountIds) {
       const raw = await listTransactionsForAccount({ accountId, from, to })

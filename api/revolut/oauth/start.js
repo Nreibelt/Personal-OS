@@ -1,11 +1,8 @@
-import { jsonError } from '../../_lib/http'
-import { revolutEnv, requireEnv } from '../../_lib/revolut'
+import { jsonError } from '../../_lib/http.js'
+import { revolutEnv, requireEnv } from '../../_lib/revolut.js'
 
-/**
- * Redirects to Revolut's app-confirm consent page.
- * Use once during setup to obtain an authorization code → refresh token.
- */
-export default async function handler(req: any, res: any) {
+/** Redirects to Revolut consent (READ scope). */
+export default async function handler(req, res) {
   try {
     if (req.method !== 'GET') {
       return jsonError(res, 405, 'Method not allowed')

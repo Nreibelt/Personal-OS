@@ -1,17 +1,17 @@
-import { exchangeAuthorizationCode } from '../../_lib/revolut'
+import { exchangeAuthorizationCode } from '../../_lib/revolut.js'
 
-function firstQuery(value: string | string[] | undefined): string | undefined {
+function firstQuery(value) {
   if (Array.isArray(value)) return value[0]
   return value
 }
 
-function html(res: any, status: number, body: string) {
+function html(res, status, body) {
   res.statusCode = status
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.end(body)
 }
 
-function escapeHtml(value: string): string {
+function escapeHtml(value) {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -21,9 +21,9 @@ function escapeHtml(value: string): string {
 
 /**
  * One-time OAuth callback. Exchanges ?code= for tokens and shows the refresh
- * token so you can paste it into Vercel env as REVOLUT_REFRESH_TOKEN.
+ * token so you can paste it into Vercel as REVOLUT_REFRESH_TOKEN.
  */
-export default async function handler(req: any, res: any) {
+export default async function handler(req, res) {
   try {
     if (req.method !== 'GET') {
       return html(res, 405, '<h1>Method not allowed</h1>')
