@@ -76,8 +76,13 @@ export default function App() {
               {store.state.activeTimer && <span className="status-pill live">● LIVE</span>}
             </>
           )}
-          <button className="ghost-btn" type="button" onClick={() => store.resetToSeed()}>
-            Reset
+          <button
+            className="ghost-btn"
+            type="button"
+            title="Resets deep-work data only — finances are kept"
+            onClick={() => store.resetToSeed()}
+          >
+            Reset work
           </button>
         </div>
       </header>
