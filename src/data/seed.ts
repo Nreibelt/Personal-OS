@@ -54,12 +54,12 @@ export function createSeedState(): AppState {
       'Have 0 fucks to give.',
     ],
     habits: [
-      { id: uid('habit'), name: 'Train', done: true, streak: 3 },
-      { id: uid('habit'), name: 'Sauna & Ice Bath', done: true, streak: 3 },
-      { id: uid('habit'), name: 'Read / Audiobook', done: true, streak: 1 },
-      { id: uid('habit'), name: 'Write', done: false, streak: 0 },
-      { id: uid('habit'), name: 'Intermittent Fast', done: true, streak: 3 },
-      { id: uid('habit'), name: 'Plan Tomorrow', done: false, streak: 0 },
+      { id: uid('habit'), name: 'Train', streak: 0, lastCompletedDate: null },
+      { id: uid('habit'), name: 'Sauna & Ice Bath', streak: 0, lastCompletedDate: null },
+      { id: uid('habit'), name: 'Read / Audiobook', streak: 0, lastCompletedDate: null },
+      { id: uid('habit'), name: 'Write', streak: 0, lastCompletedDate: null },
+      { id: uid('habit'), name: 'Intermittent Fast', streak: 0, lastCompletedDate: null },
+      { id: uid('habit'), name: 'Plan Tomorrow', streak: 0, lastCompletedDate: null },
     ],
     tasks: {
       chase: [
