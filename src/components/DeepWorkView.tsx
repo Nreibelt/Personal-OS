@@ -9,7 +9,7 @@ import { MentalRam } from './MentalRam'
 import { MonthlyCalendar } from './MonthlyCalendar'
 import { NonNegotiables } from './NonNegotiables'
 import { ProjectCard } from './ProjectCard'
-import { ThreeDayCalendar } from './ThreeDayCalendar'
+import { ScheduleCalendar } from './ScheduleCalendar'
 import { TimeSummary } from './TimeSummary'
 import { StartSessionModal, TimerOverlay } from './TimerViews'
 import { WeekIntention } from './WeekIntention'
@@ -101,7 +101,7 @@ export function DeepWorkView({
               className={`nav-tab${calView === 'ops' ? ' active' : ''}`}
               onClick={() => setCalView('ops')}
             >
-              3-Day
+              Schedule
             </button>
             <button
               type="button"
@@ -112,9 +112,15 @@ export function DeepWorkView({
             </button>
           </div>
           {calView === 'ops' ? (
-            <ThreeDayCalendar store={store} />
+            <ScheduleCalendar store={store} />
           ) : (
-            <MonthlyCalendar store={store} />
+            <MonthlyCalendar
+              store={store}
+              onOpenDay={(date) => {
+                store.setSelectedDate(date)
+                setCalView('ops')
+              }}
+            />
           )}
         </div>
       </div>
