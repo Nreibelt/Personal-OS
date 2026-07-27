@@ -105,6 +105,15 @@ export function createSeedState(): AppState {
     calendarBlocks: [
       {
         id: uid('block'),
+        title: 'Morning training',
+        date: '2026-07-20',
+        startMinutes: 6 * 60 + 30,
+        endMinutes: 7 * 60 + 30,
+        projectId: 'personal',
+        repeat: { days: [0, 1, 2, 3, 4, 5, 6] },
+      },
+      {
+        id: uid('block'),
         title: 'Chase — phone setup + pipelines',
         date: '2026-07-22',
         startMinutes: 9 * 60,

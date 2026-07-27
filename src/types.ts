@@ -37,14 +37,26 @@ export interface TimeEntry {
   note?: string
 }
 
+/** Recurrence rule for a calendar block. */
+export interface BlockRepeat {
+  /** Days of week the block repeats on: 0 = Sunday … 6 = Saturday. Daily = all 7. */
+  days: number[]
+  /** Optional inclusive end date (YYYY-MM-DD). Absent = repeats forever. */
+  until?: string
+}
+
 export interface CalendarBlock {
   id: string
   title: string
-  date: string // YYYY-MM-DD
+  date: string // YYYY-MM-DD — one-off date, or first day of a repeating series
   startMinutes: number // minutes from midnight
   endMinutes: number
   projectId?: ProjectId
   color?: string
+  /** When present the block repeats on these weekdays from `date` onward. */
+  repeat?: BlockRepeat
+  /** Series dates hidden because that occurrence was deleted or edited individually. */
+  skipDates?: string[]
 }
 
 export interface ActiveTimer {

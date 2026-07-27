@@ -40,6 +40,20 @@ export function zonedParts(
   return { year: get('year'), month: get('month'), day: get('day') }
 }
 
+/** Minutes since midnight right now in the app timezone (Bali). */
+export function nowMinutesInAppTz(date: Date = new Date()): number {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: APP_TIMEZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
+  const parts = fmt.formatToParts(date)
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((p) => p.type === type)?.value)
+  return get('hour') * 60 + get('minute')
+}
+
 /** Today's YYYY-MM-DD in Bali (Asia/Makassar). */
 export function todayDateKey(date: Date = new Date()): string {
   const { year, month, day } = zonedParts(date)

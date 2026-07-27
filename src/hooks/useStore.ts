@@ -515,6 +515,51 @@ export function useStore() {
     }))
   }, [update])
 
+  /** Hide a single occurrence of a repeating block (delete "this event only"). */
+  const skipBlockOccurrence = useCallback((id: string, date: string) => {
+    update((s) => ({
+      ...s,
+      calendarBlocks: s.calendarBlocks.map((b) =>
+        b.id === id
+          ? { ...b, skipDates: [...new Set([...(b.skipDates || []), date])] }
+          : b,
+      ),
+    }))
+  }, [update])
+
+  /**
+   * Edit a single occurrence of a repeating block: the occurrence is removed
+   * from the series and re-created as a standalone block with `patch` applied.
+   */
+  const detachBlockOccurrence = useCallback(
+    (id: string, date: string, patch: Partial<Omit<CalendarBlock, 'id'>>) => {
+      update((s) => {
+        const source = s.calendarBlocks.find((b) => b.id === id)
+        if (!source) return s
+        const detached: CalendarBlock = {
+          ...source,
+          ...patch,
+          id: uid('block'),
+          date: patch.date ?? date,
+          repeat: undefined,
+          skipDates: undefined,
+        }
+        return {
+          ...s,
+          calendarBlocks: [
+            ...s.calendarBlocks.map((b) =>
+              b.id === id
+                ? { ...b, skipDates: [...new Set([...(b.skipDates || []), date])] }
+                : b,
+            ),
+            detached,
+          ],
+        }
+      })
+    },
+    [update],
+  )
+
   // ——— Finance ———
 
   const addExpenseCategory = useCallback(
@@ -944,6 +989,8 @@ export function useStore() {
     addCalendarBlock,
     updateCalendarBlock,
     removeCalendarBlock,
+    skipBlockOccurrence,
+    detachBlockOccurrence,
     addExpenseCategory,
     updateExpenseCategory,
     removeExpenseCategory,
