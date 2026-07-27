@@ -24,10 +24,13 @@ import { HudPanel } from './HudPanel'
 
 const DAY_START = 0
 const DAY_END = 24 * 60
-const PX_PER_MIN = 1.05
+const PX_PER_MIN = 1.2
 const HEIGHT = (DAY_END - DAY_START) * PX_PER_MIN
+/** Visible viewport: fill most of the screen, never exceed the full 24h grid. */
+const BODY_HEIGHT = `clamp(640px, 82vh, ${HEIGHT}px)`
+/** First hour scrolled into view on load. */
+const INITIAL_SCROLL_MINUTES = 6 * 60
 const SLOT = 15
-const BODY_HEIGHT = 560
 const DEFAULT_COLOR = '#c9b896'
 
 /** Monday-first weekday pickers: label + JS day index (0 = Sun). */
@@ -122,7 +125,7 @@ export function ScheduleCalendar({ store }: { store: Store }) {
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = (7 * 60 - DAY_START) * PX_PER_MIN - 8
+      scrollRef.current.scrollTop = (INITIAL_SCROLL_MINUTES - DAY_START) * PX_PER_MIN - 8
     }
   }, [])
 
@@ -546,7 +549,7 @@ export function ScheduleCalendar({ store }: { store: Store }) {
         <div
           className="sched-body"
           ref={scrollRef}
-          style={{ height: Math.min(BODY_HEIGHT, HEIGHT), gridTemplateColumns: gridColumns }}
+          style={{ height: BODY_HEIGHT, gridTemplateColumns: gridColumns }}
         >
           <div className="time-gutter" style={{ height: HEIGHT }}>
             {hours.map((m) =>
