@@ -33,8 +33,11 @@ See [AUTH_SETUP.md](./AUTH_SETUP.md) for Clerk + Supabase env vars and dashboard
 
 ## Deploy (Vercel)
 
-1. Set Framework Preset to **Next.js** (not Other / Vite)
-2. Build command: `next build` (default)
-3. Output: Next.js defaults (do not set a static `dist` output)
+1. **Settings → General → Framework Preset** → **Next.js** (not Vite / Other)
+2. **Root Directory** → leave blank / `.` (must contain this `package.json`)
+3. Clear overrides if set:
+   - Build Command → default (`next build`) or `next build`
+   - Output Directory → **empty** (do not use `dist`)
+   - Install Command → `npm install`
 4. Env vars: Clerk + Supabase (+ existing Revolut vars) — see `.env.example`
-5. Redeploy after merge
+5. Redeploy from **main** after saving settings
