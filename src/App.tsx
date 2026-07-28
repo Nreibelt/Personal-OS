@@ -72,13 +72,29 @@ export default function App() {
           >
             Reset work
           </button>
+          <button
+            className="ghost-btn"
+            type="button"
+            title="Force-upload everything in this browser (tasks, habits, finances, Revolut) to Supabase under your account"
+            onClick={() => void store.pushBrowserToCloud()}
+            disabled={store.cloudSync === 'loading'}
+          >
+            Upload → cloud
+          </button>
           {store.cloudSync === 'loading' && (
             <span className="status-pill" title="Loading cloud state">
               SYNC…
             </span>
           )}
           {store.cloudSync === 'ready' && (
-            <span className="status-pill hit" title="Saved to Supabase">
+            <span
+              className="status-pill hit"
+              title={
+                store.cloudSource === 'local'
+                  ? 'Browser data saved to Supabase under your account'
+                  : 'Loaded from Supabase; changes auto-save'
+              }
+            >
               CLOUD
             </span>
           )}

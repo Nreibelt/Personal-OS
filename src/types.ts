@@ -198,6 +198,12 @@ export interface RevolutSyncState {
   settledIds: string[]
 }
 
+/** Revolut browser secrets — also persisted in Supabase under the signed-in user. */
+export interface RevolutCredentials {
+  appSecret: string
+  refreshToken: string
+}
+
 export interface AppState {
   selectedDate: string
   activeTab: AppTab
@@ -225,6 +231,8 @@ export interface AppState {
   personalFinance: FinanceLedger
   companyFinance: FinanceLedger
   revolutSync: RevolutSyncState
+  /** Optional — synced to Supabase so Revolut works across browsers for this user */
+  revolutCredentials?: RevolutCredentials
 }
 
 export type SummaryMode = AppState['summaryMode']

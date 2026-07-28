@@ -25,5 +25,9 @@ Redeploy after saving.
 ## What the app does
 
 - Middleware requires Clerk sign-in for the UI
-- App state syncs to `user_app_state` keyed by your Clerk user id
-- localStorage remains a cache; cloud is source of truth after first successful load
+- Full app state syncs to `user_app_state` keyed by your Clerk user id:
+  deep work, tasks, habits, calendar, identity, personal + company finances,
+  Revolut account selections / queues, and Revolut app secret + refresh token
+- On sign-in, richer browser data wins over an empty/thin cloud row (then uploads)
+- Header **Upload → cloud** force-pushes this browser’s data under your account
+- localStorage remains a cache; cloud is the cross-device source of truth

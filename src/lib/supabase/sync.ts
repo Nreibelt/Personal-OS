@@ -1,0 +1,98 @@
+import type { AppState, FinanceLedger, RevolutCredentials } from '@/types'
+import {
+  loadRevolutAppSecret,
+  loadRevolutRefreshToken,
+  saveRevolutAppSecret,
+  saveRevolutRefreshToken,
+} from '@/utils/revolutApi'
+
+/** Pull Revolut browser secrets into the AppState payload for cloud upsert. */
+export function withLocalRevolutCredentials(state: AppState): AppState {
+  const appSecret = loadRevolutAppSecret()
+  const refreshToken = loadRevolutRefreshToken()
+  const existing = state.revolutCredentials
+  const next: RevolutCredentials = {
+    appSecret: appSecret || existing?.appSecret || '',
+    refreshToken: refreshToken || existing?.refreshToken || '',
+  }
+  if (!next.appSecret && !next.refreshToken) {
+    if (!existing) return state
+    return { ...state, revolutCredentials: existing }
+  }
+  return { ...state, revolutCredentials: next }
+}
+
+/** Write cloud credentials back into the browser keys Revolut API reads. */
+export function applyRevolutCredentialsToBrowser(credentials?: RevolutCredentials | null) {
+  if (!credentials) return
+  if (credentials.appSecret) saveRevolutAppSecret(credentials.appSecret)
+  if (credentials.refreshToken) saveRevolutRefreshToken(credentials.refreshToken)
+}
+
+function ledgerScore(ledger: FinanceLedger | undefined): number {
+  if (!ledger) return 0
+  return (
+    (ledger.categories?.length || 0) * 3 +
+    (ledger.allocations?.length || 0) * 5 +
+    (ledger.spends?.length || 0) * 4
+  )
+}
+
+/** Higher = more “real” user data (vs empty / seed). */
+export function stateRichnessScore(state: Partial<AppState> | null | undefined): number {
+  if (!state || typeof state !== 'object') return 0
+  const tasks = state.tasks
+    ? Object.values(state.tasks).reduce((n, list) => n + (list?.length || 0), 0)
+    : 0
+  const revolutAccounts =
+    (state.revolutSync?.personalAccountIds?.length || 0) +
+    (state.revolutSync?.companyAccountIds?.length || 0)
+  const credentials =
+    (state.revolutCredentials?.appSecret ? 8 : 0) +
+    (state.revolutCredentials?.refreshToken ? 12 : 0)
+
+  return (
+    (state.timeEntries?.length || 0) * 6 +
+    tasks * 4 +
+    (state.calendarBlocks?.length || 0) * 3 +
+    (state.openLoops?.length || 0) * 2 +
+    (state.habits?.filter((h) => (h.streak || 0) > 0 || h.lastCompletedDate).length || 0) * 3 +
+    Object.keys(state.dailyOneThing || {}).length * 2 +
+    ledgerScore(state.personalFinance) +
+    ledgerScore(state.companyFinance) +
+    revolutAccounts * 10 +
+    (state.revolutSync?.personalQueue?.length || 0) +
+    (state.revolutSync?.companyQueue?.length || 0) +
+    credentials +
+    (state.weekIntention && state.weekIntention.length > 40 ? 2 : 0)
+  )
+}
+
+export function isThinCloudPayload(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object') return true
+  const keys = Object.keys(raw as object)
+  if (keys.length === 0) return true
+  return stateRichnessScore(raw as Partial<AppState>) < 8
+}
+
+/**
+ * Prefer the richer snapshot so a thin/empty cloud row never wipes a full browser.
+ * Tie → prefer local (this machine is migrating now).
+ */
+export function preferRicherState(local: AppState, remote: AppState): {
+  winner: AppState
+  source: 'local' | 'remote'
+} {
+  const localScore = stateRichnessScore(local)
+  const remoteScore = stateRichnessScore(remote)
+  if (remoteScore > localScore) return { winner: remote, source: 'remote' }
+  return { winner: local, source: 'local' }
+}
+
+/** Merge Revolut credentials so we never drop a token present on only one side. */
+export function mergeRevolutCredentials(a?: RevolutCredentials, b?: RevolutCredentials): RevolutCredentials | undefined {
+  const appSecret = a?.appSecret || b?.appSecret || ''
+  const refreshToken = a?.refreshToken || b?.refreshToken || ''
+  if (!appSecret && !refreshToken) return undefined
+  return { appSecret, refreshToken }
+}
