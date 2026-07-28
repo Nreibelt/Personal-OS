@@ -30,6 +30,15 @@ export interface RevolutTxnDto {
 
 const SECRET_STORAGE_KEY = 'batcave-revolut-app-secret'
 const REFRESH_STORAGE_KEY = 'batcave-revolut-refresh-token'
+const CREDENTIALS_EVENT = 'batcave-revolut-credentials-changed'
+
+function notifyCredentialsChanged() {
+  try {
+    window.dispatchEvent(new Event(CREDENTIALS_EVENT))
+  } catch {
+    // ignore (SSR)
+  }
+}
 
 export function loadRevolutAppSecret(): string {
   try {
@@ -43,6 +52,7 @@ export function saveRevolutAppSecret(secret: string) {
   try {
     if (secret.trim()) localStorage.setItem(SECRET_STORAGE_KEY, secret.trim())
     else localStorage.removeItem(SECRET_STORAGE_KEY)
+    notifyCredentialsChanged()
   } catch {
     // ignore
   }
@@ -60,9 +70,14 @@ export function saveRevolutRefreshToken(token: string) {
   try {
     if (token.trim()) localStorage.setItem(REFRESH_STORAGE_KEY, token.trim())
     else localStorage.removeItem(REFRESH_STORAGE_KEY)
+    notifyCredentialsChanged()
   } catch {
     // ignore
   }
+}
+
+export function revolutCredentialsChangedEvent() {
+  return CREDENTIALS_EVENT
 }
 
 function captureRotatedToken(data: { refreshToken?: string }) {

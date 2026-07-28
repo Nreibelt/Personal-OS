@@ -5,6 +5,13 @@ import {
   createClerkSupabaseClient,
   isSupabaseConfigured,
 } from '../lib/supabase/browser'
+import {
+  applyRevolutCredentialsToBrowser,
+  isThinCloudPayload,
+  mergeRevolutCredentials,
+  preferRicherState,
+  withLocalRevolutCredentials,
+} from '../lib/supabase/sync'
 import type {
   ActiveTimer,
   AppState,
@@ -42,6 +49,7 @@ import {
   todayMonthKey,
   weekDays,
 } from '../utils/time'
+import { revolutCredentialsChangedEvent } from '../utils/revolutApi'
 
 const STORAGE_KEY = 'batcave-deep-work-os-v2'
 const FINANCE_BACKUP_KEY = 'batcave-finance-backup-v1'
@@ -260,6 +268,7 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
     personalFinance,
     companyFinance,
     revolutSync: migrateRevolutSync(parsed.revolutSync, seed.revolutSync),
+    revolutCredentials: parsed.revolutCredentials,
   }
 }
 
@@ -286,6 +295,7 @@ export function useStore() {
   const [tick, setTick] = useState(0)
   const [cloudSync, setCloudSync] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [cloudError, setCloudError] = useState<string | null>(null)
+  const [cloudSource, setCloudSource] = useState<'local' | 'remote' | null>(null)
   const skipNextCloudSave = useRef(false)
   const saveTimer = useRef<number | null>(null)
 
@@ -293,6 +303,23 @@ export function useStore() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
     writeFinanceBackup(state.personalFinance, state.companyFinance)
   }, [state])
+
+  const upsertCloudState = useCallback(
+    async (next: AppState) => {
+      if (!userId || !session) throw new Error('Not signed in')
+      const client = createClerkSupabaseClient(() => session.getToken())
+      if (!client) throw new Error('Supabase is not configured')
+      const payload = withLocalRevolutCredentials(next)
+      const { error } = await client.from('user_app_state').upsert({
+        user_id: userId,
+        state: payload,
+        updated_at: new Date().toISOString(),
+      })
+      if (error) throw new Error(error.message)
+      return payload
+    },
+    [userId, session],
+  )
 
   // Load / seed cloud document once Clerk + Supabase are ready
   useEffect(() => {
@@ -314,6 +341,7 @@ export function useStore() {
           return
         }
 
+        const local = withLocalRevolutCredentials(loadState())
         const { data, error } = await client
           .from('user_app_state')
           .select('state, updated_at')
@@ -328,24 +356,30 @@ export function useStore() {
           return
         }
 
-        if (data?.state && typeof data.state === 'object') {
-          skipNextCloudSave.current = true
-          setState(normalizeAppState(data.state as Partial<AppState>, { recoverLocal: true }))
-        } else {
-          const local = loadState()
-          const { error: upsertError } = await client.from('user_app_state').upsert({
-            user_id: userId,
-            state: local,
-            updated_at: new Date().toISOString(),
+        let chosen = local
+        let source: 'local' | 'remote' = 'local'
+
+        if (data?.state && typeof data.state === 'object' && !isThinCloudPayload(data.state)) {
+          const remote = normalizeAppState(data.state as Partial<AppState>, {
+            recoverLocal: true,
           })
-          if (upsertError) {
-            setCloudError(upsertError.message)
-            setCloudSync('error')
-            return
-          }
-          skipNextCloudSave.current = true
-          setState(local)
+          remote.revolutCredentials = mergeRevolutCredentials(
+            remote.revolutCredentials,
+            local.revolutCredentials,
+          )
+          const pick = preferRicherState(local, withLocalRevolutCredentials(remote))
+          chosen = pick.winner
+          source = pick.source
         }
+
+        // Always persist the chosen snapshot so browser data lands under this Clerk user
+        const saved = await upsertCloudState(chosen)
+        if (cancelled) return
+
+        applyRevolutCredentialsToBrowser(saved.revolutCredentials)
+        skipNextCloudSave.current = true
+        setState(saved)
+        setCloudSource(source)
         setCloudSync('ready')
       } catch (err) {
         if (cancelled) return
@@ -357,7 +391,7 @@ export function useStore() {
     return () => {
       cancelled = true
     }
-  }, [authLoaded, userId, session])
+  }, [authLoaded, userId, session, upsertCloudState])
 
   // Debounced cloud save after hydration
   useEffect(() => {
@@ -370,30 +404,64 @@ export function useStore() {
 
     if (saveTimer.current) window.clearTimeout(saveTimer.current)
     saveTimer.current = window.setTimeout(() => {
-      const client = createClerkSupabaseClient(() => session.getToken())
-      if (!client) return
-      void client
-        .from('user_app_state')
-        .upsert({
-          user_id: userId,
-          state,
-          updated_at: new Date().toISOString(),
+      void upsertCloudState(state)
+        .then((saved) => {
+          if (saved.revolutCredentials !== state.revolutCredentials) {
+            skipNextCloudSave.current = true
+            setState(saved)
+          }
         })
-        .then(({ error }) => {
-          if (error) setCloudError(error.message)
+        .catch((err) => {
+          setCloudError(err instanceof Error ? err.message : 'Cloud save failed')
         })
     }, 800)
 
     return () => {
       if (saveTimer.current) window.clearTimeout(saveTimer.current)
     }
-  }, [state, cloudSync, userId, session])
+  }, [state, cloudSync, userId, session, upsertCloudState])
+
+  const pushBrowserToCloud = useCallback(async () => {
+    if (!isSupabaseConfigured()) {
+      setCloudError('Supabase env vars are missing')
+      setCloudSync('error')
+      return
+    }
+    try {
+      setCloudSync('loading')
+      const local = withLocalRevolutCredentials(loadState())
+      // Prefer in-memory state (includes unsaved edits) over a fresh localStorage read
+      const merged = preferRicherState(
+        withLocalRevolutCredentials(state),
+        local,
+      ).winner
+      const saved = await upsertCloudState(merged)
+      applyRevolutCredentialsToBrowser(saved.revolutCredentials)
+      skipNextCloudSave.current = true
+      setState(saved)
+      setCloudSource('local')
+      setCloudError(null)
+      setCloudSync('ready')
+    } catch (err) {
+      setCloudError(err instanceof Error ? err.message : 'Upload failed')
+      setCloudSync('error')
+    }
+  }, [state, upsertCloudState])
 
   useEffect(() => {
     if (!state.activeTimer) return
     const id = window.setInterval(() => setTick((t) => t + 1), 1000)
     return () => window.clearInterval(id)
   }, [state.activeTimer])
+
+  // Keep Revolut secrets inside AppState so they ride along with cloud upserts
+  useEffect(() => {
+    const onChange = () => {
+      setState((s) => withLocalRevolutCredentials(s))
+    }
+    window.addEventListener(revolutCredentialsChangedEvent(), onChange)
+    return () => window.removeEventListener(revolutCredentialsChangedEvent(), onChange)
+  }, [])
 
   const update = useCallback((patch: Partial<AppState> | ((s: AppState) => AppState)) => {
     setState((s) => (typeof patch === 'function' ? patch(s) : { ...s, ...patch }))
@@ -1066,6 +1134,8 @@ export function useStore() {
     state,
     cloudSync,
     cloudError,
+    cloudSource,
+    pushBrowserToCloud,
     projects: PROJECTS,
     liveTimerSeconds,
     projectMinutesToday,
