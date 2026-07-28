@@ -9,7 +9,7 @@ export function HudPanel({
 }: {
   children: ReactNode
   className?: string
-  label?: string
+  label?: ReactNode
   action?: ReactNode
   style?: React.CSSProperties
 }) {
@@ -17,7 +17,7 @@ export function HudPanel({
     <section className={`hud-panel ${className}`} style={style}>
       {(label || action) && (
         <div className="panel-label">
-          <span>{label}</span>
+          {typeof label === 'string' || label == null ? <span>{label}</span> : label}
           {action}
         </div>
       )}
