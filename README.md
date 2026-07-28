@@ -25,13 +25,16 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Stack
 
-Next.js (App Router) + React + TypeScript
+Next.js (App Router) + React + TypeScript + Clerk + Supabase
+
+## Auth + cloud data
+
+See [AUTH_SETUP.md](./AUTH_SETUP.md) for Clerk + Supabase env vars and dashboard steps.
 
 ## Deploy (Vercel)
 
 1. Set Framework Preset to **Next.js** (not Other / Vite)
 2. Build command: `next build` (default)
 3. Output: Next.js defaults (do not set a static `dist` output)
-4. Keep existing Revolut env vars; optional Clerk keys:
-   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-   - `CLERK_SECRET_KEY`
+4. Env vars: Clerk + Supabase (+ existing Revolut vars) — see `.env.example`
+5. Redeploy after merge
