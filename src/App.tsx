@@ -1,26 +1,105 @@
 'use client'
 
 import { UserButton } from '@clerk/nextjs'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { CompanyTodosView } from './components/business/CompanyTodosView'
 import { DashboardView } from './components/DashboardView'
 import { DeepWorkView } from './components/DeepWorkView'
 import { FinancesView } from './components/FinancesView'
+import { LayerGate } from './components/LayerGate'
 import { useStore } from './hooks/useStore'
-import type { AppTab, DeepWorkId, ProjectId } from './types'
+import type { AppLayer, AppTab, BusinessTab, DeepWorkId, ProjectId } from './types'
 import { formatLongDate, formatMinutes, todayDateKey } from './utils/time'
 
-const TABS: { id: AppTab; label: string; sub: string }[] = [
-  { id: 'dashboard', label: 'Dashboard', sub: 'Dashboard' },
+const LAYER_KEY = 'batcave-app-layer-v1'
+const BUSINESS_TAB_KEY = 'batcave-business-tab-v1'
+
+const PERSONAL_TABS: { id: AppTab; label: string; sub: string }[] = [
+  { id: 'dashboard', label: 'Dashboard', sub: 'Command Center' },
   { id: 'deepWork', label: 'Deep Work', sub: 'Deep Work' },
-  { id: 'companyFinances', label: 'Company Finances', sub: 'Company Finances' },
   { id: 'personalFinances', label: 'Personal Finances', sub: 'Personal Finances' },
 ]
 
+const BUSINESS_TABS: {
+  id: BusinessTab
+  label: string
+  enabled: boolean
+}[] = [
+  { id: 'todos', label: 'To-Dos', enabled: true },
+  { id: 'finance', label: 'Finance', enabled: true },
+  { id: 'metaAds', label: 'Meta Ads', enabled: false },
+  { id: 'coldEmail', label: 'Cold Email', enabled: false },
+  { id: 'agents', label: 'Agents', enabled: false },
+]
+
+function readLayer(): AppLayer {
+  try {
+    const raw = localStorage.getItem(LAYER_KEY)
+    if (raw === 'personal' || raw === 'business' || raw === 'gate') return raw
+  } catch {
+    // ignore
+  }
+  return 'gate'
+}
+
+function writeLayer(layer: AppLayer) {
+  try {
+    localStorage.setItem(LAYER_KEY, layer)
+  } catch {
+    // ignore
+  }
+}
+
+function readBusinessTab(): BusinessTab {
+  try {
+    const raw = localStorage.getItem(BUSINESS_TAB_KEY)
+    if (raw === 'todos' || raw === 'finance') return raw
+  } catch {
+    // ignore
+  }
+  return 'todos'
+}
+
+function writeBusinessTab(tab: BusinessTab) {
+  try {
+    localStorage.setItem(BUSINESS_TAB_KEY, tab)
+  } catch {
+    // ignore
+  }
+}
+
 export default function App() {
   const store = useStore()
-  const tab = store.state.activeTab
-  const activeMeta = TABS.find((t) => t.id === tab) ?? TABS[0]
+  const [layer, setLayer] = useState<AppLayer>('gate')
+  const [businessTab, setBusinessTab] = useState<BusinessTab>('todos')
   const [pendingSession, setPendingSession] = useState<ProjectId | null>(null)
+  const [hydrated, setHydrated] = useState(false)
+
+  useEffect(() => {
+    setLayer(readLayer())
+    setBusinessTab(readBusinessTab())
+    setHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
+    writeLayer(layer)
+  }, [layer, hydrated])
+
+  useEffect(() => {
+    if (!hydrated) return
+    writeBusinessTab(businessTab)
+  }, [businessTab, hydrated])
+
+  // Company finances moved to Batcave — bounce legacy tab into personal finances
+  useEffect(() => {
+    if (layer === 'personal' && store.state.activeTab === 'companyFinances') {
+      store.setActiveTab('personalFinances')
+    }
+  }, [layer, store])
+
+  const tab = store.state.activeTab === 'companyFinances' ? 'personalFinances' : store.state.activeTab
+  const activePersonal = PERSONAL_TABS.find((t) => t.id === tab) ?? PERSONAL_TABS[0]
 
   const deepToday = store.deepWorkMinutesForDate(store.state.selectedDate)
   const targetHit = store.hitTarget(store.state.selectedDate)
@@ -37,12 +116,100 @@ export default function App() {
     setPendingSession(projectId)
   }
 
+  const enterPersonal = () => {
+    if (store.state.activeTab === 'companyFinances') store.setActiveTab('dashboard')
+    setLayer('personal')
+  }
+
+  const enterBusiness = () => {
+    setBusinessTab((t) => (t === 'metaAds' || t === 'coldEmail' || t === 'agents' ? 'todos' : t))
+    setLayer('business')
+  }
+
+  if (!hydrated) {
+    return <div className="app-shell layer-loading">Loading…</div>
+  }
+
+  if (layer === 'gate') {
+    return (
+      <div className="app-shell gate-shell">
+        <header className="command-bar gate-bar">
+          <div className="brand-lockup">
+            <span className="brand-name">PERSONAL OS</span>
+            <span className="brand-sub">Select layer</span>
+          </div>
+          <div className="status-pills">
+            <UserButton />
+          </div>
+        </header>
+        <LayerGate onEnterPersonal={enterPersonal} onEnterBusiness={enterBusiness} />
+      </div>
+    )
+  }
+
+  if (layer === 'business') {
+    return (
+      <div className="app-shell">
+        <header className="command-bar">
+          <div className="brand-lockup">
+            <span className="brand-name">BATCAVE</span>
+            <span className="brand-sub">Company OS</span>
+          </div>
+          <div className="status-pills">
+            <button type="button" className="ghost-btn" onClick={() => setLayer('gate')}>
+              Switch layer
+            </button>
+            <button
+              type="button"
+              className="ghost-btn"
+              title="Force-upload personal OS browser state to Supabase"
+              onClick={() => void store.pushBrowserToCloud()}
+              disabled={store.cloudSync === 'loading'}
+            >
+              Upload → cloud
+            </button>
+            {store.cloudSync === 'ready' && <span className="status-pill hit">CLOUD</span>}
+            {store.cloudSync === 'error' && (
+              <span className="status-pill miss" title={store.cloudError || 'Cloud sync error'}>
+                SYNC ERR
+              </span>
+            )}
+            <UserButton />
+          </div>
+        </header>
+
+        <nav className="app-tabs" role="tablist" aria-label="Batcave sections">
+          {BUSINESS_TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={businessTab === t.id}
+              className={`app-tab${businessTab === t.id ? ' active' : ''}${t.enabled ? '' : ' disabled'}`}
+              disabled={!t.enabled}
+              onClick={() => {
+                if (t.enabled) setBusinessTab(t.id)
+              }}
+            >
+              <span>{t.label}</span>
+              {!t.enabled && <span className="tab-soon">Coming soon</span>}
+            </button>
+          ))}
+        </nav>
+
+        {businessTab === 'todos' && <CompanyTodosView />}
+        {businessTab === 'finance' && <FinancesView store={store} realm="company" />}
+      </div>
+    )
+  }
+
+  // Personal / Command Center
   return (
     <div className="app-shell">
       <header className="command-bar">
         <div className="brand-lockup">
-          <span className="brand-name">BATCAVE</span>
-          <span className="brand-sub">{activeMeta.sub}</span>
+          <span className="brand-name">COMMAND CENTER</span>
+          <span className="brand-sub">{activePersonal.sub}</span>
         </div>
         <div className="status-pills">
           <span className="status-pill">{formatLongDate(store.state.selectedDate)}</span>
@@ -64,6 +231,9 @@ export default function App() {
               {store.state.activeTimer && <span className="status-pill live">● LIVE</span>}
             </>
           )}
+          <button type="button" className="ghost-btn" onClick={() => setLayer('gate')}>
+            Switch layer
+          </button>
           <button
             className="ghost-btn"
             type="button"
@@ -75,7 +245,7 @@ export default function App() {
           <button
             className="ghost-btn"
             type="button"
-            title="Force-upload everything in this browser (tasks, habits, finances, Revolut) to Supabase under your account"
+            title="Force-upload everything in this browser to Supabase under your account"
             onClick={() => void store.pushBrowserToCloud()}
             disabled={store.cloudSync === 'loading'}
           >
@@ -87,22 +257,12 @@ export default function App() {
             </span>
           )}
           {store.cloudSync === 'ready' && (
-            <span
-              className="status-pill hit"
-              title={
-                store.cloudSource === 'local'
-                  ? 'Browser data saved to Supabase under your account'
-                  : 'Loaded from Supabase; changes auto-save'
-              }
-            >
+            <span className="status-pill hit" title="Saved to Supabase">
               CLOUD
             </span>
           )}
           {store.cloudSync === 'error' && (
-            <span
-              className="status-pill miss"
-              title={store.cloudError || 'Cloud sync error'}
-            >
+            <span className="status-pill miss" title={store.cloudError || 'Cloud sync error'}>
               SYNC ERR
             </span>
           )}
@@ -110,8 +270,8 @@ export default function App() {
         </div>
       </header>
 
-      <nav className="app-tabs" role="tablist" aria-label="Platform sections">
-        {TABS.map((t) => (
+      <nav className="app-tabs" role="tablist" aria-label="Command Center sections">
+        {PERSONAL_TABS.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -136,7 +296,6 @@ export default function App() {
         />
       )}
       {tab === 'personalFinances' && <FinancesView store={store} realm="personal" />}
-      {tab === 'companyFinances' && <FinancesView store={store} realm="company" />}
     </div>
   )
 }

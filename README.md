@@ -13,6 +13,9 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Features
 
+- **Two layers after login** — Command Center (personal) and Batcave (company), chosen from a gate screen
+- **Command Center** — dashboard, deep work, personal finances
+- **Batcave** — company to-dos (HPA tiers + blockers), company finance (Revolut + buckets), roadmap tabs (Meta Ads / Cold Email / Agents)
 - **Daily deep work target** — set hours/day, see hit/miss, streak, and week hit rate
 - **Today's One Thing** — single outcome to protect
 - **Project tasks** — brain-dump backlog; default view shows only today's tasks; toggle **Show all tasks** to promote/demote with Today/Later
@@ -21,7 +24,7 @@ Open [http://localhost:3000](http://localhost:3000).
 - Time summary + attention allocation
 - 3-day calendar (click-drag blocks) + monthly grid
 - Seeded from Claude artifact screenshots (Jul 2026)
-- Persists to `localStorage`
+- Persists to `localStorage` + Supabase
 
 ## Stack
 

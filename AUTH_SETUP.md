@@ -19,15 +19,21 @@ Redeploy after saving.
 
 ## Supabase dashboard
 
-1. **SQL Editor** — run `supabase/migrations/20260728140000_user_app_state.sql`
+1. **SQL Editor** — run these migrations (in order):
+   - `supabase/migrations/20260728140000_user_app_state.sql`
+   - `supabase/migrations/20260728150000_company_todos.sql` (Batcave to-dos + dependencies)
 2. **Authentication → Sign In / Third-party** — Add **Clerk** → paste Clerk domain
 
 ## What the app does
 
 - Middleware requires Clerk sign-in for the UI
-- Full app state syncs to `user_app_state` keyed by your Clerk user id:
+- After login: **layer gate** → Enter Batcave (company) or Enter Command Center (personal)
+- **Command Center** — dashboard, deep work, personal finances
+- **Batcave** — company to-dos (HPA + blockers), company finance (existing Revolut/buckets), plus coming-soon tabs
+- Full personal/company finance app state syncs to `user_app_state` keyed by your Clerk user id:
   deep work, tasks, habits, calendar, identity, personal + company finances,
   Revolut account selections / queues, and Revolut app secret + refresh token
+- Company to-dos live in `company_tasks` + `company_task_dependencies` (RLS per Clerk user)
 - On sign-in, richer browser data wins over an empty/thin cloud row (then uploads)
 - Header **Upload → cloud** force-pushes this browser’s data under your account
 - localStorage remains a cache; cloud is the cross-device source of truth

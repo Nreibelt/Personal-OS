@@ -111,6 +111,27 @@ export function scaleDeepWorkSplit(
 /** Top-level product surface */
 export type AppTab = 'dashboard' | 'deepWork' | 'personalFinances' | 'companyFinances'
 
+/** Post-login layer: hub gate, personal OS, or company Batcave */
+export type AppLayer = 'gate' | 'personal' | 'business'
+
+/** Tabs inside the Batcave (company) layer */
+export type BusinessTab = 'todos' | 'finance' | 'metaAds' | 'coldEmail' | 'agents'
+
+export type CompanyTaskPriority = 'hpa1' | 'hpa2' | 'hpa3'
+export type CompanyTaskStatus = 'not_started' | 'in_progress' | 'done'
+
+export interface CompanyTask {
+  id: string
+  userId: string
+  title: string
+  priority: CompanyTaskPriority
+  status: CompanyTaskStatus
+  createdAt: string
+  updatedAt: string
+  /** Task IDs that must be done before this one can proceed */
+  blockedByIds: string[]
+}
+
 export type FinanceRealm = 'personal' | 'company'
 
 export type ExpenseFrequency = 'daily' | 'weekly' | 'monthly'
