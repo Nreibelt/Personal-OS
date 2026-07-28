@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAuth, useSession } from '@clerk/nextjs'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createSeedState, PROJECTS, uid } from '../data/seed'
+import {
+  createClerkSupabaseClient,
+  isSupabaseConfigured,
+} from '../lib/supabase/browser'
 import type {
   ActiveTimer,
   AppState,
@@ -196,22 +201,18 @@ function accountIdsKey(realm: FinanceRealm): 'personalAccountIds' | 'companyAcco
   return realm === 'personal' ? 'personalAccountIds' : 'companyAccountIds'
 }
 
-function loadState(): AppState {
+function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?: boolean }): AppState {
   const seed = createSeedState()
   const today = todayDateKey()
-  try {
-    const rawV2 = localStorage.getItem(STORAGE_KEY)
-    const rawV1 = localStorage.getItem('batcave-deep-work-os-v1')
-    const raw = rawV2 ?? rawV1
-    if (!raw) return seed
-    const parsed = JSON.parse(raw) as Partial<AppState>
 
-    let personalFinance = migrateLedger(parsed.personalFinance, seed.personalFinance)
-    let companyFinance = migrateLedger(parsed.companyFinance, seed.companyFinance)
+  let personalFinance = migrateLedger(parsed.personalFinance, seed.personalFinance)
+  let companyFinance = migrateLedger(parsed.companyFinance, seed.companyFinance)
 
-    // Recover wiped set-expenses from older snapshots / finance backup when possible
-    if (rawV1 && rawV2) {
-      try {
+  if (options?.recoverLocal) {
+    try {
+      const rawV1 = localStorage.getItem('batcave-deep-work-os-v1')
+      const rawV2 = localStorage.getItem(STORAGE_KEY)
+      if (rawV1 && rawV2) {
         const older = JSON.parse(rawV1) as Partial<AppState>
         personalFinance = preferRicherLedger(
           personalFinance,
@@ -221,9 +222,9 @@ function loadState(): AppState {
           companyFinance,
           migrateLedger(older.companyFinance, seed.companyFinance),
         )
-      } catch {
-        // ignore
       }
+    } catch {
+      // ignore
     }
     const backup = readFinanceBackup()
     if (backup) {
@@ -236,31 +237,41 @@ function loadState(): AppState {
         migrateLedger(backup.companyFinance, seed.companyFinance),
       )
     }
+  }
 
-    return {
-      ...seed,
-      ...parsed,
-      // Always open on Bali “today” so the day label matches WITA
-      selectedDate: today,
-      calendarMonth: todayMonthKey(),
-      activeTab: parsed.activeTab ?? 'dashboard',
-      tasks: migrateTasks((parsed.tasks as AppState['tasks']) || seed.tasks),
-      dailyDeepWorkTargetMinutes:
-        parsed.dailyDeepWorkTargetMinutes ?? seed.dailyDeepWorkTargetMinutes,
-      dailyDeepWorkSplit: migrateSplit(
-        parsed.dailyDeepWorkSplit,
-        parsed.dailyDeepWorkTargetMinutes ?? seed.dailyDeepWorkTargetMinutes,
-        seed.dailyDeepWorkSplit,
-      ),
-      showAllTasks: parsed.showAllTasks ?? false,
-      dailyOneThing: { ...seed.dailyOneThing, ...(parsed.dailyOneThing || {}) },
-      habits: migrateHabits(parsed.habits ?? seed.habits, today),
-      personalFinance,
-      companyFinance,
-      revolutSync: migrateRevolutSync(parsed.revolutSync, seed.revolutSync),
-    }
+  return {
+    ...seed,
+    ...parsed,
+    // Always open on Bali “today” so the day label matches WITA
+    selectedDate: today,
+    calendarMonth: todayMonthKey(),
+    activeTab: parsed.activeTab ?? 'dashboard',
+    tasks: migrateTasks((parsed.tasks as AppState['tasks']) || seed.tasks),
+    dailyDeepWorkTargetMinutes:
+      parsed.dailyDeepWorkTargetMinutes ?? seed.dailyDeepWorkTargetMinutes,
+    dailyDeepWorkSplit: migrateSplit(
+      parsed.dailyDeepWorkSplit,
+      parsed.dailyDeepWorkTargetMinutes ?? seed.dailyDeepWorkTargetMinutes,
+      seed.dailyDeepWorkSplit,
+    ),
+    showAllTasks: parsed.showAllTasks ?? false,
+    dailyOneThing: { ...seed.dailyOneThing, ...(parsed.dailyOneThing || {}) },
+    habits: migrateHabits(parsed.habits ?? seed.habits, today),
+    personalFinance,
+    companyFinance,
+    revolutSync: migrateRevolutSync(parsed.revolutSync, seed.revolutSync),
+  }
+}
+
+function loadState(): AppState {
+  try {
+    const rawV2 = localStorage.getItem(STORAGE_KEY)
+    const rawV1 = localStorage.getItem('batcave-deep-work-os-v1')
+    const raw = rawV2 ?? rawV1
+    if (!raw) return createSeedState()
+    return normalizeAppState(JSON.parse(raw) as Partial<AppState>, { recoverLocal: true })
   } catch {
-    return seed
+    return createSeedState()
   }
 }
 
@@ -269,13 +280,114 @@ function ledgerKey(realm: FinanceRealm): 'personalFinance' | 'companyFinance' {
 }
 
 export function useStore() {
+  const { isLoaded: authLoaded, userId } = useAuth()
+  const { session } = useSession()
   const [state, setState] = useState<AppState>(() => loadState())
   const [tick, setTick] = useState(0)
+  const [cloudSync, setCloudSync] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
+  const [cloudError, setCloudError] = useState<string | null>(null)
+  const skipNextCloudSave = useRef(false)
+  const saveTimer = useRef<number | null>(null)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
     writeFinanceBackup(state.personalFinance, state.companyFinance)
   }, [state])
+
+  // Load / seed cloud document once Clerk + Supabase are ready
+  useEffect(() => {
+    if (!authLoaded || !userId || !session) return
+    if (!isSupabaseConfigured()) {
+      setCloudSync('idle')
+      return
+    }
+
+    let cancelled = false
+    setCloudSync('loading')
+    setCloudError(null)
+
+    ;(async () => {
+      try {
+        const client = createClerkSupabaseClient(() => session.getToken())
+        if (!client) {
+          setCloudSync('idle')
+          return
+        }
+
+        const { data, error } = await client
+          .from('user_app_state')
+          .select('state, updated_at')
+          .eq('user_id', userId)
+          .maybeSingle()
+
+        if (cancelled) return
+
+        if (error) {
+          setCloudError(error.message)
+          setCloudSync('error')
+          return
+        }
+
+        if (data?.state && typeof data.state === 'object') {
+          skipNextCloudSave.current = true
+          setState(normalizeAppState(data.state as Partial<AppState>, { recoverLocal: true }))
+        } else {
+          const local = loadState()
+          const { error: upsertError } = await client.from('user_app_state').upsert({
+            user_id: userId,
+            state: local,
+            updated_at: new Date().toISOString(),
+          })
+          if (upsertError) {
+            setCloudError(upsertError.message)
+            setCloudSync('error')
+            return
+          }
+          skipNextCloudSave.current = true
+          setState(local)
+        }
+        setCloudSync('ready')
+      } catch (err) {
+        if (cancelled) return
+        setCloudError(err instanceof Error ? err.message : 'Cloud sync failed')
+        setCloudSync('error')
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [authLoaded, userId, session])
+
+  // Debounced cloud save after hydration
+  useEffect(() => {
+    if (cloudSync !== 'ready' || !userId || !session) return
+    if (!isSupabaseConfigured()) return
+    if (skipNextCloudSave.current) {
+      skipNextCloudSave.current = false
+      return
+    }
+
+    if (saveTimer.current) window.clearTimeout(saveTimer.current)
+    saveTimer.current = window.setTimeout(() => {
+      const client = createClerkSupabaseClient(() => session.getToken())
+      if (!client) return
+      void client
+        .from('user_app_state')
+        .upsert({
+          user_id: userId,
+          state,
+          updated_at: new Date().toISOString(),
+        })
+        .then(({ error }) => {
+          if (error) setCloudError(error.message)
+        })
+    }, 800)
+
+    return () => {
+      if (saveTimer.current) window.clearTimeout(saveTimer.current)
+    }
+  }, [state, cloudSync, userId, session])
 
   useEffect(() => {
     if (!state.activeTimer) return
@@ -952,6 +1064,8 @@ export function useStore() {
 
   return {
     state,
+    cloudSync,
+    cloudError,
     projects: PROJECTS,
     liveTimerSeconds,
     projectMinutesToday,

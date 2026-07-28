@@ -1,5 +1,6 @@
 'use client'
 
+import { UserButton } from '@clerk/nextjs'
 import { useState } from 'react'
 import { DashboardView } from './components/DashboardView'
 import { DeepWorkView } from './components/DeepWorkView'
@@ -71,6 +72,25 @@ export default function App() {
           >
             Reset work
           </button>
+          {store.cloudSync === 'loading' && (
+            <span className="status-pill" title="Loading cloud state">
+              SYNC…
+            </span>
+          )}
+          {store.cloudSync === 'ready' && (
+            <span className="status-pill hit" title="Saved to Supabase">
+              CLOUD
+            </span>
+          )}
+          {store.cloudSync === 'error' && (
+            <span
+              className="status-pill miss"
+              title={store.cloudError || 'Cloud sync error'}
+            >
+              SYNC ERR
+            </span>
+          )}
+          <UserButton />
         </div>
       </header>
 
