@@ -31,13 +31,14 @@ Next.js (App Router) + React + TypeScript + Clerk + Supabase
 
 See [AUTH_SETUP.md](./AUTH_SETUP.md) for Clerk + Supabase env vars and dashboard steps.
 
-## Deploy (Vercel)
+## Deploy (Vercel) — if you see “No Next.js version detected”
 
-1. **Settings → General → Framework Preset** → **Next.js** (not Vite / Other)
-2. **Root Directory** → leave blank / `.` (must contain this `package.json`)
-3. Clear overrides if set:
-   - Build Command → default (`next build`) or `next build`
-   - Output Directory → **empty** (do not use `dist`)
-   - Install Command → `npm install`
-4. Env vars: Clerk + Supabase (+ existing Revolut vars) — see `.env.example`
-5. Redeploy from **main** after saving settings
+1. **Settings → General → Framework Preset** → **Next.js**
+2. **Root Directory** → click Edit → **clear it completely** (do **not** use `./` — leave blank) → Save
+3. Build & Development Settings: all **Override** toggles **OFF**
+4. Do **not** Redeploy an old failed deployment (it keeps Framework=Other). Instead:
+   - Deployments → **Create Deployment** → branch `main` (or merge this PR)
+   - Or push a new commit to `main`
+5. On the new deploy details, confirm Framework = **Next.js**
+
+Env vars: Clerk + Supabase (+ Revolut) — see `.env.example`
