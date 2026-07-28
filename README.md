@@ -42,3 +42,5 @@ See [AUTH_SETUP.md](./AUTH_SETUP.md) for Clerk + Supabase env vars and dashboard
 5. On the new deploy details, confirm Framework = **Next.js**
 
 Env vars: Clerk + Supabase (+ Revolut) — see `.env.example`
+
+# Force Vercel to pick up current Next.js main
