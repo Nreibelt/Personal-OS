@@ -1,17 +1,7 @@
-import { exchangeAuthorizationCode } from '../../_lib/revolut.js'
+import { NextRequest, NextResponse } from 'next/server'
+import { exchangeAuthorizationCode } from '@/lib/revolut/client'
 
-function firstQuery(value) {
-  if (Array.isArray(value)) return value[0]
-  return value
-}
-
-function html(res, status, body) {
-  res.statusCode = status
-  res.setHeader('Content-Type', 'text/html; charset=utf-8')
-  res.end(body)
-}
-
-function escapeHtml(value) {
+function escapeHtml(value: string) {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -19,22 +9,24 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
 }
 
+function html(status: number, body: string) {
+  return new NextResponse(body, {
+    status,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  })
+}
+
 /**
  * OAuth callback. Exchanges ?code= for tokens, auto-saves refresh token in
  * localStorage for this origin, and shows it for optional Vercel backup.
  */
-export default async function handler(req, res) {
+export async function GET(req: NextRequest) {
   try {
-    if (req.method !== 'GET') {
-      return html(res, 405, '<h1>Method not allowed</h1>')
-    }
-
-    const code = firstQuery(req.query.code)
-    const error = firstQuery(req.query.error)
+    const code = req.nextUrl.searchParams.get('code')
+    const error = req.nextUrl.searchParams.get('error')
 
     if (error) {
       return html(
-        res,
         400,
         `<!doctype html><html><body style="font-family:sans-serif;padding:2rem">
           <h1>Revolut OAuth error</h1>
@@ -45,7 +37,6 @@ export default async function handler(req, res) {
 
     if (!code) {
       return html(
-        res,
         400,
         `<!doctype html><html><body style="font-family:sans-serif;padding:2rem">
           <h1>Missing authorization code</h1>
@@ -58,7 +49,6 @@ export default async function handler(req, res) {
     const tokenJson = JSON.stringify(tokens.refresh_token)
 
     return html(
-      res,
       200,
       `<!doctype html><html><body style="font-family:sans-serif;padding:2rem;max-width:720px">
         <h1>Revolut connected</h1>
@@ -77,7 +67,6 @@ export default async function handler(req, res) {
     const message = err instanceof Error ? err.message : 'Token exchange failed'
     console.error('revolut oauth callback failed', err)
     return html(
-      res,
       500,
       `<!doctype html><html><body style="font-family:sans-serif;padding:2rem;max-width:720px">
         <h1>Token exchange failed</h1>

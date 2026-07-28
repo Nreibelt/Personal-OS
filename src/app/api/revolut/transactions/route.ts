@@ -1,24 +1,40 @@
-import { assertAppSecret, jsonError } from '../_lib/http.js'
+import { NextRequest, NextResponse } from 'next/server'
+import { assertAppSecret, jsonError } from '@/lib/revolut/http'
 import {
   createRevolutClient,
   dayBoundsIso,
   isRevolutConfigured,
   refreshTokenFromRequest,
   withRotatedToken,
-} from '../_lib/revolut.js'
+} from '@/lib/revolut/client'
 
-function firstQuery(value) {
-  if (Array.isArray(value)) return value[0]
-  return value
-}
-
-function normalizeAccountIds(raw) {
+function normalizeAccountIds(raw: string | null) {
   if (!raw) return []
-  const joined = Array.isArray(raw) ? raw.join(',') : raw
-  return [...new Set(joined.split(',').map((s) => s.trim()).filter(Boolean))]
+  return [...new Set(raw.split(',').map((s) => s.trim()).filter(Boolean))]
 }
 
-function normalizeTransaction(txn, accountNames, dateKey, accountFilter) {
+function normalizeTransaction(
+  txn: {
+    id: string
+    type?: string
+    state?: string
+    reference?: string
+    created_at?: string
+    completed_at?: string
+    merchant?: { name?: string }
+    card?: { card_number?: string }
+    legs?: Array<{
+      leg_id: string
+      account_id: string
+      amount?: number
+      currency?: string
+      description?: string
+    }>
+  },
+  accountNames: Map<string, string>,
+  dateKey: string,
+  accountFilter: Set<string>,
+) {
   const merchant = txn.merchant?.name?.trim() || ''
   const items = []
 
@@ -53,38 +69,34 @@ function normalizeTransaction(txn, accountNames, dateKey, accountFilter) {
   return items
 }
 
-export default async function handler(req, res) {
+export async function GET(req: NextRequest) {
   try {
-    if (req.method !== 'GET') {
-      return jsonError(res, 405, 'Method not allowed')
-    }
-    if (!assertAppSecret(req, res)) return
+    const secretError = assertAppSecret(req)
+    if (secretError) return secretError
 
     const refreshToken = refreshTokenFromRequest(req)
     const status = isRevolutConfigured(Boolean(refreshToken))
     if (!status.serverReady) {
       return jsonError(
-        res,
         503,
         `Revolut is not fully configured. Missing: ${status.missing.join(', ')}`,
       )
     }
     if (!refreshToken) {
       return jsonError(
-        res,
         401,
         'Missing Revolut refresh token. Click Reconnect in the app to sign in again.',
       )
     }
 
-    const date = firstQuery(req.query.date)
-    const accountIds = normalizeAccountIds(req.query.accounts)
+    const date = req.nextUrl.searchParams.get('date')
+    const accountIds = normalizeAccountIds(req.nextUrl.searchParams.get('accounts'))
 
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return jsonError(res, 400, 'Query param "date" (YYYY-MM-DD) is required.')
+      return jsonError(400, 'Query param "date" (YYYY-MM-DD) is required.')
     }
     if (accountIds.length === 0) {
-      return jsonError(res, 400, 'Query param "accounts" (comma-separated IDs) is required.')
+      return jsonError(400, 'Query param "accounts" (comma-separated IDs) is required.')
     }
 
     const client = createRevolutClient(refreshToken)
@@ -95,11 +107,11 @@ export default async function handler(req, res) {
 
     const unknown = accountIds.filter((id) => !accountNames.has(id))
     if (unknown.length) {
-      return jsonError(res, 400, `Unknown account id(s): ${unknown.join(', ')}`)
+      return jsonError(400, `Unknown account id(s): ${unknown.join(', ')}`)
     }
 
-    const seen = new Set()
-    const transactions = []
+    const seen = new Set<string>()
+    const transactions: ReturnType<typeof normalizeTransaction>[number][] = []
 
     for (const accountId of accountIds) {
       const raw = await client.listTransactionsForAccount({ accountId, from, to })
@@ -112,9 +124,9 @@ export default async function handler(req, res) {
       }
     }
 
-    transactions.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    transactions.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
 
-    return res.status(200).json(
+    return NextResponse.json(
       withRotatedToken(
         {
           date,
@@ -129,6 +141,6 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('revolut transactions failed', error)
     const message = error instanceof Error ? error.message : 'Failed to fetch transactions'
-    return jsonError(res, 502, message)
+    return jsonError(502, message)
   }
 }

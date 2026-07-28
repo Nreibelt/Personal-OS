@@ -1,13 +1,10 @@
-import { jsonError } from '../../_lib/http.js'
-import { revolutEnv, requireEnv } from '../../_lib/revolut.js'
+import { NextResponse } from 'next/server'
+import { jsonError } from '@/lib/revolut/http'
+import { revolutEnv, requireEnv } from '@/lib/revolut/client'
 
 /** Redirects to Revolut consent (READ scope). */
-export default async function handler(req, res) {
+export async function GET() {
   try {
-    if (req.method !== 'GET') {
-      return jsonError(res, 405, 'Method not allowed')
-    }
-
     const clientId = requireEnv('REVOLUT_CLIENT_ID')
     const redirectUri = requireEnv('REVOLUT_REDIRECT_URI')
     const scope = 'READ'
@@ -22,12 +19,10 @@ export default async function handler(req, res) {
     url.searchParams.set('response_type', 'code')
     url.searchParams.set('scope', scope)
 
-    res.statusCode = 302
-    res.setHeader('Location', url.toString())
-    res.end()
+    return NextResponse.redirect(url.toString())
   } catch (error) {
     console.error('revolut oauth start failed', error)
     const message = error instanceof Error ? error.message : 'OAuth start failed'
-    return jsonError(res, 503, message)
+    return jsonError(503, message)
   }
 }

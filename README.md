@@ -9,6 +9,8 @@ npm install
 npm run dev
 ```
 
+Open [http://localhost:3000](http://localhost:3000).
+
 ## Features
 
 - **Daily deep work target** — set hours/day, see hit/miss, streak, and week hit rate
@@ -23,4 +25,13 @@ npm run dev
 
 ## Stack
 
-Vite + React + TypeScript
+Next.js (App Router) + React + TypeScript
+
+## Deploy (Vercel)
+
+1. Set Framework Preset to **Next.js** (not Other / Vite)
+2. Build command: `next build` (default)
+3. Output: Next.js defaults (do not set a static `dist` output)
+4. Keep existing Revolut env vars; optional Clerk keys:
+   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+   - `CLERK_SECRET_KEY`

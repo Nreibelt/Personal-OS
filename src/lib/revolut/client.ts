@@ -1,4 +1,5 @@
 import { createPrivateKey, sign } from 'node:crypto'
+import type { NextRequest } from 'next/server'
 
 export function revolutEnv() {
   const raw = (process.env.REVOLUT_ENV || 'production').toLowerCase()
@@ -17,7 +18,7 @@ export function revolutAuthBase() {
     : 'https://b2b.revolut.com'
 }
 
-export function normalizePrivateKey(raw) {
+export function normalizePrivateKey(raw: string) {
   let key = raw.trim()
   if (
     (key.startsWith('"') && key.endsWith('"')) ||
@@ -28,13 +29,13 @@ export function normalizePrivateKey(raw) {
   return key.replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim()
 }
 
-export function requireEnv(name) {
+export function requireEnv(name: string) {
   const value = process.env[name]?.trim()
   if (!value) throw new Error(`Missing env var: ${name}`)
   return value
 }
 
-function base64urlJson(value) {
+function base64urlJson(value: unknown) {
   return Buffer.from(JSON.stringify(value), 'utf8').toString('base64url')
 }
 
@@ -73,7 +74,7 @@ export function buildClientAssertion() {
   }
 }
 
-async function postToken(body) {
+async function postToken(body: URLSearchParams) {
   const response = await fetch(`${revolutAuthBase()}/api/1.0/auth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -95,14 +96,13 @@ async function postToken(body) {
   return data
 }
 
-export function refreshTokenFromRequest(req) {
-  const header = req.headers['x-revolut-refresh-token']
-  const fromHeader = (Array.isArray(header) ? header[0] : header)?.trim()
+export function refreshTokenFromRequest(req: NextRequest) {
+  const fromHeader = req.headers.get('x-revolut-refresh-token')?.trim()
   if (fromHeader) return fromHeader
   return process.env.REVOLUT_REFRESH_TOKEN?.trim() || ''
 }
 
-export function friendlyAuthError(error) {
+export function friendlyAuthError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
   if (/access token|refresh token|invalid|expired|unauthorized|authoris/i.test(message)) {
     return (
@@ -113,7 +113,7 @@ export function friendlyAuthError(error) {
   return message
 }
 
-export async function exchangeAuthorizationCode(code) {
+export async function exchangeAuthorizationCode(code: string) {
   const assertion = buildClientAssertion()
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
@@ -127,18 +127,44 @@ export async function exchangeAuthorizationCode(code) {
     throw new Error('Token exchange response missing access_token / refresh_token.')
   }
   return {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
+    access_token: data.access_token as string,
+    refresh_token: data.refresh_token as string,
     token_type: typeof data.token_type === 'string' ? data.token_type : undefined,
     expires_in: typeof data.expires_in === 'number' ? data.expires_in : undefined,
   }
+}
+
+type RevolutAccount = {
+  id: string
+  name: string
+  balance?: number
+  currency?: string
+  state?: string
+}
+
+type RevolutTxn = {
+  id: string
+  type?: string
+  state?: string
+  reference?: string
+  created_at?: string
+  completed_at?: string
+  merchant?: { name?: string }
+  card?: { card_number?: string }
+  legs?: Array<{
+    leg_id: string
+    account_id: string
+    amount?: number
+    currency?: string
+    description?: string
+  }>
 }
 
 /**
  * Per-request Revolut client. Handles access-token refresh and refresh-token rotation.
  * When Revolut issues a new refresh token, `rotatedRefreshToken` is set so the browser can store it.
  */
-export function createRevolutClient(refreshToken) {
+export function createRevolutClient(refreshToken: string) {
   if (!refreshToken) {
     throw new Error(
       'Missing Revolut refresh token. Click Reconnect to sign in again, or set REVOLUT_REFRESH_TOKEN on Vercel.',
@@ -146,8 +172,8 @@ export function createRevolutClient(refreshToken) {
   }
 
   let currentRefresh = refreshToken
-  let rotatedRefreshToken = null
-  let accessToken = null
+  let rotatedRefreshToken: string | null = null
+  let accessToken: string | null = null
   let accessExpiresAt = 0
 
   async function ensureAccessToken() {
@@ -188,7 +214,7 @@ export function createRevolutClient(refreshToken) {
     return accessToken
   }
 
-  async function fetchJson(path, init) {
+  async function fetchJson(path: string, init?: RequestInit) {
     const token = await ensureAccessToken()
     const response = await fetch(`${revolutApiBase()}${path}`, {
       ...init,
@@ -218,8 +244,8 @@ export function createRevolutClient(refreshToken) {
 
   return {
     fetchJson,
-    listAccounts: () => fetchJson('/accounts'),
-    getExchangeRate: async (from, to, amount = 1) => {
+    listAccounts: () => fetchJson('/accounts') as Promise<RevolutAccount[]>,
+    getExchangeRate: async (from: string, to: string, amount = 1) => {
       if (from === to) return { rate: 1, from, to, toAmount: amount }
       const query = new URLSearchParams({
         from,
@@ -239,8 +265,12 @@ export function createRevolutClient(refreshToken) {
       }
       return { rate, from, to, toAmount }
     },
-    listTransactionsForAccount: async (params) => {
-      const all = []
+    listTransactionsForAccount: async (params: {
+      accountId: string
+      from: string
+      to: string
+    }) => {
+      const all: RevolutTxn[] = []
       let to = params.to
       for (let page = 0; page < 20; page++) {
         const query = new URLSearchParams({
@@ -249,7 +279,7 @@ export function createRevolutClient(refreshToken) {
           to,
           count: '1000',
         })
-        const batch = await fetchJson(`/transactions?${query}`)
+        const batch = (await fetchJson(`/transactions?${query}`)) as RevolutTxn[]
         if (!batch.length) break
         all.push(...batch)
         if (batch.length < 1000) break
@@ -264,14 +294,19 @@ export function createRevolutClient(refreshToken) {
   }
 }
 
-export function withRotatedToken(payload, client) {
+export type RevolutClient = ReturnType<typeof createRevolutClient>
+
+export function withRotatedToken<T extends Record<string, unknown>>(
+  payload: T,
+  client: RevolutClient,
+) {
   const rotated = client.getRotatedRefreshToken()
   if (rotated) return { ...payload, refreshToken: rotated }
   return payload
 }
 
 /** Inclusive local calendar day in Asia/Makassar (WITA, UTC+8, no DST). */
-export function dayBoundsIso(dateKey) {
+export function dayBoundsIso(dateKey: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
     throw new Error('date must be YYYY-MM-DD')
   }

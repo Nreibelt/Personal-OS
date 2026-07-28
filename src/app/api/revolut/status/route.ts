@@ -1,28 +1,26 @@
-import { assertAppSecret, jsonError } from '../_lib/http.js'
+import { NextRequest, NextResponse } from 'next/server'
+import { assertAppSecret, jsonError } from '@/lib/revolut/http'
 import {
   createRevolutClient,
   isRevolutConfigured,
   refreshTokenFromRequest,
-} from '../_lib/revolut.js'
+} from '@/lib/revolut/client'
 
-export default async function handler(req, res) {
+export async function GET(req: NextRequest) {
   try {
-    if (req.method !== 'GET') {
-      return jsonError(res, 405, 'Method not allowed')
-    }
-    if (!assertAppSecret(req, res)) return
+    const secretError = assertAppSecret(req)
+    if (secretError) return secretError
 
     const refreshToken = refreshTokenFromRequest(req)
     const status = isRevolutConfigured(Boolean(refreshToken))
 
     let authOk = false
     let authError = ''
-    let refreshTokenRotated = null
+    let refreshTokenRotated: string | null = null
 
     if (status.serverReady && refreshToken) {
       try {
         const client = createRevolutClient(refreshToken)
-        // Cheap authenticated call — proves refresh token works
         await client.listAccounts()
         authOk = true
         refreshTokenRotated = client.getRotatedRefreshToken()
@@ -31,7 +29,7 @@ export default async function handler(req, res) {
       }
     }
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       ok: status.serverReady && authOk,
       serverReady: status.serverReady,
       env: status.env,
@@ -42,10 +40,10 @@ export default async function handler(req, res) {
     }
     if (refreshTokenRotated) payload.refreshToken = refreshTokenRotated
 
-    return res.status(200).json(payload)
+    return NextResponse.json(payload)
   } catch (error) {
     console.error('revolut status failed', error)
     const message = error instanceof Error ? error.message : 'Status check failed'
-    return jsonError(res, 500, message)
+    return jsonError(500, message)
   }
 }
