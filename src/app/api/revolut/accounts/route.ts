@@ -1,41 +1,37 @@
-import { assertAppSecret, jsonError } from '../_lib/http.js'
+import { NextRequest, NextResponse } from 'next/server'
+import { assertAppSecret, jsonError } from '@/lib/revolut/http'
 import {
   createRevolutClient,
   isRevolutConfigured,
   refreshTokenFromRequest,
   withRotatedToken,
-} from '../_lib/revolut.js'
+} from '@/lib/revolut/client'
 
-export default async function handler(req, res) {
+export async function GET(req: NextRequest) {
   try {
-    if (req.method !== 'GET') {
-      return jsonError(res, 405, 'Method not allowed')
-    }
-    if (!assertAppSecret(req, res)) return
+    const secretError = assertAppSecret(req)
+    if (secretError) return secretError
 
     const refreshToken = refreshTokenFromRequest(req)
     const status = isRevolutConfigured(Boolean(refreshToken))
     if (!status.serverReady) {
       return jsonError(
-        res,
         503,
         `Revolut is not fully configured. Missing: ${status.missing.join(', ')}`,
       )
     }
     if (!refreshToken) {
       return jsonError(
-        res,
         401,
         'Missing Revolut refresh token. Click Reconnect in the app to sign in again.',
       )
     }
 
-    const toParam = Array.isArray(req.query.to) ? req.query.to[0] : req.query.to
-    const displayCurrency = (toParam || 'AUD').toUpperCase()
+    const displayCurrency = (req.nextUrl.searchParams.get('to') || 'AUD').toUpperCase()
 
     const client = createRevolutClient(refreshToken)
     const accounts = await client.listAccounts()
-    const rateCache = new Map()
+    const rateCache = new Map<string, { rate: number }>()
 
     const enriched = []
     for (const a of accounts) {
@@ -52,7 +48,7 @@ export default async function handler(req, res) {
             await client.getExchangeRate(currency, displayCurrency, 1),
           )
         }
-        const fx = rateCache.get(cacheKey)
+        const fx = rateCache.get(cacheKey)!
         rate = fx.rate
         displayBalance = Math.round(balance * rate * 100) / 100
       }
@@ -69,7 +65,7 @@ export default async function handler(req, res) {
       })
     }
 
-    return res.status(200).json(
+    return NextResponse.json(
       withRotatedToken(
         {
           displayCurrency,
@@ -84,6 +80,6 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('revolut accounts failed', error)
     const message = error instanceof Error ? error.message : 'Failed to list accounts'
-    return jsonError(res, 502, message)
+    return jsonError(502, message)
   }
 }

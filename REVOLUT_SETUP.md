@@ -61,7 +61,7 @@ If you see “token expired / invalid”, click **Reconnect Revolut** in the app
 5. For each outflow: pick a set-expense category (or Unexpected) → **Add**, or **Discard**
 6. Incomings: **Discard** when you’ve acknowledged them
 
-Local dev: run `npx vercel dev` so `/api/*` routes work (plain `vite` alone will not).
+Local dev: `npm run dev` serves both the app and `/api/*` routes (Next.js App Router).
 
 ## Security notes
 

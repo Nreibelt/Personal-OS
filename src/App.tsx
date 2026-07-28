@@ -1,3 +1,5 @@
+'use client'
+
 import { useState } from 'react'
 import { DashboardView } from './components/DashboardView'
 import { DeepWorkView } from './components/DeepWorkView'
