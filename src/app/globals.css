@@ -2356,11 +2356,6 @@ body:has(.gate-shell)::before {
   max-width: 16ch;
 }
 
-.layer-portal:hover:not(:disabled)::before,
-.layer-portal.is-activating::before {
-  background: linear-gradient(180deg, transparent 20%, rgba(0, 0, 0, 0.35) 100%);
-}
-
 .layer-portal:hover:not(:disabled)::after,
 .layer-portal.is-activating::after {
   transform: scale(1.03);
