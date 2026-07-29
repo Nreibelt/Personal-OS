@@ -74,6 +74,14 @@ function writeBusinessTab(tab: BusinessTab) {
   }
 }
 
+function requestDocsLeave(proceed: () => void) {
+  window.dispatchEvent(
+    new CustomEvent('batcave:docs-leave', {
+      detail: { proceed },
+    }),
+  )
+}
+
 export default function App() {
   const store = useStore()
   const [layer, setLayer] = useState<AppLayer>('gate')
@@ -81,6 +89,7 @@ export default function App() {
   const [pendingSession, setPendingSession] = useState<ProjectId | null>(null)
   const [hydrated, setHydrated] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
+  const [docsDirty, setDocsDirty] = useState(false)
 
   useEffect(() => {
     setLayer(readLayer())
@@ -125,6 +134,17 @@ export default function App() {
     setPendingSession(projectId)
   }
 
+  const leaveDocumentsIfNeeded = useCallback(
+    (proceed: () => void) => {
+      if (layer === 'business' && businessTab === 'documents' && docsDirty) {
+        requestDocsLeave(proceed)
+        return
+      }
+      proceed()
+    },
+    [layer, businessTab, docsDirty],
+  )
+
   const enterPersonal = () => {
     if (store.state.activeTab === 'companyFinances') store.setActiveTab('dashboard')
     setLayer('personal')
@@ -135,6 +155,21 @@ export default function App() {
       t === 'metaAds' || t === 'coldEmail' || t === 'agents' ? 'todos' : t,
     )
     setLayer('business')
+  }
+
+  const switchLayerToGate = () => {
+    leaveDocumentsIfNeeded(() => {
+      setDocsDirty(false)
+      setLayer('gate')
+    })
+  }
+
+  const switchBusinessTab = (next: BusinessTab) => {
+    if (next === businessTab) return
+    leaveDocumentsIfNeeded(() => {
+      setDocsDirty(false)
+      setBusinessTab(next)
+    })
   }
 
   const browseKey =
@@ -166,7 +201,7 @@ export default function App() {
               <span className="brand-sub">Company OS</span>
             </div>
             <div className="status-pills">
-              <button type="button" className="ghost-btn" onClick={() => setLayer('gate')}>
+              <button type="button" className="ghost-btn" onClick={switchLayerToGate}>
                 Switch layer
               </button>
               <button
@@ -198,7 +233,7 @@ export default function App() {
                 className={`app-tab${businessTab === t.id ? ' active' : ''}${t.enabled ? '' : ' disabled'}`}
                 disabled={!t.enabled}
                 onClick={() => {
-                  if (t.enabled) setBusinessTab(t.id)
+                  if (t.enabled) switchBusinessTab(t.id)
                 }}
               >
                 <span>{t.label}</span>
@@ -209,7 +244,9 @@ export default function App() {
 
           {businessTab === 'todos' && <CompanyTodosView />}
           {businessTab === 'finance' && <FinancesView store={store} realm="company" />}
-          {businessTab === 'documents' && <CompanyDocumentsView store={store} />}
+          {businessTab === 'documents' && (
+            <CompanyDocumentsView store={store} onDirtyChange={setDocsDirty} />
+          )}
           {businessTab === 'ideas' && <CompanyIdeasView store={store} />}
         </>
       ) : (
