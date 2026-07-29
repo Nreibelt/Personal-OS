@@ -21,6 +21,7 @@ import {
   layoutDayBlocks,
 } from '../utils/recurrence'
 import { HudPanel } from './HudPanel'
+import { ModalPortal } from './ui/ModalPortal'
 
 const DAY_START = 0
 const DAY_END = 24 * 60
@@ -690,6 +691,7 @@ export function ScheduleCalendar({ store }: { store: Store }) {
       </HudPanel>
 
       {modalOpen && (
+        <ModalPortal>
         <div className="modal-backdrop" role="presentation" onClick={closeModal}>
           <div
             className="modal sched-modal"
@@ -862,9 +864,11 @@ export function ScheduleCalendar({ store }: { store: Store }) {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {pendingChange && (
+        <ModalPortal>
         <div className="modal-backdrop" role="presentation" onClick={() => setPendingChange(null)}>
           <div
             className="modal sched-modal"
@@ -899,6 +903,7 @@ export function ScheduleCalendar({ store }: { store: Store }) {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </>
   )

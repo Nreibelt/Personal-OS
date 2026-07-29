@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 type ModalSize = 'sm' | 'md' | 'lg' | 'xl'
 
@@ -40,9 +41,9 @@ export function Modal({
     }
   }, [open, onClose])
 
-  if (!open) return null
+  if (!open || typeof document === 'undefined') return null
 
-  return (
+  return createPortal(
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <div
         className={`modal platform-modal ${SIZE_CLASS[size]}`}
@@ -60,6 +61,7 @@ export function Modal({
         <div className="platform-modal-body">{children}</div>
         {footer && <footer className="platform-modal-footer">{footer}</footer>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
