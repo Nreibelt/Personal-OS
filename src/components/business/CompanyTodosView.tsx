@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { HudPanel } from '../HudPanel'
 import { Checkbox } from '../ui/Checkbox'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { Modal } from '../ui/Modal'
 import { Select } from '../ui/Select'
 import {
   createCompanyTask,
@@ -33,10 +34,11 @@ export function CompanyTodosView() {
   const [priority, setPriority] = useState<EisenhowerQuadrant>('do')
   const [saving, setSaving] = useState(false)
   const [filter, setFilter] = useState<FocusFilter>('focus')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<CompanyTask | null>(null)
-  const [subDraft, setSubDraft] = useState<Record<string, string>>({})
-  const [noteDraft, setNoteDraft] = useState<Record<string, string>>({})
+  const [subDraft, setSubDraft] = useState('')
+  const [noteDraft, setNoteDraft] = useState('')
+  const [notesDirty, setNotesDirty] = useState(false)
 
   const refresh = useCallback(async () => {
     if (!session || !userId) return
@@ -81,6 +83,16 @@ export function CompanyTodosView() {
     for (const t of roots) map.set(t.id, t.title)
     return map
   }, [roots])
+
+  const openTask = useMemo(
+    () => (openTaskId ? tasks.find((t) => t.id === openTaskId) ?? null : null),
+    [openTaskId, tasks],
+  )
+
+  const openSubs = useMemo(
+    () => (openTask ? subtasksByParent.get(openTask.id) || [] : []),
+    [openTask, subtasksByParent],
+  )
 
   const isBlocked = useCallback(
     (task: CompanyTask) => {
@@ -175,20 +187,25 @@ export function CompanyTodosView() {
     }
   }
 
-  async function saveNotes(task: CompanyTask) {
+  async function persistNotes(task: CompanyTask, notes: string) {
     if (!session) return
-    const notes = noteDraft[task.id] ?? task.notes
     try {
       await updateCompanyTask(session, task.id, { notes })
+      setNotesDirty(false)
       await refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save notes')
     }
   }
 
+  async function saveNotesIfDirty(task: CompanyTask | null = openTask) {
+    if (!task || !notesDirty) return
+    await persistNotes(task, noteDraft)
+  }
+
   async function addSubtask(parent: CompanyTask) {
     if (!session || !userId) return
-    const text = (subDraft[parent.id] || '').trim()
+    const text = subDraft.trim()
     if (!text) return
     try {
       await createCompanyTask(session, {
@@ -197,7 +214,7 @@ export function CompanyTodosView() {
         priority: parent.priority,
         parentId: parent.id,
       })
-      setSubDraft((prev) => ({ ...prev, [parent.id]: '' }))
+      setSubDraft('')
       await refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add sub-task')
@@ -210,20 +227,33 @@ export function CompanyTodosView() {
     setPendingDelete(null)
     try {
       await deleteCompanyTask(session, task.id)
+      if (openTaskId === task.id || task.parentId === openTaskId) {
+        if (openTaskId === task.id) {
+          setOpenTaskId(null)
+          setNotesDirty(false)
+        }
+      }
       await refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete task')
     }
   }
 
-  function toggleExpand(task: CompanyTask) {
-    setExpandedId((id) => {
-      const next = id === task.id ? null : task.id
-      if (next) {
-        setNoteDraft((prev) => ({ ...prev, [task.id]: prev[task.id] ?? task.notes }))
-      }
-      return next
-    })
+  function openDetail(task: CompanyTask) {
+    setOpenTaskId(task.id)
+    setNoteDraft(task.notes)
+    setNotesDirty(false)
+    setSubDraft('')
+  }
+
+  async function closeDetail() {
+    const task = openTask
+    if (task && notesDirty) {
+      await persistNotes(task, noteDraft)
+    }
+    setOpenTaskId(null)
+    setSubDraft('')
+    setNotesDirty(false)
   }
 
   function renderTask(task: CompanyTask) {
@@ -234,27 +264,35 @@ export function CompanyTodosView() {
       .filter(Boolean) as string[]
     const subs = subtasksByParent.get(task.id) || []
     const doneSubs = subs.filter((s) => s.status === 'done').length
-    const expanded = expandedId === task.id
+    const hasNotes = Boolean(task.notes.trim())
     const created = new Date(task.createdAt).toLocaleDateString(undefined, {
       month: 'short',
       day: 'numeric',
     })
 
     return (
-      <li key={task.id} className={`company-todo${blocked ? ' blocked' : ''}${expanded ? ' expanded' : ''}`}>
+      <li key={task.id} className={`company-todo${blocked ? ' blocked' : ''}`}>
         <div className="company-todo-main">
           <Checkbox
             checked={task.status === 'done'}
             onChange={(on) => void setStatus(task, on ? 'done' : 'not_started')}
             aria-label={`Mark ${task.title} done`}
           />
-          <button type="button" className="company-todo-title-btn" onClick={() => toggleExpand(task)}>
-            <span className={task.status === 'done' ? 'done' : ''}>{task.title}</span>
+          <button
+            type="button"
+            className="company-todo-title-btn"
+            onClick={() => openDetail(task)}
+            aria-label={`Open ${task.title}`}
+          >
+            <span className={`company-todo-title-text${task.status === 'done' ? ' done' : ''}`}>
+              {task.title}
+            </span>
             {subs.length > 0 && (
               <span className="company-todo-subcount">
                 {doneSubs}/{subs.length}
               </span>
             )}
+            {hasNotes && <span className="company-todo-note-dot" title="Has notes" aria-hidden="true" />}
           </button>
           <div className="company-todo-meta">
             <span className={`hpa-pill ${meta.className}`} title={meta.hint}>
@@ -282,70 +320,7 @@ export function CompanyTodosView() {
         </div>
 
         {blocked && (
-          <p className="company-todo-blocked">
-            Waiting on: {blockedNames.join(', ')}
-          </p>
-        )}
-
-        {expanded && (
-          <div className="company-todo-detail">
-            <label className="field-label">Notes</label>
-            <textarea
-              className="company-todo-notes"
-              rows={3}
-              placeholder="Context, links, decisions…"
-              value={noteDraft[task.id] ?? task.notes}
-              onChange={(e) => setNoteDraft((prev) => ({ ...prev, [task.id]: e.target.value }))}
-              onBlur={() => void saveNotes(task)}
-            />
-
-            <div className="company-todo-subs">
-              <div className="company-todo-subs-head">
-                <span className="field-label">Sub-tasks</span>
-                {subs.length > 0 && (
-                  <span className="company-todo-group-count">
-                    {doneSubs}/{subs.length}
-                  </span>
-                )}
-              </div>
-              <ul className="company-todo-sublist">
-                {subs.map((sub) => (
-                  <li key={sub.id} className="company-todo-subitem">
-                    <Checkbox
-                      checked={sub.status === 'done'}
-                      onChange={(on) => void setStatus(sub, on ? 'done' : 'not_started')}
-                      label={sub.title}
-                    />
-                    <button
-                      type="button"
-                      className="x-btn visible"
-                      aria-label={`Remove ${sub.title}`}
-                      onClick={() => setPendingDelete(sub)}
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <form
-                className="company-todo-subform"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  void addSubtask(task)
-                }}
-              >
-                <input
-                  value={subDraft[task.id] || ''}
-                  onChange={(e) => setSubDraft((prev) => ({ ...prev, [task.id]: e.target.value }))}
-                  placeholder="Add a sub-task…"
-                  aria-label="New sub-task"
-                />
-                <button type="submit" className="btn-secondary compact" disabled={!(subDraft[task.id] || '').trim()}>
-                  Add
-                </button>
-              </form>
-            </div>
-          </div>
+          <p className="company-todo-blocked">Waiting on: {blockedNames.join(', ')}</p>
         )}
       </li>
     )
@@ -359,6 +334,8 @@ export function CompanyTodosView() {
         : filter === 'done'
           ? 'Completed work archive.'
           : 'Full matrix view by quadrant.'
+
+  const openDoneSubs = openSubs.filter((s) => s.status === 'done').length
 
   return (
     <div className="layout-stack company-todos">
@@ -452,6 +429,101 @@ export function CompanyTodosView() {
           </ul>
         )}
       </HudPanel>
+
+      <Modal
+        open={!!openTask}
+        onClose={() => void closeDetail()}
+        title={openTask?.title ?? 'Task'}
+        size="lg"
+        className="company-task-modal"
+      >
+        {openTask && (
+          <div className="company-task-detail">
+            <div className="company-task-detail-meta">
+              <span className={`hpa-pill ${EISENHOWER_META[openTask.priority].className}`}>
+                {EISENHOWER_META[openTask.priority].label}
+              </span>
+              <Select
+                className="company-todo-select"
+                value={openTask.priority}
+                ariaLabel="Eisenhower quadrant"
+                options={EISENHOWER_OPTIONS}
+                onChange={(v) => void setTaskPriority(openTask, v as EisenhowerQuadrant)}
+              />
+              <Select
+                className="company-todo-select"
+                value={openTask.status}
+                ariaLabel="Status"
+                options={STATUS_OPTIONS}
+                onChange={(v) => void setStatus(openTask, v as CompanyTaskStatus)}
+              />
+            </div>
+
+            <label className="field-label" htmlFor="company-task-notes">
+              Notes
+            </label>
+            <textarea
+              id="company-task-notes"
+              className="company-todo-notes"
+              rows={5}
+              placeholder="Context, links, decisions…"
+              value={noteDraft}
+              onChange={(e) => {
+                setNoteDraft(e.target.value)
+                setNotesDirty(true)
+              }}
+              onBlur={() => void saveNotesIfDirty(openTask)}
+            />
+
+            <div className="company-todo-subs">
+              <div className="company-todo-subs-head">
+                <span className="field-label">Sub-tasks</span>
+                {openSubs.length > 0 && (
+                  <span className="company-todo-group-count">
+                    {openDoneSubs}/{openSubs.length}
+                  </span>
+                )}
+              </div>
+              <ul className="company-todo-sublist">
+                {openSubs.map((sub) => (
+                  <li key={sub.id} className="company-todo-subitem">
+                    <Checkbox
+                      checked={sub.status === 'done'}
+                      onChange={(on) => void setStatus(sub, on ? 'done' : 'not_started')}
+                      label={sub.title}
+                    />
+                    <button
+                      type="button"
+                      className="x-btn visible"
+                      aria-label={`Remove ${sub.title}`}
+                      onClick={() => setPendingDelete(sub)}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <form
+                className="company-todo-subform"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  void addSubtask(openTask)
+                }}
+              >
+                <input
+                  value={subDraft}
+                  onChange={(e) => setSubDraft(e.target.value)}
+                  placeholder="Break this into a sub-task…"
+                  aria-label="New sub-task"
+                />
+                <button type="submit" className="btn-secondary compact" disabled={!subDraft.trim()}>
+                  Add
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <ConfirmDialog
         open={!!pendingDelete}

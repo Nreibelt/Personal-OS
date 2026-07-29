@@ -4076,7 +4076,7 @@ a.btn-secondary.compact {
 }
 
 .platform-check-label.done,
-.company-todo-title-btn .done {
+.company-todo-title-text.done {
   text-decoration: line-through;
   color: var(--text-dim);
 }
@@ -4269,8 +4269,15 @@ a.btn-secondary.compact {
   cursor: pointer;
 }
 
-.company-todo-title-btn span:first-child {
+.company-todo-title-btn:hover .company-todo-title-text {
+  color: var(--text);
+}
+
+.company-todo-title-text {
   font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
 }
 
 .company-todo-subcount {
@@ -4283,16 +4290,18 @@ a.btn-secondary.compact {
   border-radius: var(--radius-sm);
 }
 
-.company-todo-detail {
-  margin-top: 0.85rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid var(--line-soft);
+.company-todo-note-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: rgba(var(--accent-rgb), 0.85);
+  flex-shrink: 0;
 }
 
 .company-todo-notes {
   resize: vertical;
-  min-height: 4.5rem;
-  margin-bottom: 1rem;
+  min-height: 5.5rem;
+  margin-bottom: 1.15rem;
 }
 
 .company-todo-subs-head {
@@ -4333,8 +4342,26 @@ a.btn-secondary.compact {
   color: var(--text-dim);
 }
 
-.company-todo.expanded {
-  border-color: var(--line-strong);
+/* Task detail popup — big bold title + notes / sub-tasks */
+.company-task-modal .platform-modal-head {
+  align-items: flex-start;
+  padding: 1.25rem 1.35rem 1.1rem;
+}
+
+.company-task-modal .platform-modal-head h2 {
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.03em;
+  max-width: calc(100% - 2rem);
+}
+
+.company-task-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 1.15rem;
 }
 
 /* Sticky deep work dock */

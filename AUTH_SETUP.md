@@ -22,6 +22,7 @@ Redeploy after saving.
 1. **SQL Editor** — run these migrations (in order):
    - `supabase/migrations/20260728140000_user_app_state.sql`
    - `supabase/migrations/20260728150000_company_todos.sql` (Batcave to-dos + dependencies)
+   - `supabase/migrations/20260729040000_company_todos_eisenhower.sql` (Eisenhower + notes + nested sub-tasks)
 2. **Authentication → Sign In / Third-party** — Add **Clerk** → paste Clerk domain
 
 ## What the app does
