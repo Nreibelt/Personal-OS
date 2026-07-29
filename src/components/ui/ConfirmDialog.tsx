@@ -8,18 +8,23 @@ export function ConfirmDialog({
   message,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
+  altLabel,
   danger = false,
   onConfirm,
   onCancel,
+  onAlt,
 }: {
   open: boolean
   title: string
   message: string
   confirmLabel?: string
   cancelLabel?: string
+  /** Optional middle action (e.g. Save before leaving). */
+  altLabel?: string
   danger?: boolean
   onConfirm: () => void
   onCancel: () => void
+  onAlt?: () => void
 }) {
   return (
     <Modal
@@ -32,11 +37,16 @@ export function ConfirmDialog({
           <button type="button" className="btn-secondary" onClick={onCancel}>
             {cancelLabel}
           </button>
+          {altLabel && onAlt && (
+            <button type="button" className="btn-primary" onClick={onAlt}>
+              {altLabel}
+            </button>
+          )}
           <button
             type="button"
             className={danger ? 'btn-primary danger' : 'btn-primary'}
             onClick={onConfirm}
-            autoFocus
+            autoFocus={!altLabel}
           >
             {confirmLabel}
           </button>

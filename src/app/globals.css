@@ -4080,6 +4080,8 @@ a.btn-secondary.compact {
 
 .platform-confirm-actions {
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.45rem;
 }
 
 .btn-primary.danger {
@@ -4632,6 +4634,48 @@ a.btn-secondary.compact {
   font-weight: 600;
   color: var(--text);
   letter-spacing: -0.015em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+}
+
+.company-docs-unsaved-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.45);
+}
+
+.company-docs-item.unsaved {
+  border-color: rgba(var(--accent-rgb), 0.35);
+}
+
+.company-docs-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.company-docs-save-status {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-right: 0.15rem;
+}
+
+.company-docs-save-status.dirty {
+  color: #e2b45c;
+}
+
+.company-docs-save-status.saved {
+  color: var(--accent);
 }
 
 .company-docs-item-meta {
