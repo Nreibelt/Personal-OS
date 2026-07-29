@@ -2221,12 +2221,12 @@ body:has(.gate-shell)::before {
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-end;
-  gap: 0.65rem;
-  padding: clamp(2rem, 6vw, 4.5rem);
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: clamp(2rem, 5vw, 3.5rem);
   min-height: 100vh;
-  text-align: left;
+  text-align: center;
   border: none;
   border-radius: 0;
   overflow: hidden;
@@ -2259,8 +2259,13 @@ body:has(.gate-shell)::before {
   position: absolute;
   inset: 0;
   z-index: -2;
-  background: linear-gradient(180deg, transparent 35%, rgba(0, 0, 0, 0.55) 100%);
+  background: radial-gradient(ellipse 70% 55% at 50% 50%, transparent 30%, rgba(0, 0, 0, 0.35) 100%);
   transition: background 0.35s var(--ease);
+}
+
+.layer-portal:hover:not(:disabled)::before,
+.layer-portal.is-activating::before {
+  background: radial-gradient(ellipse 70% 55% at 50% 50%, transparent 20%, rgba(0, 0, 0, 0.2) 100%);
 }
 
 .layer-portal.portal-batcave::after {
@@ -2298,17 +2303,18 @@ body:has(.gate-shell)::before {
 
 .layer-portal-ring {
   position: absolute;
-  width: min(42vw, 420px);
-  height: min(42vw, 420px);
-  right: -8%;
-  top: 18%;
+  width: min(48vw, 460px);
+  height: min(48vw, 460px);
+  left: 50%;
+  top: 50%;
+  margin: 0;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow:
     inset 0 0 60px rgba(255, 255, 255, 0.02),
     0 0 80px rgba(0, 0, 0, 0.3);
   opacity: 0.45;
-  transform: scale(0.92);
+  transform: translate(-50%, -50%) scale(0.92);
   transition:
     opacity 0.45s var(--ease),
     transform 0.55s var(--ease),
@@ -2318,14 +2324,14 @@ body:has(.gate-shell)::before {
 }
 
 .portal-command .layer-portal-ring {
-  left: -8%;
+  left: 50%;
   right: auto;
 }
 
 .layer-portal:hover:not(:disabled) .layer-portal-ring,
 .layer-portal.is-activating .layer-portal-ring {
   opacity: 1;
-  transform: scale(1);
+  transform: translate(-50%, -50%) scale(1);
   border-color: rgba(var(--accent-rgb), 0.35);
   box-shadow:
     inset 0 0 80px rgba(var(--accent-rgb), 0.08),
@@ -2338,6 +2344,16 @@ body:has(.gate-shell)::before {
   box-shadow:
     inset 0 0 80px rgba(120, 150, 190, 0.1),
     0 0 100px rgba(100, 130, 170, 0.14);
+}
+
+.layer-portal-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 16ch;
 }
 
 .layer-portal:hover:not(:disabled)::before,
@@ -2375,7 +2391,8 @@ body:has(.gate-shell)::before {
   letter-spacing: -0.045em;
   line-height: 0.95;
   color: var(--text);
-  max-width: 8ch;
+  max-width: none;
+  text-align: center;
   transition: text-shadow 0.35s var(--ease), transform 0.35s var(--ease);
 }
 
@@ -2392,7 +2409,7 @@ body:has(.gate-shell)::before {
 
 .layer-portal-enter {
   position: relative;
-  margin-top: 1.25rem;
+  margin-top: 0.85rem;
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 500;
@@ -2490,7 +2507,9 @@ body:has(.gate-shell)::before {
 
   .layer-portal {
     min-height: 50vh;
-    padding: 2rem 1.5rem 2.5rem;
+    padding: 2rem 1.5rem;
+    justify-content: center;
+    align-items: center;
   }
 
   .layer-portal-name {
@@ -2498,9 +2517,8 @@ body:has(.gate-shell)::before {
   }
 
   .layer-portal-ring {
-    width: 240px;
-    height: 240px;
-    top: 8%;
+    width: min(70vw, 280px);
+    height: min(70vw, 280px);
   }
 }
 
@@ -4588,6 +4606,13 @@ a.btn-secondary.compact {
   margin-bottom: 1.15rem;
 }
 
+.company-ideas-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
 .company-ideas-capture textarea {
   resize: vertical;
   min-height: 5rem;
@@ -4610,10 +4635,19 @@ a.btn-secondary.compact {
   box-shadow: var(--panel-highlight);
 }
 
+.company-idea-title {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1.3;
+}
+
 .company-idea-text {
   margin: 0 0 0.75rem;
-  color: var(--text);
-  font-size: 0.9375rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
   line-height: 1.5;
   white-space: pre-wrap;
 }
@@ -4635,9 +4669,14 @@ a.btn-secondary.compact {
   gap: 0.35rem;
 }
 
+.company-idea-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .company-idea-edit textarea {
   width: 100%;
-  margin-bottom: 0.55rem;
   resize: vertical;
 }
 

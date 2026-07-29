@@ -52,9 +52,11 @@ export function LayerGate({ onEnterPersonal, onEnterBusiness, accountSlot }: Pro
         >
           <span className="layer-portal-beam" aria-hidden="true" />
           <span className="layer-portal-ring" aria-hidden="true" />
-          <span className="layer-portal-kicker">Business</span>
-          <span className="layer-portal-name">Batcave</span>
-          <span className="layer-portal-enter">Enter</span>
+          <span className="layer-portal-copy">
+            <span className="layer-portal-kicker">Business</span>
+            <span className="layer-portal-name">Batcave</span>
+            <span className="layer-portal-enter">Enter</span>
+          </span>
         </button>
 
         <button
@@ -65,9 +67,11 @@ export function LayerGate({ onEnterPersonal, onEnterBusiness, accountSlot }: Pro
         >
           <span className="layer-portal-beam" aria-hidden="true" />
           <span className="layer-portal-ring" aria-hidden="true" />
-          <span className="layer-portal-kicker">Personal</span>
-          <span className="layer-portal-name">Command Center</span>
-          <span className="layer-portal-enter">Enter</span>
+          <span className="layer-portal-copy">
+            <span className="layer-portal-kicker">Personal</span>
+            <span className="layer-portal-name">Command Center</span>
+            <span className="layer-portal-enter">Enter</span>
+          </span>
         </button>
       </div>
 
