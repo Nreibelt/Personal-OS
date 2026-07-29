@@ -4800,6 +4800,12 @@ a.btn-secondary.compact {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  gap: 0.65rem;
+}
+
+.company-docs-edit-modal .company-docs-title-input,
+.company-docs-edit-modal .company-docs-source {
+  flex-shrink: 0;
 }
 
 .company-docs-edit-modal .company-docs-rich {
