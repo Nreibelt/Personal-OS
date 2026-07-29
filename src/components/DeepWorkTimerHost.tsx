@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { PROJECT_MAP } from '../data/seed'
 import type { Store } from '../hooks/useStore'
 import { DEEP_WORK_IDS, type DeepWorkId, type ProjectId } from '../types'
@@ -9,32 +9,72 @@ import { StartSessionModal, TimerOverlay } from './TimerViews'
 
 /**
  * Platform-wide deep work launcher + timer chrome.
- * Sticky dock when idle; mini/fullscreen overlay when live.
+ * Mini dock while browsing; fullscreen only when the user expands (or just started).
  */
 export function DeepWorkTimerHost({
   store,
   pendingSession,
   onPendingSessionHandled,
+  browseKey,
 }: {
   store: Store
   pendingSession?: ProjectId | null
   onPendingSessionHandled?: () => void
+  /** Changes when the user navigates tabs/layers — keeps the timer minimized so UI stays usable */
+  browseKey?: string
 }) {
   const [sessionProject, setSessionProject] = useState<ProjectId | null>(null)
-  const [timerMinimized, setTimerMinimized] = useState(false)
+  const [timerMinimized, setTimerMinimized] = useState(true)
   const [dockOpen, setDockOpen] = useState(false)
+  const hadTimer = useRef(false)
+  const skipBrowseMinimize = useRef(false)
 
+  const clearPending = useCallback(() => {
+    onPendingSessionHandled?.()
+  }, [onPendingSessionHandled])
+
+  // Fresh start → enter focus (fullscreen). Timer cleared → reset.
+  useEffect(() => {
+    const live = !!store.state.activeTimer
+    if (live && !hadTimer.current) {
+      skipBrowseMinimize.current = true
+      setTimerMinimized(false)
+    }
+    if (!live) {
+      setTimerMinimized(true)
+      setDockOpen(false)
+    }
+    hadTimer.current = live
+  }, [store.state.activeTimer])
+
+  // Navigating around the OS must never trap the user under the fullscreen overlay
+  useEffect(() => {
+    if (!browseKey) return
+    if (skipBrowseMinimize.current) {
+      skipBrowseMinimize.current = false
+      return
+    }
+    if (store.state.activeTimer) setTimerMinimized(true)
+    setDockOpen(false)
+  }, [browseKey, store.state.activeTimer])
+
+  // Pending session requests from dashboard / project cards
   useEffect(() => {
     if (!pendingSession) return
     if (store.state.activeTimer?.projectId === pendingSession) {
-      setTimerMinimized(false)
-      onPendingSessionHandled?.()
+      // Already live — stay minimized so Deep Work UI is usable
+      setTimerMinimized(true)
+      clearPending()
+      return
+    }
+    if (store.state.activeTimer) {
+      // Different project live — don't stack a second session modal over the timer
+      clearPending()
       return
     }
     setSessionProject(pendingSession)
-    setTimerMinimized(false)
-    onPendingSessionHandled?.()
-  }, [pendingSession, store.state.activeTimer?.projectId, onPendingSessionHandled])
+    clearPending()
+  }, [pendingSession, store.state.activeTimer, clearPending])
 
   const busy = !!store.state.activeTimer
 
@@ -44,6 +84,7 @@ export function DeepWorkTimerHost({
       setTimerMinimized(false)
       return
     }
+    if (store.state.activeTimer) return
     setSessionProject(id)
   }
 
@@ -88,14 +129,11 @@ export function DeepWorkTimerHost({
         </div>
       )}
 
-      {sessionProject && (
+      {sessionProject && !store.state.activeTimer && (
         <StartSessionModal
           store={store}
           projectId={sessionProject}
-          onClose={() => {
-            setSessionProject(null)
-            setTimerMinimized(false)
-          }}
+          onClose={() => setSessionProject(null)}
         />
       )}
 
@@ -110,6 +148,3 @@ export function DeepWorkTimerHost({
     </>
   )
 }
-
-/** Hook-friendly API for Deep Work project cards to open a session via App host */
-export type DeepWorkSessionRequest = (projectId: ProjectId) => void

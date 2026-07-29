@@ -178,5 +178,7 @@ export function createSeedState(): AppState {
       companyQueue: [],
       settledIds: [],
     },
+    companyDocuments: [],
+    companyIdeas: [],
   }
 }

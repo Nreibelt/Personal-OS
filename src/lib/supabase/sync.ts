@@ -64,7 +64,9 @@ export function stateRichnessScore(state: Partial<AppState> | null | undefined):
     (state.revolutSync?.personalQueue?.length || 0) +
     (state.revolutSync?.companyQueue?.length || 0) +
     credentials +
-    (state.weekIntention && state.weekIntention.length > 40 ? 2 : 0)
+    (state.weekIntention && state.weekIntention.length > 40 ? 2 : 0) +
+    (state.companyDocuments?.length || 0) * 5 +
+    (state.companyIdeas?.length || 0) * 3
   )
 }
 
