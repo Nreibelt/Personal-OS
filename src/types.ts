@@ -115,7 +115,7 @@ export type AppTab = 'dashboard' | 'deepWork' | 'personalFinances' | 'companyFin
 export type AppLayer = 'gate' | 'personal' | 'business'
 
 /** Tabs inside the Batcave (company) layer */
-export type BusinessTab = 'todos' | 'finance' | 'metaAds' | 'coldEmail' | 'agents'
+export type BusinessTab = 'todos' | 'finance' | 'documents' | 'ideas' | 'metaAds' | 'coldEmail' | 'agents'
 
 export type EisenhowerQuadrant = 'do' | 'schedule' | 'delegate' | 'eliminate'
 /** @deprecated use EisenhowerQuadrant — kept as alias during migration */
@@ -258,6 +258,28 @@ export interface AppState {
   revolutSync: RevolutSyncState
   /** Optional — synced to Supabase so Revolut works across browsers for this user */
   revolutCredentials?: RevolutCredentials
+  /** Batcave documents (offer docs, briefs, etc.) */
+  companyDocuments: CompanyDocument[]
+  /** Batcave idea dump */
+  companyIdeas: CompanyIdea[]
+}
+
+export interface CompanyDocument {
+  id: string
+  title: string
+  /** Plain / markdown body */
+  content: string
+  /** Optional original filename when uploaded */
+  sourceName?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CompanyIdea {
+  id: string
+  text: string
+  createdAt: string
+  updatedAt: string
 }
 
 export type SummaryMode = AppState['summaryMode']

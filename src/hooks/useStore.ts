@@ -269,6 +269,10 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
     companyFinance,
     revolutSync: migrateRevolutSync(parsed.revolutSync, seed.revolutSync),
     revolutCredentials: parsed.revolutCredentials,
+    companyDocuments: Array.isArray(parsed.companyDocuments)
+      ? parsed.companyDocuments
+      : seed.companyDocuments,
+    companyIdeas: Array.isArray(parsed.companyIdeas) ? parsed.companyIdeas : seed.companyIdeas,
   }
 }
 
@@ -1017,12 +1021,109 @@ export function useStore() {
         personalFinance: s.personalFinance,
         companyFinance: s.companyFinance,
         revolutSync: s.revolutSync,
+        companyDocuments: s.companyDocuments,
+        companyIdeas: s.companyIdeas,
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       writeFinanceBackup(next.personalFinance, next.companyFinance)
       return next
     })
   }, [])
+
+  const addCompanyDocument = useCallback(
+    (input: { title: string; content?: string; sourceName?: string }) => {
+      const now = new Date().toISOString()
+      const title = input.title.trim() || 'Untitled'
+      const id = uid('doc')
+      update((s) => ({
+        ...s,
+        companyDocuments: [
+          {
+            id,
+            title,
+            content: input.content ?? '',
+            sourceName: input.sourceName,
+            createdAt: now,
+            updatedAt: now,
+          },
+          ...s.companyDocuments,
+        ],
+      }))
+      return id
+    },
+    [update],
+  )
+
+  const updateCompanyDocument = useCallback(
+    (id: string, patch: Partial<{ title: string; content: string }>) => {
+      const now = new Date().toISOString()
+      update((s) => ({
+        ...s,
+        companyDocuments: s.companyDocuments.map((d) =>
+          d.id === id
+            ? {
+                ...d,
+                title: patch.title !== undefined ? patch.title.trim() || d.title : d.title,
+                content: patch.content !== undefined ? patch.content : d.content,
+                updatedAt: now,
+              }
+            : d,
+        ),
+      }))
+    },
+    [update],
+  )
+
+  const removeCompanyDocument = useCallback(
+    (id: string) => {
+      update((s) => ({
+        ...s,
+        companyDocuments: s.companyDocuments.filter((d) => d.id !== id),
+      }))
+    },
+    [update],
+  )
+
+  const addCompanyIdea = useCallback(
+    (text: string) => {
+      const trimmed = text.trim()
+      if (!trimmed) return
+      const now = new Date().toISOString()
+      update((s) => ({
+        ...s,
+        companyIdeas: [
+          { id: uid('idea'), text: trimmed, createdAt: now, updatedAt: now },
+          ...s.companyIdeas,
+        ],
+      }))
+    },
+    [update],
+  )
+
+  const updateCompanyIdea = useCallback(
+    (id: string, text: string) => {
+      const trimmed = text.trim()
+      if (!trimmed) return
+      const now = new Date().toISOString()
+      update((s) => ({
+        ...s,
+        companyIdeas: s.companyIdeas.map((idea) =>
+          idea.id === id ? { ...idea, text: trimmed, updatedAt: now } : idea,
+        ),
+      }))
+    },
+    [update],
+  )
+
+  const removeCompanyIdea = useCallback(
+    (id: string) => {
+      update((s) => ({
+        ...s,
+        companyIdeas: s.companyIdeas.filter((idea) => idea.id !== id),
+      }))
+    },
+    [update],
+  )
 
   const minutesFor = useCallback(
     (projectId: ProjectId | 'all', scope: 'day' | 'week' | 'total', date = state.selectedDate) => {
@@ -1183,6 +1284,12 @@ export function useStore() {
     discardRevolutReviewItem,
     categorizeRevolutReviewItem,
     financeFor,
+    addCompanyDocument,
+    updateCompanyDocument,
+    removeCompanyDocument,
+    addCompanyIdea,
+    updateCompanyIdea,
+    removeCompanyIdea,
     minutesFor,
     resetToSeed,
     parseDateKey,

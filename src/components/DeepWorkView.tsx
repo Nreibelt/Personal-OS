@@ -81,13 +81,7 @@ export function DeepWorkView({
               key={p.id}
               store={store}
               project={p}
-              onStart={() => {
-                if (store.state.activeTimer?.projectId === p.id) {
-                  onStartSession(p.id)
-                  return
-                }
-                onStartSession(p.id)
-              }}
+              onStart={() => onStartSession(p.id)}
             />
           ))}
         </div>

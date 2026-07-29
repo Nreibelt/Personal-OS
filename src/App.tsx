@@ -1,7 +1,9 @@
 'use client'
 
 import { UserButton } from '@clerk/nextjs'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { CompanyDocumentsView } from './components/business/CompanyDocumentsView'
+import { CompanyIdeasView } from './components/business/CompanyIdeasView'
 import { CompanyTodosView } from './components/business/CompanyTodosView'
 import { DashboardView } from './components/DashboardView'
 import { DeepWorkTimerHost } from './components/DeepWorkTimerHost'
@@ -29,6 +31,8 @@ const BUSINESS_TABS: {
 }[] = [
   { id: 'todos', label: 'To-Dos', enabled: true },
   { id: 'finance', label: 'Finance', enabled: true },
+  { id: 'documents', label: 'Documents', enabled: true },
+  { id: 'ideas', label: 'Ideas', enabled: true },
   { id: 'metaAds', label: 'Meta Ads', enabled: false },
   { id: 'coldEmail', label: 'Cold Email', enabled: false },
   { id: 'agents', label: 'Agents', enabled: false },
@@ -55,7 +59,7 @@ function writeLayer(layer: AppLayer) {
 function readBusinessTab(): BusinessTab {
   try {
     const raw = localStorage.getItem(BUSINESS_TAB_KEY)
-    if (raw === 'todos' || raw === 'finance') return raw
+    if (raw === 'todos' || raw === 'finance' || raw === 'documents' || raw === 'ideas') return raw
   } catch {
     // ignore
   }
@@ -94,7 +98,6 @@ export default function App() {
     writeBusinessTab(businessTab)
   }, [businessTab, hydrated])
 
-  // Company finances moved to Batcave — bounce legacy tab into personal finances
   useEffect(() => {
     if (layer === 'personal' && store.state.activeTab === 'companyFinances') {
       store.setActiveTab('personalFinances')
@@ -108,6 +111,8 @@ export default function App() {
   const targetHit = store.hitTarget(store.state.selectedDate)
   const allTime = store.minutesFor('all', 'total')
 
+  const clearPendingSession = useCallback(() => setPendingSession(null), [])
+
   const openDeepWork = () => {
     if (layer !== 'personal') setLayer('personal')
     store.setActiveTab('deepWork')
@@ -117,10 +122,6 @@ export default function App() {
   const startSession = (projectId: DeepWorkId | ProjectId) => {
     store.setSelectedDate(todayDateKey())
     openDeepWork()
-    if (store.state.activeTimer?.projectId === projectId) {
-      setPendingSession(projectId)
-      return
-    }
     setPendingSession(projectId)
   }
 
@@ -130,33 +131,14 @@ export default function App() {
   }
 
   const enterBusiness = () => {
-    setBusinessTab((t) => (t === 'metaAds' || t === 'coldEmail' || t === 'agents' ? 'todos' : t))
+    setBusinessTab((t) =>
+      t === 'metaAds' || t === 'coldEmail' || t === 'agents' ? 'todos' : t,
+    )
     setLayer('business')
   }
 
-  const timerHost =
-    layer !== 'gate' ? (
-      <DeepWorkTimerHost
-        store={store}
-        pendingSession={pendingSession}
-        onPendingSessionHandled={() => setPendingSession(null)}
-      />
-    ) : null
-
-  const resetDialog = (
-    <ConfirmDialog
-      open={resetOpen}
-      title="Reset deep work"
-      message="Reset deep-work data (tasks, timers, habits)? Personal and company finances are kept."
-      confirmLabel="Reset work"
-      danger
-      onCancel={() => setResetOpen(false)}
-      onConfirm={() => {
-        setResetOpen(false)
-        store.resetToSeed()
-      }}
-    />
-  )
+  const browseKey =
+    layer === 'business' ? `biz:${businessTab}` : layer === 'personal' ? `per:${tab}` : 'gate'
 
   if (!hydrated) {
     return <div className="app-shell layer-loading">Loading…</div>
@@ -164,166 +146,178 @@ export default function App() {
 
   if (layer === 'gate') {
     return (
-      <div className="app-shell gate-shell">
-        <header className="command-bar gate-bar">
-          <div className="brand-lockup">
-            <span className="brand-name">PERSONAL OS</span>
-            <span className="brand-sub">Select layer</span>
-          </div>
-          <div className="status-pills">
-            <UserButton />
-          </div>
-        </header>
-        <LayerGate onEnterPersonal={enterPersonal} onEnterBusiness={enterBusiness} />
+      <div className="app-shell gate-shell gate-shell-bare">
+        <LayerGate
+          onEnterPersonal={enterPersonal}
+          onEnterBusiness={enterBusiness}
+          accountSlot={<UserButton />}
+        />
       </div>
     )
   }
 
-  if (layer === 'business') {
-    return (
-      <div className="app-shell">
-        <header className="command-bar">
-          <div className="brand-lockup">
-            <span className="brand-name">BATCAVE</span>
-            <span className="brand-sub">Company OS</span>
-          </div>
-          <div className="status-pills">
-            <button type="button" className="ghost-btn" onClick={() => setLayer('gate')}>
-              Switch layer
-            </button>
-            <button
-              type="button"
-              className="ghost-btn"
-              title="Force-upload personal OS browser state to Supabase"
-              onClick={() => void store.pushBrowserToCloud()}
-              disabled={store.cloudSync === 'loading'}
-            >
-              Upload → cloud
-            </button>
-            {store.cloudSync === 'ready' && <span className="status-pill hit">CLOUD</span>}
-            {store.cloudSync === 'error' && (
-              <span className="status-pill miss" title={store.cloudError || 'Cloud sync error'}>
-                SYNC ERR
-              </span>
-            )}
-            <UserButton />
-          </div>
-        </header>
-
-        <nav className="app-tabs" role="tablist" aria-label="Batcave sections">
-          {BUSINESS_TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={businessTab === t.id}
-              className={`app-tab${businessTab === t.id ? ' active' : ''}${t.enabled ? '' : ' disabled'}`}
-              disabled={!t.enabled}
-              onClick={() => {
-                if (t.enabled) setBusinessTab(t.id)
-              }}
-            >
-              <span>{t.label}</span>
-              {!t.enabled && <span className="tab-soon">Coming soon</span>}
-            </button>
-          ))}
-        </nav>
-
-        {businessTab === 'todos' && <CompanyTodosView />}
-        {businessTab === 'finance' && <FinancesView store={store} realm="company" />}
-        {timerHost}
-        {resetDialog}
-      </div>
-    )
-  }
-
-  // Personal / Command Center
   return (
     <div className="app-shell">
-      <header className="command-bar">
-        <div className="brand-lockup">
-          <span className="brand-name">COMMAND CENTER</span>
-          <span className="brand-sub">{activePersonal.sub}</span>
-        </div>
-        <div className="status-pills">
-          <span className="status-pill">{formatLongDate(store.state.selectedDate)}</span>
-          {tab === 'deepWork' && (
-            <>
-              <span className={`status-pill ${targetHit ? 'hit' : 'miss'}`}>
-                DEEP <strong>{formatMinutes(deepToday)}</strong>
-                <span style={{ opacity: 0.7 }}>
-                  {' '}
-                  / {formatMinutes(store.state.dailyDeepWorkTargetMinutes)}
+      {layer === 'business' ? (
+        <>
+          <header className="command-bar">
+            <div className="brand-lockup">
+              <span className="brand-name">BATCAVE</span>
+              <span className="brand-sub">Company OS</span>
+            </div>
+            <div className="status-pills">
+              <button type="button" className="ghost-btn" onClick={() => setLayer('gate')}>
+                Switch layer
+              </button>
+              <button
+                type="button"
+                className="ghost-btn"
+                title="Force-upload personal OS browser state to Supabase"
+                onClick={() => void store.pushBrowserToCloud()}
+                disabled={store.cloudSync === 'loading'}
+              >
+                Upload → cloud
+              </button>
+              {store.cloudSync === 'ready' && <span className="status-pill hit">CLOUD</span>}
+              {store.cloudSync === 'error' && (
+                <span className="status-pill miss" title={store.cloudError || 'Cloud sync error'}>
+                  SYNC ERR
                 </span>
-              </span>
-              <span className="status-pill">
-                STREAK <strong>{store.targetStreak}</strong>
-              </span>
-              <span className="status-pill">
-                TOTAL <strong>{formatMinutes(allTime)}</strong>
-              </span>
-              {store.state.activeTimer && <span className="status-pill live">● LIVE</span>}
-            </>
-          )}
-          <button type="button" className="ghost-btn" onClick={() => setLayer('gate')}>
-            Switch layer
-          </button>
-          <button
-            className="ghost-btn"
-            type="button"
-            title="Resets deep-work data only — finances are kept"
-            onClick={() => setResetOpen(true)}
-          >
-            Reset work
-          </button>
-          <button
-            className="ghost-btn"
-            type="button"
-            title="Force-upload everything in this browser to Supabase under your account"
-            onClick={() => void store.pushBrowserToCloud()}
-            disabled={store.cloudSync === 'loading'}
-          >
-            Upload → cloud
-          </button>
-          {store.cloudSync === 'loading' && (
-            <span className="status-pill" title="Loading cloud state">
-              SYNC…
-            </span>
-          )}
-          {store.cloudSync === 'ready' && (
-            <span className="status-pill hit" title="Saved to Supabase">
-              CLOUD
-            </span>
-          )}
-          {store.cloudSync === 'error' && (
-            <span className="status-pill miss" title={store.cloudError || 'Cloud sync error'}>
-              SYNC ERR
-            </span>
-          )}
-          <UserButton />
-        </div>
-      </header>
+              )}
+              <UserButton />
+            </div>
+          </header>
 
-      <nav className="app-tabs" role="tablist" aria-label="Command Center sections">
-        {PERSONAL_TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            className={`app-tab${tab === t.id ? ' active' : ''}`}
-            onClick={() => store.setActiveTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+          <nav className="app-tabs" role="tablist" aria-label="Batcave sections">
+            {BUSINESS_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={businessTab === t.id}
+                className={`app-tab${businessTab === t.id ? ' active' : ''}${t.enabled ? '' : ' disabled'}`}
+                disabled={!t.enabled}
+                onClick={() => {
+                  if (t.enabled) setBusinessTab(t.id)
+                }}
+              >
+                <span>{t.label}</span>
+                {!t.enabled && <span className="tab-soon">Coming soon</span>}
+              </button>
+            ))}
+          </nav>
 
-      {tab === 'dashboard' && <DashboardView store={store} onStartProject={startSession} />}
-      {tab === 'deepWork' && <DeepWorkView store={store} onStartSession={startSession} />}
-      {tab === 'personalFinances' && <FinancesView store={store} realm="personal" />}
-      {timerHost}
-      {resetDialog}
+          {businessTab === 'todos' && <CompanyTodosView />}
+          {businessTab === 'finance' && <FinancesView store={store} realm="company" />}
+          {businessTab === 'documents' && <CompanyDocumentsView store={store} />}
+          {businessTab === 'ideas' && <CompanyIdeasView store={store} />}
+        </>
+      ) : (
+        <>
+          <header className="command-bar">
+            <div className="brand-lockup">
+              <span className="brand-name">COMMAND CENTER</span>
+              <span className="brand-sub">{activePersonal.sub}</span>
+            </div>
+            <div className="status-pills">
+              <span className="status-pill">{formatLongDate(store.state.selectedDate)}</span>
+              {tab === 'deepWork' && (
+                <>
+                  <span className={`status-pill ${targetHit ? 'hit' : 'miss'}`}>
+                    DEEP <strong>{formatMinutes(deepToday)}</strong>
+                    <span style={{ opacity: 0.7 }}>
+                      {' '}
+                      / {formatMinutes(store.state.dailyDeepWorkTargetMinutes)}
+                    </span>
+                  </span>
+                  <span className="status-pill">
+                    STREAK <strong>{store.targetStreak}</strong>
+                  </span>
+                  <span className="status-pill">
+                    TOTAL <strong>{formatMinutes(allTime)}</strong>
+                  </span>
+                  {store.state.activeTimer && <span className="status-pill live">● LIVE</span>}
+                </>
+              )}
+              <button type="button" className="ghost-btn" onClick={() => setLayer('gate')}>
+                Switch layer
+              </button>
+              <button
+                className="ghost-btn"
+                type="button"
+                title="Resets deep-work data only — finances are kept"
+                onClick={() => setResetOpen(true)}
+              >
+                Reset work
+              </button>
+              <button
+                className="ghost-btn"
+                type="button"
+                title="Force-upload everything in this browser to Supabase under your account"
+                onClick={() => void store.pushBrowserToCloud()}
+                disabled={store.cloudSync === 'loading'}
+              >
+                Upload → cloud
+              </button>
+              {store.cloudSync === 'loading' && (
+                <span className="status-pill" title="Loading cloud state">
+                  SYNC…
+                </span>
+              )}
+              {store.cloudSync === 'ready' && (
+                <span className="status-pill hit" title="Saved to Supabase">
+                  CLOUD
+                </span>
+              )}
+              {store.cloudSync === 'error' && (
+                <span className="status-pill miss" title={store.cloudError || 'Cloud sync error'}>
+                  SYNC ERR
+                </span>
+              )}
+              <UserButton />
+            </div>
+          </header>
+
+          <nav className="app-tabs" role="tablist" aria-label="Command Center sections">
+            {PERSONAL_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                className={`app-tab${tab === t.id ? ' active' : ''}`}
+                onClick={() => store.setActiveTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
+
+          {tab === 'dashboard' && <DashboardView store={store} onStartProject={startSession} />}
+          {tab === 'deepWork' && <DeepWorkView store={store} onStartSession={startSession} />}
+          {tab === 'personalFinances' && <FinancesView store={store} realm="personal" />}
+        </>
+      )}
+
+      <DeepWorkTimerHost
+        store={store}
+        pendingSession={pendingSession}
+        onPendingSessionHandled={clearPendingSession}
+        browseKey={browseKey}
+      />
+
+      <ConfirmDialog
+        open={resetOpen}
+        title="Reset deep work"
+        message="Reset deep-work data (tasks, timers, habits)? Personal and company finances are kept."
+        confirmLabel="Reset work"
+        danger
+        onCancel={() => setResetOpen(false)}
+        onConfirm={() => {
+          setResetOpen(false)
+          store.resetToSeed()
+        }}
+      />
     </div>
   )
 }
