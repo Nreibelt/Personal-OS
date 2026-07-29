@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { Store } from '../hooks/useStore'
 import type { ProjectId } from '../types'
 import { AttentionAllocation } from './AttentionAllocation'
@@ -11,56 +11,61 @@ import { NonNegotiables } from './NonNegotiables'
 import { ProjectCard } from './ProjectCard'
 import { ScheduleCalendar } from './ScheduleCalendar'
 import { TimeSummary } from './TimeSummary'
-import { StartSessionModal, TimerOverlay } from './TimerViews'
 import { WeekIntention } from './WeekIntention'
 import { WeekSelector } from './WeekSelector'
+import { Modal } from './ui/Modal'
 
 type CalView = 'ops' | 'month'
+type DeepModal = 'identity' | 'mental' | 'habits' | 'analytics' | null
 
 export function DeepWorkView({
   store,
-  pendingSession,
-  onPendingSessionHandled,
+  onStartSession,
 }: {
   store: Store
-  pendingSession?: ProjectId | null
-  onPendingSessionHandled?: () => void
+  onStartSession: (projectId: ProjectId) => void
 }) {
-  const [sessionProject, setSessionProject] = useState<ProjectId | null>(null)
-  const [timerMinimized, setTimerMinimized] = useState(false)
   const [calView, setCalView] = useState<CalView>('ops')
-
-  useEffect(() => {
-    if (!pendingSession) return
-    if (store.state.activeTimer?.projectId === pendingSession) {
-      setTimerMinimized(false)
-      onPendingSessionHandled?.()
-      return
-    }
-    setSessionProject(pendingSession)
-    setTimerMinimized(false)
-    onPendingSessionHandled?.()
-  }, [pendingSession, store.state.activeTimer?.projectId, onPendingSessionHandled])
+  const [modal, setModal] = useState<DeepModal>(null)
 
   return (
     <>
-      <div className="layout-stack">
-        <IdentityPanel store={store} />
-        <WeekSelector store={store} />
-
-        <div className="target-row">
-          <DeepWorkTarget store={store} />
-          <DailyOneThing store={store} />
+      <div className="layout-stack deep-work-clean">
+        <div className="deep-focus-strip">
+          <WeekSelector store={store} />
+          <div className="target-row">
+            <DeepWorkTarget store={store} />
+            <DailyOneThing store={store} />
+          </div>
         </div>
 
-        <div className="grid-3">
-          <WeekIntention store={store} />
-          <MentalRam store={store} />
-          <DailyNotes store={store} />
-        </div>
+        <section className="action-board compact">
+          <header className="action-board-head">
+            <h2 className="action-board-title">Command surfaces</h2>
+            <p className="action-board-copy">Identity, mental RAM, habits, and analytics stay out of the way.</p>
+          </header>
+          <div className="action-board-grid four">
+            <button type="button" className="action-tile compact" onClick={() => setModal('identity')}>
+              <span className="action-tile-kicker">90-day</span>
+              <span className="action-tile-name">Identity</span>
+            </button>
+            <button type="button" className="action-tile compact" onClick={() => setModal('mental')}>
+              <span className="action-tile-kicker">Mind</span>
+              <span className="action-tile-name">Intention & loops</span>
+            </button>
+            <button type="button" className="action-tile compact" onClick={() => setModal('habits')}>
+              <span className="action-tile-kicker">Rituals</span>
+              <span className="action-tile-name">Non-negotiables</span>
+            </button>
+            <button type="button" className="action-tile compact" onClick={() => setModal('analytics')}>
+              <span className="action-tile-kicker">Readouts</span>
+              <span className="action-tile-name">Time analytics</span>
+            </button>
+          </div>
+        </section>
 
         <div className="tasks-toolbar">
-          <h2>PROJECTS</h2>
+          <h2>Projects</h2>
           <button
             type="button"
             className={`ghost-btn${store.state.showAllTasks ? ' active' : ''}`}
@@ -78,20 +83,13 @@ export function DeepWorkView({
               project={p}
               onStart={() => {
                 if (store.state.activeTimer?.projectId === p.id) {
-                  setTimerMinimized(false)
+                  onStartSession(p.id)
                   return
                 }
-                setSessionProject(p.id)
+                onStartSession(p.id)
               }}
             />
           ))}
-        </div>
-
-        <NonNegotiables store={store} />
-
-        <div className="grid-2">
-          <TimeSummary store={store} />
-          <AttentionAllocation store={store} />
         </div>
 
         <div>
@@ -125,25 +123,28 @@ export function DeepWorkView({
         </div>
       </div>
 
-      {sessionProject && (
-        <StartSessionModal
-          store={store}
-          projectId={sessionProject}
-          onClose={() => {
-            setSessionProject(null)
-            setTimerMinimized(false)
-          }}
-        />
-      )}
+      <Modal open={modal === 'identity'} onClose={() => setModal(null)} title="90-day identity" size="lg">
+        <IdentityPanel store={store} />
+      </Modal>
 
-      {store.state.activeTimer && (
-        <TimerOverlay
-          store={store}
-          minimized={timerMinimized}
-          onMinimize={() => setTimerMinimized(true)}
-          onExpand={() => setTimerMinimized(false)}
-        />
-      )}
+      <Modal open={modal === 'mental'} onClose={() => setModal(null)} title="Mental OS" size="lg">
+        <div className="layout-stack">
+          <WeekIntention store={store} />
+          <MentalRam store={store} />
+          <DailyNotes store={store} />
+        </div>
+      </Modal>
+
+      <Modal open={modal === 'habits'} onClose={() => setModal(null)} title="Non-negotiables" size="md">
+        <NonNegotiables store={store} />
+      </Modal>
+
+      <Modal open={modal === 'analytics'} onClose={() => setModal(null)} title="Time analytics" size="lg">
+        <div className="grid-2">
+          <TimeSummary store={store} />
+          <AttentionAllocation store={store} />
+        </div>
+      </Modal>
     </>
   )
 }

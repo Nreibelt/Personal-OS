@@ -1010,10 +1010,6 @@ export function useStore() {
   )
 
   const resetToSeed = useCallback(() => {
-    const ok = window.confirm(
-      'Reset deep-work data (tasks, timers, habits)?\n\nPersonal and company finances are kept.',
-    )
-    if (!ok) return
     const seed = createSeedState()
     setState((s) => {
       const next = {

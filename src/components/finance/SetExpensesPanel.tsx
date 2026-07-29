@@ -15,9 +15,11 @@ import { HudPanel } from '../HudPanel'
 export function SetExpensesPanel({
   store,
   realm,
+  embedded = false,
 }: {
   store: Store
   realm: FinanceRealm
+  embedded?: boolean
 }) {
   const ledger = store.financeFor(realm)
   const tops = topLevelCategories(ledger)
@@ -57,7 +59,7 @@ export function SetExpensesPanel({
   }
 
   return (
-    <HudPanel label="SET EXPENSES">
+    <HudPanel label="SET EXPENSES" embedded={embedded}>
       <p className="finance-hint">
         Recurring budgets by category. Bills is preset — add micro expenses under it (YouTube,
         subscriptions, etc.).

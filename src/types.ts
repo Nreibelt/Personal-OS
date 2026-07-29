@@ -117,15 +117,19 @@ export type AppLayer = 'gate' | 'personal' | 'business'
 /** Tabs inside the Batcave (company) layer */
 export type BusinessTab = 'todos' | 'finance' | 'metaAds' | 'coldEmail' | 'agents'
 
-export type CompanyTaskPriority = 'hpa1' | 'hpa2' | 'hpa3'
+export type EisenhowerQuadrant = 'do' | 'schedule' | 'delegate' | 'eliminate'
+/** @deprecated use EisenhowerQuadrant — kept as alias during migration */
+export type CompanyTaskPriority = EisenhowerQuadrant
 export type CompanyTaskStatus = 'not_started' | 'in_progress' | 'done'
 
 export interface CompanyTask {
   id: string
   userId: string
   title: string
-  priority: CompanyTaskPriority
+  priority: EisenhowerQuadrant
   status: CompanyTaskStatus
+  notes: string
+  parentId: string | null
   createdAt: string
   updatedAt: string
   /** Task IDs that must be done before this one can proceed */
