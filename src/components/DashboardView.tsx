@@ -5,6 +5,18 @@ import { DEEP_WORK_IDS, type DeepWorkId } from '../types'
 import { formatMinutes, todayDateKey } from '../utils/time'
 import { Modal } from './ui/Modal'
 
+type RitualId = 'morning' | 'evening' | 'week'
+
+const RITUAL_CARDS: {
+  id: RitualId
+  title: string
+  name: string
+}[] = [
+  { id: 'morning', title: 'Morning', name: 'Morning rituals' },
+  { id: 'evening', title: 'Evening', name: 'Evening rituals' },
+  { id: 'week', title: 'Week', name: 'Week rituals' },
+]
+
 export function DashboardView({
   store,
   onStartProject,
@@ -14,7 +26,8 @@ export function DashboardView({
 }) {
   const today = todayDateKey()
   const busy = !!store.state.activeTimer
-  const [ritualsOpen, setRitualsOpen] = useState(false)
+  const [ritualOpen, setRitualOpen] = useState<RitualId | null>(null)
+  const activeRitual = RITUAL_CARDS.find((card) => card.id === ritualOpen)
 
   return (
     <div className="dashboard dashboard-clean">
@@ -58,51 +71,62 @@ export function DashboardView({
       </section>
 
       <section className="action-board compact">
-        <button type="button" className="action-tile compact wide" onClick={() => setRitualsOpen(true)}>
-          <span className="action-tile-kicker">Operating cadence</span>
-          <span className="action-tile-name">Morning · Evening · Week rituals</span>
-          <span className="action-tile-desc">Open when you need the checklist — otherwise stay clear</span>
-        </button>
+        <div className="action-board-stack">
+          {RITUAL_CARDS.map((card) => (
+            <button
+              key={card.id}
+              type="button"
+              className="action-tile compact wide"
+              onClick={() => setRitualOpen(card.id)}
+            >
+              <span className="action-tile-kicker">Operating cadence</span>
+              <span className="action-tile-name">{card.name}</span>
+              <span className="action-tile-desc">
+                Open when you need the checklist — otherwise stay clear
+              </span>
+            </button>
+          ))}
+        </div>
       </section>
 
-      <Modal open={ritualsOpen} onClose={() => setRitualsOpen(false)} title="Rituals" size="md">
-        <div className="layout-stack">
-          <section className="dashboard-section">
-            <h2 className="dashboard-heading">Morning</h2>
-            <ol className="dashboard-list">
-              <li>Coffee At Home</li>
-              <li>Breathwork</li>
-              <li>Water &amp; Salt</li>
-              <li>Write identity statement and set intentions</li>
-              <li>Straight into deep work</li>
-            </ol>
-          </section>
-          <section className="dashboard-section">
-            <h2 className="dashboard-heading">Evening</h2>
-            <ol className="dashboard-list">
-              <li>Plan Tomorrow</li>
-              <li>Log Finances</li>
-              <li>Write</li>
-            </ol>
-          </section>
-          <section className="dashboard-section">
-            <h2 className="dashboard-heading">Week</h2>
-            <div className="dashboard-week">
-              <div className="dashboard-week-block">
-                <span className="dashboard-week-when">Mon–Sun · Midday</span>
-                <p>Foot on the fucking gas. Retard mode. Execute.</p>
-              </div>
-              <div className="dashboard-week-block">
-                <span className="dashboard-week-when">Sunday · Afternoon</span>
-                <p>Gyroscope. Assess, plan, personal admin, analyse, go deep.</p>
-              </div>
-              <div className="dashboard-week-block">
-                <span className="dashboard-week-when">Sunday · Evening</span>
-                <p>Me time. Chill.</p>
-              </div>
+      <Modal
+        open={ritualOpen !== null}
+        onClose={() => setRitualOpen(null)}
+        title={activeRitual?.title ?? 'Rituals'}
+        size="md"
+      >
+        {ritualOpen === 'morning' && (
+          <ol className="dashboard-list">
+            <li>Coffee At Home</li>
+            <li>Breathwork</li>
+            <li>Water &amp; Salt</li>
+            <li>Write identity statement and set intentions</li>
+            <li>Straight into deep work</li>
+          </ol>
+        )}
+        {ritualOpen === 'evening' && (
+          <ol className="dashboard-list">
+            <li>Plan Tomorrow</li>
+            <li>Log Finances</li>
+            <li>Write</li>
+          </ol>
+        )}
+        {ritualOpen === 'week' && (
+          <div className="dashboard-week">
+            <div className="dashboard-week-block">
+              <span className="dashboard-week-when">Mon–Sun · Midday</span>
+              <p>Foot on the fucking gas. Retard mode. Execute.</p>
             </div>
-          </section>
-        </div>
+            <div className="dashboard-week-block">
+              <span className="dashboard-week-when">Sunday · Afternoon</span>
+              <p>Gyroscope. Assess, plan, personal admin, analyse, go deep.</p>
+            </div>
+            <div className="dashboard-week-block">
+              <span className="dashboard-week-when">Sunday · Evening</span>
+              <p>Me time. Chill.</p>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )

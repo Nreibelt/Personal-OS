@@ -4270,6 +4270,12 @@ a.btn-secondary.compact {
   gap: 0.65rem;
 }
 
+.action-board-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
 .action-tile-kicker {
   font-family: var(--font-mono);
   font-size: 0.5625rem;
