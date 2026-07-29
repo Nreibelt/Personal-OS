@@ -5,6 +5,7 @@ import type { Store } from '../../hooks/useStore'
 import type { CompanyDocument } from '../../types'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { HudPanel } from '../HudPanel'
+import { DocRichEditor } from './DocRichEditor'
 
 export function CompanyDocumentsView({ store }: { store: Store }) {
   const docs = store.state.companyDocuments
@@ -109,14 +110,11 @@ export function CompanyDocumentsView({ store }: { store: Store }) {
               {active.sourceName && (
                 <p className="company-docs-source">Uploaded from {active.sourceName}</p>
               )}
-              <textarea
-                className="company-docs-body"
-                value={active.content}
-                onChange={(e) =>
-                  store.updateCompanyDocument(active.id, { content: e.target.value })
-                }
+              <DocRichEditor
+                key={active.id}
+                content={active.content}
+                onChange={(html) => store.updateCompanyDocument(active.id, { content: html })}
                 placeholder="Write the offer, breakdown, brief…"
-                aria-label="Document body"
               />
             </div>
           )}
