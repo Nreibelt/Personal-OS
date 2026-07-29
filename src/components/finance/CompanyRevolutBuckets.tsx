@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Store } from '../../hooks/useStore'
 import {
   fetchRevolutAccounts,
@@ -59,6 +59,14 @@ export function CompanyRevolutBuckets({
     }
   }, [savedKey, refreshTick, manualTick, savedIds])
 
+  const totalAud = useMemo(() => {
+    return rows.reduce((sum, account) => {
+      const aud =
+        typeof account.displayBalance === 'number' ? account.displayBalance : account.balance
+      return sum + (typeof aud === 'number' ? aud : 0)
+    }, 0)
+  }, [rows])
+
   if (savedIds.length === 0) return null
 
   return (
@@ -82,7 +90,15 @@ export function CompanyRevolutBuckets({
 
       {error && <p className="revolut-feedback bad">{error}</p>}
 
-      <div className="company-bucket-grid">
+      <div className="company-liquid-total">
+        <span className="company-liquid-label">Total liquid cash</span>
+        <strong className="company-liquid-value">{formatAud(totalAud)}</strong>
+        <span className="company-liquid-meta">
+          {loading ? 'Refreshing…' : `${rows.length} bucket${rows.length === 1 ? '' : 's'}`}
+        </span>
+      </div>
+
+      <div className="company-bucket-grid company-bucket-grid-full">
         {rows.map((account) => {
           const currency = (account.currency || '').toUpperCase()
           const aud =
@@ -91,7 +107,7 @@ export function CompanyRevolutBuckets({
               : account.balance
           const showOriginal = currency && currency !== 'AUD'
           return (
-            <article key={account.id} className="company-bucket">
+            <article key={account.id} className="company-bucket company-bucket-lg">
               <span className="company-bucket-name">{account.name}</span>
               <strong className="company-bucket-aud">{formatAud(aud)}</strong>
               {showOriginal ? (
@@ -105,7 +121,7 @@ export function CompanyRevolutBuckets({
           )
         })}
         {rows.length === 0 && !loading && !error && (
-          <p className="finance-empty">Link accounts below, then refresh for live balances.</p>
+          <p className="finance-empty">Link accounts in Sync Revolut, then refresh.</p>
         )}
       </div>
     </section>

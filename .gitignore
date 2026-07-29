@@ -30,3 +30,4 @@ publiccert.cer
 *.njsproj
 *.sln
 *.sw?
+tsconfig.tsbuildinfo

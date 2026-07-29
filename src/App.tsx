@@ -4,9 +4,11 @@ import { UserButton } from '@clerk/nextjs'
 import { useEffect, useState } from 'react'
 import { CompanyTodosView } from './components/business/CompanyTodosView'
 import { DashboardView } from './components/DashboardView'
+import { DeepWorkTimerHost } from './components/DeepWorkTimerHost'
 import { DeepWorkView } from './components/DeepWorkView'
 import { FinancesView } from './components/FinancesView'
 import { LayerGate } from './components/LayerGate'
+import { ConfirmDialog } from './components/ui/ConfirmDialog'
 import { useStore } from './hooks/useStore'
 import type { AppLayer, AppTab, BusinessTab, DeepWorkId, ProjectId } from './types'
 import { formatLongDate, formatMinutes, todayDateKey } from './utils/time'
@@ -74,6 +76,7 @@ export default function App() {
   const [businessTab, setBusinessTab] = useState<BusinessTab>('todos')
   const [pendingSession, setPendingSession] = useState<ProjectId | null>(null)
   const [hydrated, setHydrated] = useState(false)
+  const [resetOpen, setResetOpen] = useState(false)
 
   useEffect(() => {
     setLayer(readLayer())
@@ -105,14 +108,19 @@ export default function App() {
   const targetHit = store.hitTarget(store.state.selectedDate)
   const allTime = store.minutesFor('all', 'total')
 
-  const startFromDashboard = (projectId: DeepWorkId) => {
+  const openDeepWork = () => {
+    if (layer !== 'personal') setLayer('personal')
+    store.setActiveTab('deepWork')
     store.setSelectedDate(todayDateKey())
+  }
+
+  const startSession = (projectId: DeepWorkId | ProjectId) => {
+    store.setSelectedDate(todayDateKey())
+    openDeepWork()
     if (store.state.activeTimer?.projectId === projectId) {
-      store.setActiveTab('deepWork')
-      setPendingSession(null)
+      setPendingSession(projectId)
       return
     }
-    store.setActiveTab('deepWork')
     setPendingSession(projectId)
   }
 
@@ -125,6 +133,30 @@ export default function App() {
     setBusinessTab((t) => (t === 'metaAds' || t === 'coldEmail' || t === 'agents' ? 'todos' : t))
     setLayer('business')
   }
+
+  const timerHost =
+    layer !== 'gate' ? (
+      <DeepWorkTimerHost
+        store={store}
+        pendingSession={pendingSession}
+        onPendingSessionHandled={() => setPendingSession(null)}
+      />
+    ) : null
+
+  const resetDialog = (
+    <ConfirmDialog
+      open={resetOpen}
+      title="Reset deep work"
+      message="Reset deep-work data (tasks, timers, habits)? Personal and company finances are kept."
+      confirmLabel="Reset work"
+      danger
+      onCancel={() => setResetOpen(false)}
+      onConfirm={() => {
+        setResetOpen(false)
+        store.resetToSeed()
+      }}
+    />
+  )
 
   if (!hydrated) {
     return <div className="app-shell layer-loading">Loading…</div>
@@ -199,6 +231,8 @@ export default function App() {
 
         {businessTab === 'todos' && <CompanyTodosView />}
         {businessTab === 'finance' && <FinancesView store={store} realm="company" />}
+        {timerHost}
+        {resetDialog}
       </div>
     )
   }
@@ -238,7 +272,7 @@ export default function App() {
             className="ghost-btn"
             type="button"
             title="Resets deep-work data only — finances are kept"
-            onClick={() => store.resetToSeed()}
+            onClick={() => setResetOpen(true)}
           >
             Reset work
           </button>
@@ -285,17 +319,11 @@ export default function App() {
         ))}
       </nav>
 
-      {tab === 'dashboard' && (
-        <DashboardView store={store} onStartProject={startFromDashboard} />
-      )}
-      {tab === 'deepWork' && (
-        <DeepWorkView
-          store={store}
-          pendingSession={pendingSession}
-          onPendingSessionHandled={() => setPendingSession(null)}
-        />
-      )}
+      {tab === 'dashboard' && <DashboardView store={store} onStartProject={startSession} />}
+      {tab === 'deepWork' && <DeepWorkView store={store} onStartSession={startSession} />}
       {tab === 'personalFinances' && <FinancesView store={store} realm="personal" />}
+      {timerHost}
+      {resetDialog}
     </div>
   )
 }

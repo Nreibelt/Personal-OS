@@ -15,11 +15,13 @@ export function CashTrackerPanel({
   store,
   realm,
   mode,
+  embedded = false,
 }: {
   store: Store
   realm: FinanceRealm
   /** personal = daily budget tracker; company = simple spend log */
   mode: 'daily' | 'simple'
+  embedded?: boolean
 }) {
   const ledger = store.financeFor(realm)
   const date = todayDateKey()
@@ -94,7 +96,7 @@ export function CashTrackerPanel({
       : []
 
   return (
-    <HudPanel label={mode === 'daily' ? 'DAILY CASH TRACKER' : 'CASH TRACKER'}>
+    <HudPanel label={mode === 'daily' ? 'DAILY CASH TRACKER' : 'CASH TRACKER'} embedded={embedded}>
       <p className="finance-hint">
         {mode === 'daily'
           ? 'Log today’s outgoings against a set expense or as unexpected. Budget status follows each expense’s frequency.'

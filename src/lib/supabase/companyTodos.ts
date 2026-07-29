@@ -1,4 +1,4 @@
-import type { CompanyTask, CompanyTaskPriority, CompanyTaskStatus } from '@/types'
+import type { CompanyTask, CompanyTaskStatus, EisenhowerQuadrant } from '@/types'
 import { createClerkSupabaseClient } from './browser'
 
 type TokenSession = { getToken: () => Promise<string | null> }
@@ -7,10 +7,26 @@ type TaskRow = {
   id: string
   user_id: string
   title: string
-  priority: CompanyTaskPriority
+  priority: string
   status: CompanyTaskStatus
+  notes: string | null
+  parent_id: string | null
   created_at: string
   updated_at: string
+}
+
+const LEGACY_PRIORITY: Record<string, EisenhowerQuadrant> = {
+  hpa1: 'do',
+  hpa2: 'schedule',
+  hpa3: 'delegate',
+  do: 'do',
+  schedule: 'schedule',
+  delegate: 'delegate',
+  eliminate: 'eliminate',
+}
+
+function normalizePriority(raw: string): EisenhowerQuadrant {
+  return LEGACY_PRIORITY[raw] ?? 'schedule'
 }
 
 function mapTask(row: TaskRow, blockedByIds: string[]): CompanyTask {
@@ -18,8 +34,10 @@ function mapTask(row: TaskRow, blockedByIds: string[]): CompanyTask {
     id: row.id,
     userId: row.user_id,
     title: row.title,
-    priority: row.priority,
+    priority: normalizePriority(row.priority),
     status: row.status,
+    notes: row.notes ?? '',
+    parentId: row.parent_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     blockedByIds,
@@ -64,7 +82,9 @@ export async function createCompanyTask(
   input: {
     userId: string
     title: string
-    priority: CompanyTaskPriority
+    priority?: EisenhowerQuadrant
+    notes?: string
+    parentId?: string | null
     blockedByIds?: string[]
   },
 ): Promise<CompanyTask> {
@@ -76,8 +96,10 @@ export async function createCompanyTask(
     .insert({
       user_id: input.userId,
       title: input.title.trim(),
-      priority: input.priority,
+      priority: input.priority ?? 'do',
       status: 'not_started',
+      notes: input.notes?.trim() ?? '',
+      parent_id: input.parentId ?? null,
     })
     .select('*')
     .single()
@@ -85,7 +107,7 @@ export async function createCompanyTask(
   if (error) throw new Error(error.message)
 
   const blockedByIds = [...new Set((input.blockedByIds || []).filter(Boolean))]
-  if (blockedByIds.length) {
+  if (blockedByIds.length && !input.parentId) {
     const { error: depError } = await client.from('company_task_dependencies').insert(
       blockedByIds.map((blocking_task_id) => ({
         blocked_task_id: data.id,
@@ -103,8 +125,9 @@ export async function updateCompanyTask(
   taskId: string,
   patch: Partial<{
     title: string
-    priority: CompanyTaskPriority
+    priority: EisenhowerQuadrant
     status: CompanyTaskStatus
+    notes: string
     blockedByIds: string[]
   }>,
 ): Promise<void> {
@@ -115,6 +138,7 @@ export async function updateCompanyTask(
   if (typeof patch.title === 'string') updates.title = patch.title.trim()
   if (patch.priority) updates.priority = patch.priority
   if (patch.status) updates.status = patch.status
+  if (typeof patch.notes === 'string') updates.notes = patch.notes
 
   if (Object.keys(updates).length > 1) {
     const { error } = await client.from('company_tasks').update(updates).eq('id', taskId)

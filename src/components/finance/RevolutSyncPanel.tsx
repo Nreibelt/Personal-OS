@@ -30,11 +30,13 @@ export function RevolutSyncPanel({
   store,
   realm,
   onSynced,
+  embedded = false,
 }: {
   store: Store
   realm: FinanceRealm
   /** Fired after a successful day sync (e.g. refresh company balances). */
   onSynced?: () => void
+  embedded?: boolean
 }) {
   const sync = store.state.revolutSync
   const accountIdsKey = realm === 'personal' ? 'personalAccountIds' : 'companyAccountIds'
@@ -272,6 +274,7 @@ export function RevolutSyncPanel({
   return (
     <HudPanel
       label="REVOLUT SYNC"
+      embedded={embedded}
       action={
         statusOk ? (
           <span className="revolut-pill ok">{statusDetail}</span>

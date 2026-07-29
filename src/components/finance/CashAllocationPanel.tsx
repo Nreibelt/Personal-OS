@@ -30,9 +30,11 @@ function emptyLine(buckets: ReturnType<typeof allocatableBuckets>): DraftLine {
 export function CashAllocationPanel({
   store,
   realm,
+  embedded = false,
 }: {
   store: Store
   realm: FinanceRealm
+  embedded?: boolean
 }) {
   const ledger = store.financeFor(realm)
   const buckets = allocatableBuckets(ledger)
@@ -83,7 +85,7 @@ export function CashAllocationPanel({
   }
 
   return (
-    <HudPanel label="CASH ALLOCATION">
+    <HudPanel label="CASH ALLOCATION" embedded={embedded}>
       <p className="finance-hint">
         When cash lands, enter the total and split it into set-expense buckets or a one-off custom
         expense.
