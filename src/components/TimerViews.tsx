@@ -75,16 +75,25 @@ export function TimerOverlay({
 
   const project = PROJECT_MAP[timer.projectId]
   const displayToday = store.projectMinutesToday[timer.projectId]
+  const paused = store.isTimerPaused
+  const hasPauses = timer.pauseCount > 0 || paused
 
   if (minimized) {
     return (
       <ModalPortal>
-        <button type="button" className="mini-timer" onClick={onExpand}>
+        <button
+          type="button"
+          className={`mini-timer${paused ? ' paused' : ''}`}
+          onClick={onExpand}
+        >
           <span className="dot" style={{ background: project.color, color: project.color }} />
           <span style={{ fontFamily: 'var(--font-display)', fontSize: '0.7rem', letterSpacing: '0.12em' }}>
-            {project.name.toUpperCase()}
+            {paused ? 'PAUSED' : project.name.toUpperCase()}
           </span>
           <span className="digits">{formatTimer(store.liveTimerSeconds)}</span>
+          {paused && (
+            <span className="mini-pause-badge">{formatTimer(store.livePauseSeconds)}</span>
+          )}
         </button>
       </ModalPortal>
     )
@@ -92,22 +101,46 @@ export function TimerOverlay({
 
   return (
     <ModalPortal>
-      <div className="timer-overlay">
+      <div className={`timer-overlay${paused ? ' timer-paused' : ''}`}>
         <div className="timer-stage">
+          {paused && (
+            <div className="timer-paused-banner">
+              <span className="timer-paused-dot" />
+              PAUSED · {formatTimer(store.livePauseSeconds)} on break
+            </div>
+          )}
           <div className="timer-project">
             <span className="dot" style={{ background: project.color, color: project.color }} />
             {project.name.toUpperCase()}
           </div>
-          <div className="timer-digits">{formatTimer(store.liveTimerSeconds)}</div>
-          <div className="timer-today">TODAY TOTAL • {formatMinutes(displayToday)}</div>
+          <div className={`timer-digits${paused ? ' frozen' : ''}`}>{formatTimer(store.liveTimerSeconds)}</div>
+          <div className="timer-today">TODAY TOTAL · {formatMinutes(displayToday)}</div>
+          {hasPauses && (
+            <div className="timer-pause-stats">
+              {timer.pauseCount} pause{timer.pauseCount === 1 ? '' : 's'} · {formatTimer(store.livePauseSeconds)} total break
+            </div>
+          )}
           {timer.focusNote && <p className="timer-note">{timer.focusNote}</p>}
           <div className="timer-actions">
-            <button className="btn-primary" type="button" onClick={() => store.finishTimer()}>
-              Finish Timer
-            </button>
-            <button className="btn-secondary" type="button" onClick={onMinimize}>
-              Minimize
-            </button>
+            {paused ? (
+              <button className="btn-primary" type="button" onClick={() => store.resumeTimer()}>
+                Resume Session
+              </button>
+            ) : (
+              <>
+                <button className="btn-primary" type="button" onClick={() => store.finishTimer()}>
+                  Finish Session
+                </button>
+                <button className="btn-secondary btn-pause" type="button" onClick={() => store.pauseTimer()}>
+                  Pause
+                </button>
+              </>
+            )}
+            {!paused && (
+              <button className="btn-secondary" type="button" onClick={onMinimize}>
+                Minimize
+              </button>
+            )}
             <button
               className="ghost-btn"
               type="button"

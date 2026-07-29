@@ -63,6 +63,7 @@ export function ProjectCard({
   const todayTasks = allTasks.filter((t) => t.forToday)
   const laterTasks = allTasks.filter((t) => !t.forToday)
   const isLive = store.state.activeTimer?.projectId === project.id
+  const isPaused = isLive && store.isTimerPaused
   const visible = showAll ? allTasks : todayTasks
 
   return (
@@ -75,7 +76,7 @@ export function ProjectCard({
       </div>
       <div className="project-time">
         {formatMinutes(minutes)}
-        <small>TODAY {isLive ? '• LIVE' : ''}</small>
+        <small>TODAY {isPaused ? '• PAUSED' : isLive ? '• LIVE' : ''}</small>
       </div>
       <button
         className="btn-primary"
@@ -88,7 +89,7 @@ export function ProjectCard({
             : undefined
         }
       >
-        {isLive ? 'Timer Running' : 'Start Timer'}
+        {isPaused ? 'Paused' : isLive ? 'Timer Running' : 'Start Timer'}
       </button>
 
       <div className="todo-header">

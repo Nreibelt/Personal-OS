@@ -255,6 +255,13 @@ select:focus {
   animation: pulseLive 2.2s var(--ease) infinite;
 }
 
+.status-pill.paused {
+  border-color: rgba(196, 165, 116, 0.45);
+  color: var(--brass);
+  background: var(--brass-soft);
+  box-shadow: 0 0 12px rgba(196, 165, 116, 0.12);
+}
+
 .ghost-btn {
   font-family: var(--font-ui);
   font-size: 0.625rem;
@@ -5099,5 +5106,332 @@ a.btn-secondary.compact {
   .company-ideas-capture {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Session & pause analytics ── */
+
+.analytics-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.analytics-scope {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.75rem;
+}
+
+.analytics-empty,
+.analytics-hint {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin: 0.5rem 0;
+}
+
+.analytics-hint {
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.stat-grid {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+}
+
+.stat-grid.four {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 700px) {
+  .stat-grid.four {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.stat-cell {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.stat-cell.highlight {
+  border-color: rgba(var(--accent-rgb), 0.25);
+  background: rgba(var(--accent-rgb), 0.06);
+}
+
+.stat-cell .stat-kicker {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.25rem;
+}
+
+.stat-cell strong {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.analytics-section {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.analytics-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.analytics-section-head small {
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  text-transform: none;
+  letter-spacing: 0.04em;
+}
+
+.dist-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dist-row {
+  display: grid;
+  grid-template-columns: 3.5rem 1fr 4.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.dist-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.dist-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.dist-track > i {
+  display: block;
+  height: 100%;
+  background: var(--brass);
+  border-radius: 1px;
+  transition: width 0.4s var(--ease);
+}
+
+.dist-meta {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.hour-chart {
+  margin-top: 0.25rem;
+}
+
+.hour-chart-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 72px;
+  padding-bottom: 1.1rem;
+}
+
+.hour-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  position: relative;
+}
+
+.hour-bar-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 2px 2px 0 0;
+  overflow: hidden;
+}
+
+.hour-bar-fill {
+  width: 100%;
+  min-height: 0;
+  border-radius: 2px 2px 0 0;
+  transition: height 0.35s var(--ease);
+  opacity: 0.85;
+}
+
+.hour-bar-label {
+  position: absolute;
+  bottom: 0;
+  font-family: var(--font-mono);
+  font-size: 0.52rem;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.session-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.session-list-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.session-list-project {
+  color: var(--text);
+}
+
+.session-list-time,
+.session-list-dur {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.session-list-pause {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--brass);
+  letter-spacing: 0.06em;
+}
+
+.live-pause-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid rgba(196, 165, 116, 0.3);
+  border-radius: var(--radius);
+  background: var(--brass-soft);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--brass);
+}
+
+.live-pause-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brass);
+  box-shadow: 0 0 8px rgba(196, 165, 116, 0.5);
+}
+
+/* ── Timer pause UX ── */
+
+.timer-overlay.timer-paused {
+  background:
+    radial-gradient(ellipse 55% 45% at 50% 100%, rgba(196, 165, 116, 0.08), transparent 60%),
+    radial-gradient(ellipse 40% 30% at 50% 0%, rgba(255, 255, 255, 0.03), transparent 50%),
+    #060608;
+}
+
+.timer-paused-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid rgba(196, 165, 116, 0.35);
+  border-radius: 999px;
+  background: var(--brass-soft);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  color: var(--brass);
+}
+
+.timer-paused-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--brass);
+  animation: pulseLive 2s var(--ease) infinite;
+}
+
+.timer-digits.frozen {
+  opacity: 0.65;
+  text-shadow: none;
+}
+
+.timer-pause-stats {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: var(--brass);
+  margin-bottom: 1rem;
+}
+
+.btn-pause {
+  border-color: rgba(196, 165, 116, 0.35) !important;
+  color: var(--brass) !important;
+}
+
+.btn-pause:hover {
+  background: var(--brass-soft) !important;
+}
+
+.mini-timer.paused {
+  border-color: rgba(196, 165, 116, 0.35);
+  box-shadow: var(--panel-highlight), 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 20px rgba(196, 165, 116, 0.1);
+}
+
+.mini-pause-badge {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  color: var(--brass);
+  padding: 0.15rem 0.4rem;
+  border: 1px solid rgba(196, 165, 116, 0.3);
+  border-radius: var(--radius-sm);
+  background: var(--brass-soft);
 }
 

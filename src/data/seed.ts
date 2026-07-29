@@ -1,6 +1,6 @@
-import type { AppState, Project, Task } from '../types'
+import type { AppState, Project, ProjectId, Task, TimeEntry } from '../types'
 import { emptyFinanceLedger } from '../utils/finance'
-import { todayDateKey, todayMonthKey } from '../utils/time'
+import { parseDateKey, todayDateKey, todayMonthKey } from '../utils/time'
 
 export const PROJECTS: Project[] = [
   { id: 'chase', name: 'Chase Build', color: '#6b8fb0' },
@@ -25,6 +25,38 @@ export function uid(prefix = 'id') {
 
 function task(text: string, forToday: boolean, done = false): Task {
   return { id: uid('task'), text, done, forToday }
+}
+
+/** Demo session with timestamps and optional pauses for analytics seed data */
+function sessionEntry(
+  projectId: ProjectId,
+  date: string,
+  minutes: number,
+  startHour: number,
+  startMin = 0,
+  pauses?: { offsetMin: number; durationMin: number }[],
+): TimeEntry {
+  const start = parseDateKey(date)
+  start.setHours(startHour, startMin, 0, 0)
+  const startedAt = start.getTime()
+  const totalPauseMs = (pauses ?? []).reduce((s, p) => s + p.durationMin * 60000, 0)
+  const endedAt = startedAt + minutes * 60000 + totalPauseMs
+  const pauseSegments = pauses?.map((p) => ({
+    startedAt: startedAt + p.offsetMin * 60000,
+    durationMs: p.durationMin * 60000,
+  }))
+  const pausedMinutes = pauses?.reduce((s, p) => s + p.durationMin, 0)
+  return {
+    id: uid('te'),
+    projectId,
+    date,
+    minutes,
+    startedAt,
+    endedAt,
+    pausedMinutes: pausedMinutes && pausedMinutes > 0 ? pausedMinutes : undefined,
+    pauseCount: pauses?.length || undefined,
+    pauses: pauseSegments?.length ? pauseSegments : undefined,
+  }
 }
 
 export function createSeedState(): AppState {
@@ -92,15 +124,24 @@ export function createSeedState(): AppState {
       ],
     },
     timeEntries: [
-      { id: uid('te'), projectId: 'chase', date: '2026-07-20', minutes: 180 },
-      { id: uid('te'), projectId: 'myProject', date: '2026-07-20', minutes: 60 },
-      { id: uid('te'), projectId: 'chase', date: '2026-07-21', minutes: 90 },
-      { id: uid('te'), projectId: 'myProject', date: '2026-07-21', minutes: 50 },
-      { id: uid('te'), projectId: 'rav', date: '2026-07-21', minutes: 14 },
-      { id: uid('te'), projectId: 'chase', date: '2026-07-22', minutes: 414 },
-      { id: uid('te'), projectId: 'myProject', date: '2026-07-22', minutes: 87 },
-      { id: uid('te'), projectId: 'rav', date: '2026-07-22', minutes: 28 },
-      { id: uid('te'), projectId: 'personal', date: '2026-07-22', minutes: 48 },
+      sessionEntry('chase', '2026-07-20', 90, 8, 30),
+      sessionEntry('chase', '2026-07-20', 60, 14, 0, [{ offsetMin: 35, durationMin: 8 }]),
+      sessionEntry('chase', '2026-07-20', 30, 19, 15),
+      sessionEntry('myProject', '2026-07-20', 60, 10, 45),
+      sessionEntry('chase', '2026-07-21', 90, 9, 0),
+      sessionEntry('myProject', '2026-07-21', 50, 14, 30, [{ offsetMin: 20, durationMin: 5 }]),
+      sessionEntry('rav', '2026-07-21', 14, 17, 0),
+      sessionEntry('chase', '2026-07-22', 120, 7, 30),
+      sessionEntry('chase', '2026-07-22', 90, 10, 15, [{ offsetMin: 45, durationMin: 12 }]),
+      sessionEntry('chase', '2026-07-22', 114, 13, 0),
+      sessionEntry('chase', '2026-07-22', 90, 20, 0, [
+        { offsetMin: 30, durationMin: 6 },
+        { offsetMin: 70, durationMin: 4 },
+      ]),
+      sessionEntry('myProject', '2026-07-22', 52, 11, 0),
+      sessionEntry('myProject', '2026-07-22', 35, 15, 45),
+      sessionEntry('rav', '2026-07-22', 28, 16, 30),
+      sessionEntry('personal', '2026-07-22', 48, 21, 0),
     ],
     calendarBlocks: [
       {

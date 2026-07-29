@@ -273,7 +273,11 @@ export default function App() {
                   <span className="status-pill">
                     TOTAL <strong>{formatMinutes(allTime)}</strong>
                   </span>
-                  {store.state.activeTimer && <span className="status-pill live">● LIVE</span>}
+                  {store.state.activeTimer && (
+                    <span className={`status-pill${store.isTimerPaused ? ' paused' : ' live'}`}>
+                      {store.isTimerPaused ? '⏸ PAUSED' : '● LIVE'}
+                    </span>
+                  )}
                 </>
               )}
               <button type="button" className="ghost-btn" onClick={() => setLayer('gate')}>

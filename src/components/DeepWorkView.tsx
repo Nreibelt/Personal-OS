@@ -11,6 +11,7 @@ import { NonNegotiables } from './NonNegotiables'
 import { ProjectCard } from './ProjectCard'
 import { ScheduleCalendar } from './ScheduleCalendar'
 import { TimeSummary } from './TimeSummary'
+import { SessionAnalytics, PauseAnalytics } from './SessionAnalytics'
 import { WeekIntention } from './WeekIntention'
 import { WeekSelector } from './WeekSelector'
 import { Modal } from './ui/Modal'
@@ -133,10 +134,16 @@ export function DeepWorkView({
         <NonNegotiables store={store} />
       </Modal>
 
-      <Modal open={modal === 'analytics'} onClose={() => setModal(null)} title="Time analytics" size="lg">
-        <div className="grid-2">
-          <TimeSummary store={store} />
-          <AttentionAllocation store={store} />
+      <Modal open={modal === 'analytics'} onClose={() => setModal(null)} title="Time analytics" size="xl">
+        <div className="analytics-stack">
+          <div className="grid-2">
+            <TimeSummary store={store} />
+            <AttentionAllocation store={store} />
+          </div>
+          <div className="grid-2">
+            <SessionAnalytics store={store} />
+            <PauseAnalytics store={store} />
+          </div>
         </div>
       </Modal>
     </>
