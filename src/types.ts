@@ -271,7 +271,7 @@ export interface AppState {
 export interface CompanyDocument {
   id: string
   title: string
-  /** Plain / markdown body */
+  /** Rich text body (HTML). Legacy plain/markdown is converted on load. */
   content: string
   /** Optional original filename when uploaded */
   sourceName?: string
