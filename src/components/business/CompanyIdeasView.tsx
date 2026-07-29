@@ -8,46 +8,60 @@ import { HudPanel } from '../HudPanel'
 
 export function CompanyIdeasView({ store }: { store: Store }) {
   const ideas = store.state.companyIdeas
-  const [draft, setDraft] = useState('')
+  const [draftTitle, setDraftTitle] = useState('')
+  const [draftText, setDraftText] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
   const [editText, setEditText] = useState('')
   const [pendingDelete, setPendingDelete] = useState<CompanyIdea | null>(null)
 
+  const canCapture = Boolean(draftTitle.trim() || draftText.trim())
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!draft.trim()) return
-    store.addCompanyIdea(draft)
-    setDraft('')
+    if (!canCapture) return
+    store.addCompanyIdea({ title: draftTitle, text: draftText })
+    setDraftTitle('')
+    setDraftText('')
   }
 
   const startEdit = (idea: CompanyIdea) => {
     setEditingId(idea.id)
+    setEditTitle(idea.title)
     setEditText(idea.text)
   }
 
   const saveEdit = () => {
     if (!editingId) return
-    store.updateCompanyIdea(editingId, editText)
+    if (!editTitle.trim() && !editText.trim()) return
+    store.updateCompanyIdea(editingId, { title: editTitle, text: editText })
     setEditingId(null)
+    setEditTitle('')
     setEditText('')
   }
 
   return (
     <div className="layout-stack company-ideas">
       <HudPanel label="Ideas">
-        <p className="finance-hint">
-          Brain dump. Get it out of your head — sort later.
-        </p>
+        <p className="finance-hint">Brain dump. Title it, write it, get it out of your head.</p>
 
         <form className="company-ideas-capture" onSubmit={submit}>
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Dump an idea…"
-            rows={3}
-            aria-label="New idea"
-          />
-          <button type="submit" className="btn-primary" disabled={!draft.trim()}>
+          <div className="company-ideas-fields">
+            <input
+              value={draftTitle}
+              onChange={(e) => setDraftTitle(e.target.value)}
+              placeholder="Idea title"
+              aria-label="Idea title"
+            />
+            <textarea
+              value={draftText}
+              onChange={(e) => setDraftText(e.target.value)}
+              placeholder="Details, notes, context…"
+              rows={3}
+              aria-label="Idea details"
+            />
+          </div>
+          <button type="submit" className="btn-primary" disabled={!canCapture}>
             Capture
           </button>
         </form>
@@ -61,20 +75,32 @@ export function CompanyIdeasView({ store }: { store: Store }) {
             <li key={idea.id} className="company-idea">
               {editingId === idea.id ? (
                 <div className="company-idea-edit">
+                  <input
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="Idea title"
+                    aria-label="Edit idea title"
+                    autoFocus
+                  />
                   <textarea
                     value={editText}
                     onChange={(e) => setEditText(e.target.value)}
+                    placeholder="Details, notes, context…"
                     rows={3}
-                    autoFocus
+                    aria-label="Edit idea details"
                   />
                   <div className="btn-row">
-                    <button type="button" className="btn-secondary compact" onClick={() => setEditingId(null)}>
+                    <button
+                      type="button"
+                      className="btn-secondary compact"
+                      onClick={() => setEditingId(null)}
+                    >
                       Cancel
                     </button>
                     <button
                       type="button"
                       className="btn-primary compact"
-                      disabled={!editText.trim()}
+                      disabled={!editTitle.trim() && !editText.trim()}
                       onClick={saveEdit}
                     >
                       Save
@@ -83,7 +109,8 @@ export function CompanyIdeasView({ store }: { store: Store }) {
                 </div>
               ) : (
                 <>
-                  <p className="company-idea-text">{idea.text}</p>
+                  <h3 className="company-idea-title">{idea.title}</h3>
+                  {idea.text ? <p className="company-idea-text">{idea.text}</p> : null}
                   <div className="company-idea-meta">
                     <span>
                       {new Date(idea.createdAt).toLocaleString(undefined, {
@@ -116,7 +143,9 @@ export function CompanyIdeasView({ store }: { store: Store }) {
       <ConfirmDialog
         open={!!pendingDelete}
         title="Remove idea"
-        message={pendingDelete ? 'Remove this idea from the vault?' : ''}
+        message={
+          pendingDelete ? `Remove “${pendingDelete.title}” from the vault?` : ''
+        }
         confirmLabel="Remove"
         danger
         onCancel={() => setPendingDelete(null)}

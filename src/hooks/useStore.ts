@@ -18,6 +18,7 @@ import type {
   AppTab,
   CalendarBlock,
   CashAllocationLine,
+  CompanyIdea,
   DailyDeepWorkSplit,
   DeepWorkId,
   ExpenseCategory,
@@ -272,7 +273,23 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
     companyDocuments: Array.isArray(parsed.companyDocuments)
       ? parsed.companyDocuments
       : seed.companyDocuments,
-    companyIdeas: Array.isArray(parsed.companyIdeas) ? parsed.companyIdeas : seed.companyIdeas,
+    companyIdeas: Array.isArray(parsed.companyIdeas)
+      ? parsed.companyIdeas.map((idea) => {
+          const raw = idea as CompanyIdea & { title?: string }
+          const text = typeof raw.text === 'string' ? raw.text : ''
+          const title =
+            typeof raw.title === 'string' && raw.title.trim()
+              ? raw.title.trim()
+              : text.split('\n')[0]?.slice(0, 80) || 'Untitled idea'
+          return {
+            id: raw.id,
+            title,
+            text,
+            createdAt: raw.createdAt,
+            updatedAt: raw.updatedAt,
+          }
+        })
+      : seed.companyIdeas,
   }
 }
 
@@ -1085,14 +1102,21 @@ export function useStore() {
   )
 
   const addCompanyIdea = useCallback(
-    (text: string) => {
-      const trimmed = text.trim()
-      if (!trimmed) return
+    (input: { title: string; text: string }) => {
+      const title = input.title.trim()
+      const text = input.text.trim()
+      if (!title && !text) return
       const now = new Date().toISOString()
       update((s) => ({
         ...s,
         companyIdeas: [
-          { id: uid('idea'), text: trimmed, createdAt: now, updatedAt: now },
+          {
+            id: uid('idea'),
+            title: title || 'Untitled idea',
+            text,
+            createdAt: now,
+            updatedAt: now,
+          },
           ...s.companyIdeas,
         ],
       }))
@@ -1101,15 +1125,17 @@ export function useStore() {
   )
 
   const updateCompanyIdea = useCallback(
-    (id: string, text: string) => {
-      const trimmed = text.trim()
-      if (!trimmed) return
+    (id: string, patch: Partial<{ title: string; text: string }>) => {
       const now = new Date().toISOString()
       update((s) => ({
         ...s,
-        companyIdeas: s.companyIdeas.map((idea) =>
-          idea.id === id ? { ...idea, text: trimmed, updatedAt: now } : idea,
-        ),
+        companyIdeas: s.companyIdeas.map((idea) => {
+          if (idea.id !== id) return idea
+          const title =
+            patch.title !== undefined ? patch.title.trim() || idea.title : idea.title
+          const text = patch.text !== undefined ? patch.text : idea.text
+          return { ...idea, title, text, updatedAt: now }
+        }),
       }))
     },
     [update],

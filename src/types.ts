@@ -277,6 +277,7 @@ export interface CompanyDocument {
 
 export interface CompanyIdea {
   id: string
+  title: string
   text: string
   createdAt: string
   updatedAt: string
