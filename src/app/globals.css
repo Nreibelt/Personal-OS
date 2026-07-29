@@ -4753,6 +4753,9 @@ a.btn-secondary.compact {
 
 .company-doc-modal .platform-modal-body {
   padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .company-doc-modal-actions {
@@ -4769,6 +4772,10 @@ a.btn-secondary.compact {
   flex-direction: column;
   gap: 0.75rem;
   min-height: 40vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .company-docs-prose-view {
@@ -4780,15 +4787,30 @@ a.btn-secondary.compact {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 50vh;
+  min-height: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.015);
   overflow: hidden;
 }
 
+.company-docs-edit-modal {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 0.65rem;
+}
+
+.company-docs-edit-modal .company-docs-title-input,
+.company-docs-edit-modal .company-docs-source {
+  flex-shrink: 0;
+}
+
 .company-docs-edit-modal .company-docs-rich {
-  min-height: 48vh;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .doc-format-toolbar {
@@ -4798,7 +4820,11 @@ a.btn-secondary.compact {
   gap: 0.3rem;
   padding: 0.5rem 0.55rem;
   border-bottom: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.18);
+  background: rgba(12, 12, 16, 0.96);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .doc-format-btn {
@@ -4860,6 +4886,8 @@ a.btn-secondary.compact {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .company-docs-editor-surface .tiptap,
@@ -4872,6 +4900,11 @@ a.btn-secondary.compact {
   line-height: 1.65;
   letter-spacing: -0.01em;
   color: var(--text);
+}
+
+.company-docs-edit-modal .company-docs-editor-surface .tiptap,
+.company-docs-edit-modal .company-docs-prose {
+  min-height: 100%;
 }
 
 .company-docs-prose-view {
