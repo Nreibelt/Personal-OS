@@ -1649,6 +1649,11 @@ select:focus {
   color-scheme: dark;
 }
 
+.modal.sched-modal {
+  width: min(480px, 100%);
+  max-height: min(85vh, 900px);
+}
+
 .scope-toggle {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1775,24 +1780,35 @@ select:focus {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
-  z-index: 100;
-  display: grid;
-  place-items: center;
-  padding: 1rem;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top, 0px))
+    max(1rem, env(safe-area-inset-right, 0px))
+    max(1rem, env(safe-area-inset-bottom, 0px))
+    max(1rem, env(safe-area-inset-left, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   animation: fadeIn 0.15s ease;
 }
 
 .modal {
   width: min(420px, 100%);
+  max-height: min(85vh, 900px);
+  overflow: auto;
+  margin: auto;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 35%), var(--bg-elevated);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-lg);
   padding: 1.4rem;
   box-shadow: var(--panel-highlight), 0 24px 64px rgba(0, 0, 0, 0.55);
-  animation: rise 0.25s var(--ease);
+  animation: modalIn 0.22s var(--ease);
   backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 .modal h2 {
@@ -3878,14 +3894,23 @@ a.btn-secondary.compact {
   }
 }
 
-@keyframes layerEnter {
+@keyframes modalIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(8px) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes layerEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
@@ -3924,16 +3949,17 @@ a.btn-secondary.compact {
 .platform-modal {
   display: flex;
   flex-direction: column;
-  max-height: min(88vh, 920px);
+  max-height: min(82vh, 860px);
   width: min(420px, 100%);
   padding: 0;
   overflow: hidden;
+  animation: modalIn 0.22s var(--ease);
 }
 
 .platform-modal.modal-sm { width: min(400px, 100%); }
 .platform-modal.modal-md { width: min(520px, 100%); }
 .platform-modal.modal-lg { width: min(720px, 100%); }
-.platform-modal.modal-xl { width: min(960px, 100%); }
+.platform-modal.modal-xl { width: min(960px, calc(100vw - 2rem)); }
 
 .platform-modal-head {
   display: flex;
@@ -3942,6 +3968,7 @@ a.btn-secondary.compact {
   gap: 1rem;
   padding: 1.1rem 1.25rem;
   border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
 }
 
 .platform-modal-head h2 {
@@ -3955,12 +3982,16 @@ a.btn-secondary.compact {
 
 .platform-modal-body {
   padding: 1.15rem 1.25rem 1.35rem;
-  overflow: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .platform-modal-footer {
   padding: 0.9rem 1.25rem 1.15rem;
   border-top: 1px solid var(--line);
+  flex-shrink: 0;
 }
 
 .platform-confirm-message {
