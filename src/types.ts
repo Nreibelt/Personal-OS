@@ -130,6 +130,10 @@ export interface CompanyTask {
   status: CompanyTaskStatus
   notes: string
   parentId: string | null
+  /** Manual list order among root tasks (lower = higher) */
+  sortOrder: number
+  /** When true, the task row is blurred so the title cannot be read */
+  hidden: boolean
   createdAt: string
   updatedAt: string
   /** Task IDs that must be done before this one can proceed */

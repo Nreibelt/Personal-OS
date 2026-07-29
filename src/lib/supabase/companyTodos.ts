@@ -11,6 +11,8 @@ type TaskRow = {
   status: CompanyTaskStatus
   notes: string | null
   parent_id: string | null
+  sort_order: number | null
+  hidden: boolean | null
   created_at: string
   updated_at: string
 }
@@ -38,6 +40,8 @@ function mapTask(row: TaskRow, blockedByIds: string[]): CompanyTask {
     status: row.status,
     notes: row.notes ?? '',
     parentId: row.parent_id,
+    sortOrder: row.sort_order ?? 0,
+    hidden: Boolean(row.hidden),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     blockedByIds,
@@ -52,6 +56,7 @@ export async function listCompanyTasks(session: TokenSession, userId: string): P
     .from('company_tasks')
     .select('*')
     .eq('user_id', userId)
+    .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
 
   if (error) throw new Error(error.message)
@@ -86,10 +91,24 @@ export async function createCompanyTask(
     notes?: string
     parentId?: string | null
     blockedByIds?: string[]
+    sortOrder?: number
   },
 ): Promise<CompanyTask> {
   const client = createClerkSupabaseClient(() => session.getToken())
   if (!client) throw new Error('Supabase is not configured')
+
+  let sortOrder = input.sortOrder
+  if (sortOrder === undefined && !input.parentId) {
+    const { data: maxRows, error: maxError } = await client
+      .from('company_tasks')
+      .select('sort_order')
+      .eq('user_id', input.userId)
+      .is('parent_id', null)
+      .order('sort_order', { ascending: false })
+      .limit(1)
+    if (maxError) throw new Error(maxError.message)
+    sortOrder = ((maxRows?.[0]?.sort_order as number | undefined) ?? -1) + 1
+  }
 
   const { data, error } = await client
     .from('company_tasks')
@@ -100,6 +119,8 @@ export async function createCompanyTask(
       status: 'not_started',
       notes: input.notes?.trim() ?? '',
       parent_id: input.parentId ?? null,
+      sort_order: sortOrder ?? 0,
+      hidden: false,
     })
     .select('*')
     .single()
@@ -129,6 +150,8 @@ export async function updateCompanyTask(
     status: CompanyTaskStatus
     notes: string
     blockedByIds: string[]
+    sortOrder: number
+    hidden: boolean
   }>,
 ): Promise<void> {
   const client = createClerkSupabaseClient(() => session.getToken())
@@ -139,6 +162,8 @@ export async function updateCompanyTask(
   if (patch.priority) updates.priority = patch.priority
   if (patch.status) updates.status = patch.status
   if (typeof patch.notes === 'string') updates.notes = patch.notes
+  if (typeof patch.sortOrder === 'number') updates.sort_order = patch.sortOrder
+  if (typeof patch.hidden === 'boolean') updates.hidden = patch.hidden
 
   if (Object.keys(updates).length > 1) {
     const { error } = await client.from('company_tasks').update(updates).eq('id', taskId)
@@ -162,6 +187,37 @@ export async function updateCompanyTask(
       if (insError) throw new Error(insError.message)
     }
   }
+}
+
+/** Persist a new global order for root tasks (ids in display order). */
+export async function reorderCompanyTasks(
+  session: TokenSession,
+  orderedIds: string[],
+): Promise<void> {
+  const client = createClerkSupabaseClient(() => session.getToken())
+  if (!client) throw new Error('Supabase is not configured')
+
+  const now = new Date().toISOString()
+  const results = await Promise.all(
+    orderedIds.map((id, index) =>
+      client.from('company_tasks').update({ sort_order: index, updated_at: now }).eq('id', id),
+    ),
+  )
+  const firstError = results.find((r) => r.error)?.error
+  if (firstError) throw new Error(firstError.message)
+}
+
+/** Clear hidden on every task belonging to the user. */
+export async function unhideAllCompanyTasks(session: TokenSession, userId: string): Promise<void> {
+  const client = createClerkSupabaseClient(() => session.getToken())
+  if (!client) throw new Error('Supabase is not configured')
+
+  const { error } = await client
+    .from('company_tasks')
+    .update({ hidden: false, updated_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .eq('hidden', true)
+  if (error) throw new Error(error.message)
 }
 
 export async function deleteCompanyTask(session: TokenSession, taskId: string): Promise<void> {

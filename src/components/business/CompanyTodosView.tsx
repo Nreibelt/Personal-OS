@@ -1,7 +1,7 @@
 'use client'
 
 import { useAuth, useSession } from '@clerk/nextjs'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { HudPanel } from '../HudPanel'
 import { Checkbox } from '../ui/Checkbox'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
@@ -11,6 +11,8 @@ import {
   createCompanyTask,
   deleteCompanyTask,
   listCompanyTasks,
+  reorderCompanyTasks,
+  unhideAllCompanyTasks,
   updateCompanyTask,
 } from '../../lib/supabase/companyTodos'
 import type { CompanyTask, CompanyTaskStatus, EisenhowerQuadrant } from '../../types'
@@ -23,6 +25,11 @@ const STATUS_OPTIONS = [
   { value: 'in_progress', label: 'In progress' },
   { value: 'done', label: 'Done' },
 ]
+
+function compareBySortOrder(a: CompanyTask, b: CompanyTask) {
+  if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+  return a.createdAt.localeCompare(b.createdAt)
+}
 
 export function CompanyTodosView() {
   const { userId, isLoaded } = useAuth()
@@ -39,6 +46,9 @@ export function CompanyTodosView() {
   const [subDraft, setSubDraft] = useState('')
   const [noteDraft, setNoteDraft] = useState('')
   const [notesDirty, setNotesDirty] = useState(false)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null)
+  const dragListIdsRef = useRef<string[]>([])
 
   const refresh = useCallback(async () => {
     if (!session || !userId) return
@@ -110,13 +120,15 @@ export function CompanyTodosView() {
       roots
         .filter((t) => t.status !== 'done')
         .sort((a, b) => {
+          const order = compareBySortOrder(a, b)
+          if (order !== 0) return order
           const pa = EISENHOWER_META[a.priority].order
           const pb = EISENHOWER_META[b.priority].order
           if (pa !== pb) return pa - pb
           const ba = isBlocked(a) ? 1 : 0
           const bb = isBlocked(b) ? 1 : 0
           if (ba !== bb) return ba - bb
-          return a.createdAt.localeCompare(b.createdAt)
+          return 0
         }),
     [roots, isBlocked],
   )
@@ -131,7 +143,14 @@ export function CompanyTodosView() {
   const waitingTasks = useMemo(() => openRoots.filter((t) => isBlocked(t)), [openRoots, isBlocked])
 
   const doneRoots = useMemo(
-    () => roots.filter((t) => t.status === 'done').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    () =>
+      roots
+        .filter((t) => t.status === 'done')
+        .sort((a, b) => {
+          const order = compareBySortOrder(a, b)
+          if (order !== 0) return order
+          return b.updatedAt.localeCompare(a.updatedAt)
+        }),
     [roots],
   )
 
@@ -149,6 +168,8 @@ export function CompanyTodosView() {
       tasks: openRoots.filter((t) => t.priority === q && !isBlocked(t)),
     })).filter((g) => g.tasks.length > 0)
   }, [filter, openRoots, isBlocked])
+
+  const hiddenCount = useMemo(() => roots.filter((t) => t.hidden).length, [roots])
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -221,6 +242,62 @@ export function CompanyTodosView() {
     }
   }
 
+  async function hideTask(task: CompanyTask) {
+    if (!session || task.hidden) return
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, hidden: true } : t)))
+    try {
+      await updateCompanyTask(session, task.id, { hidden: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to hide task')
+      await refresh()
+    }
+  }
+
+  async function showAllHidden() {
+    if (!session || !userId || hiddenCount === 0) return
+    setTasks((prev) => prev.map((t) => (t.hidden ? { ...t, hidden: false } : t)))
+    try {
+      await unhideAllCompanyTasks(session, userId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to show all tasks')
+      await refresh()
+    }
+  }
+
+  async function applyReorder(listIds: string[], fromId: string, toId: string) {
+    if (!session || fromId === toId) return
+    const from = listIds.indexOf(fromId)
+    const to = listIds.indexOf(toId)
+    if (from < 0 || to < 0) return
+
+    const nextList = [...listIds]
+    nextList.splice(from, 1)
+    nextList.splice(to, 0, fromId)
+
+    const visibleSet = new Set(listIds)
+    const allRootIds = [...roots].sort(compareBySortOrder).map((t) => t.id)
+    let vi = 0
+    const merged = allRootIds.map((id) => {
+      if (!visibleSet.has(id)) return id
+      return nextList[vi++]
+    })
+
+    const orderById = new Map(merged.map((id, index) => [id, index]))
+    setTasks((prev) =>
+      prev.map((t) => {
+        const nextOrder = orderById.get(t.id)
+        return nextOrder === undefined ? t : { ...t, sortOrder: nextOrder }
+      }),
+    )
+
+    try {
+      await reorderCompanyTasks(session, merged)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reorder tasks')
+      await refresh()
+    }
+  }
+
   async function confirmDelete() {
     if (!session || !pendingDelete) return
     const task = pendingDelete
@@ -240,6 +317,7 @@ export function CompanyTodosView() {
   }
 
   function openDetail(task: CompanyTask) {
+    if (task.hidden) return
     setOpenTaskId(task.id)
     setNoteDraft(task.notes)
     setNotesDirty(false)
@@ -256,7 +334,7 @@ export function CompanyTodosView() {
     setNotesDirty(false)
   }
 
-  function renderTask(task: CompanyTask) {
+  function renderTask(task: CompanyTask, listIds: string[]) {
     const meta = EISENHOWER_META[task.priority]
     const blocked = isBlocked(task)
     const blockedNames = task.blockedByIds
@@ -269,20 +347,64 @@ export function CompanyTodosView() {
       month: 'short',
       day: 'numeric',
     })
+    const isDragging = dragId === task.id
+    const isDropTarget = dropTargetId === task.id && dragId !== task.id
 
     return (
-      <li key={task.id} className={`company-todo${blocked ? ' blocked' : ''}`}>
+      <li
+        key={task.id}
+        className={`company-todo${blocked ? ' blocked' : ''}${task.hidden ? ' is-hidden' : ''}${isDragging ? ' is-dragging' : ''}${isDropTarget ? ' is-drop-target' : ''}`}
+        onDragOver={(e) => {
+          if (!dragId || dragId === task.id) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          if (dropTargetId !== task.id) setDropTargetId(task.id)
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          const fromId = dragId || e.dataTransfer.getData('text/task-id')
+          const list = dragListIdsRef.current.length ? dragListIdsRef.current : listIds
+          setDragId(null)
+          setDropTargetId(null)
+          if (fromId) void applyReorder(list, fromId, task.id)
+        }}
+      >
         <div className="company-todo-main">
+          <button
+            type="button"
+            className="company-todo-drag"
+            draggable={!task.hidden}
+            aria-label={`Drag to reorder ${task.hidden ? 'hidden task' : task.title}`}
+            title="Drag to reorder"
+            onDragStart={(e) => {
+              if (task.hidden) {
+                e.preventDefault()
+                return
+              }
+              dragListIdsRef.current = listIds
+              setDragId(task.id)
+              e.dataTransfer.effectAllowed = 'move'
+              e.dataTransfer.setData('text/task-id', task.id)
+            }}
+            onDragEnd={() => {
+              setDragId(null)
+              setDropTargetId(null)
+            }}
+          >
+            <span aria-hidden="true">⋮⋮</span>
+          </button>
           <Checkbox
             checked={task.status === 'done'}
             onChange={(on) => void setStatus(task, on ? 'done' : 'not_started')}
-            aria-label={`Mark ${task.title} done`}
+            aria-label={`Mark ${task.hidden ? 'hidden task' : task.title} done`}
+            disabled={task.hidden}
           />
           <button
             type="button"
             className="company-todo-title-btn"
             onClick={() => openDetail(task)}
-            aria-label={`Open ${task.title}`}
+            aria-label={task.hidden ? 'Hidden task' : `Open ${task.title}`}
+            disabled={task.hidden}
           >
             <span className={`company-todo-title-text${task.status === 'done' ? ' done' : ''}`}>
               {task.title}
@@ -305,6 +427,7 @@ export function CompanyTodosView() {
               ariaLabel="Eisenhower quadrant"
               options={EISENHOWER_OPTIONS}
               onChange={(v) => void setTaskPriority(task, v as EisenhowerQuadrant)}
+              disabled={task.hidden}
             />
             <Select
               className="company-todo-select"
@@ -312,14 +435,30 @@ export function CompanyTodosView() {
               ariaLabel="Status"
               options={STATUS_OPTIONS}
               onChange={(v) => void setStatus(task, v as CompanyTaskStatus)}
+              disabled={task.hidden}
             />
-            <button type="button" className="ghost-btn" onClick={() => setPendingDelete(task)}>
+            {!task.hidden && (
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => void hideTask(task)}
+                title="Blur this task so you cannot read it"
+              >
+                Hide
+              </button>
+            )}
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() => setPendingDelete(task)}
+              disabled={task.hidden}
+            >
               Remove
             </button>
           </div>
         </div>
 
-        {blocked && (
+        {blocked && !task.hidden && (
           <p className="company-todo-blocked">Waiting on: {blockedNames.join(', ')}</p>
         )}
       </li>
@@ -340,7 +479,18 @@ export function CompanyTodosView() {
   return (
     <div className="layout-stack company-todos">
       <HudPanel label="Company to-dos">
-        <p className="finance-hint">{focusHint}</p>
+        <div className="company-todo-toolbar">
+          <p className="finance-hint">{focusHint}</p>
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              className="btn-secondary compact company-todo-show-all"
+              onClick={() => void showAllHidden()}
+            >
+              Show all ({hiddenCount})
+            </button>
+          )}
+        </div>
 
         <div className="focus-filter-bar" role="tablist" aria-label="Task focus">
           {(
@@ -394,20 +544,23 @@ export function CompanyTodosView() {
 
         {!loading && filter === 'all' && groupedAll && (
           <ul className="company-todo-list">
-            {groupedAll.map((group) => (
-              <li key={group.quadrant} className="company-todo-group">
-                <div className="company-todo-group-head">
-                  <span className={`hpa-pill ${EISENHOWER_META[group.quadrant].className}`}>
-                    {EISENHOWER_META[group.quadrant].label}
-                  </span>
-                  <span className="company-todo-group-hint">
-                    {EISENHOWER_META[group.quadrant].hint}
-                  </span>
-                  <span className="company-todo-group-count">{group.tasks.length}</span>
-                </div>
-                <ul>{group.tasks.map(renderTask)}</ul>
-              </li>
-            ))}
+            {groupedAll.map((group) => {
+              const listIds = group.tasks.map((t) => t.id)
+              return (
+                <li key={group.quadrant} className="company-todo-group">
+                  <div className="company-todo-group-head">
+                    <span className={`hpa-pill ${EISENHOWER_META[group.quadrant].className}`}>
+                      {EISENHOWER_META[group.quadrant].label}
+                    </span>
+                    <span className="company-todo-group-hint">
+                      {EISENHOWER_META[group.quadrant].hint}
+                    </span>
+                    <span className="company-todo-group-count">{group.tasks.length}</span>
+                  </div>
+                  <ul>{group.tasks.map((task) => renderTask(task, listIds))}</ul>
+                </li>
+              )
+            })}
             {waitingTasks.length > 0 && (
               <li className="company-todo-group">
                 <div className="company-todo-group-head">
@@ -415,7 +568,14 @@ export function CompanyTodosView() {
                   <span className="company-todo-group-hint">Blocked by dependencies</span>
                   <span className="company-todo-group-count">{waitingTasks.length}</span>
                 </div>
-                <ul>{waitingTasks.map(renderTask)}</ul>
+                <ul>
+                  {waitingTasks.map((task) =>
+                    renderTask(
+                      task,
+                      waitingTasks.map((t) => t.id),
+                    ),
+                  )}
+                </ul>
               </li>
             )}
           </ul>
@@ -424,7 +584,14 @@ export function CompanyTodosView() {
         {!loading && filter !== 'all' && visible.length > 0 && (
           <ul className="company-todo-list">
             <li className="company-todo-group">
-              <ul>{visible.map(renderTask)}</ul>
+              <ul>
+                {visible.map((task) =>
+                  renderTask(
+                    task,
+                    visible.map((t) => t.id),
+                  ),
+                )}
+              </ul>
             </li>
           </ul>
         )}
@@ -457,6 +624,16 @@ export function CompanyTodosView() {
                 options={STATUS_OPTIONS}
                 onChange={(v) => void setStatus(openTask, v as CompanyTaskStatus)}
               />
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => {
+                  void hideTask(openTask)
+                  void closeDetail()
+                }}
+              >
+                Hide
+              </button>
             </div>
 
             <label className="field-label" htmlFor="company-task-notes">
