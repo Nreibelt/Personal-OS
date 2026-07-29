@@ -2522,6 +2522,24 @@ body:has(.gate-shell)::before {
   animation: rise 0.35s var(--ease) both;
 }
 
+.company-todo-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+}
+
+.company-todo-toolbar .finance-hint {
+  margin: 0;
+  flex: 1;
+  min-width: 12rem;
+}
+
+.company-todo-show-all {
+  flex-shrink: 0;
+}
+
 .company-todo-form {
   display: grid;
   grid-template-columns: 1fr minmax(12rem, 16rem) auto;
@@ -2612,7 +2630,10 @@ body:has(.gate-shell)::before {
   box-shadow: var(--panel-highlight);
   transition:
     border-color var(--duration) var(--ease),
-    background var(--duration) var(--ease);
+    background var(--duration) var(--ease),
+    opacity var(--duration) var(--ease),
+    filter var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
 }
 
 .company-todo:hover {
@@ -2624,12 +2645,56 @@ body:has(.gate-shell)::before {
   background: linear-gradient(180deg, var(--warn-muted) 0%, var(--bg-input) 48%);
 }
 
+.company-todo.is-hidden {
+  filter: blur(12px);
+  opacity: 0.7;
+  user-select: none;
+  pointer-events: none;
+  border-color: var(--line-soft);
+}
+
+.company-todo.is-dragging {
+  opacity: 0.45;
+}
+
+.company-todo.is-drop-target {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
 .company-todo-main {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.65rem 1rem;
+}
+
+.company-todo-drag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  min-height: 1.75rem;
+  margin-top: 0.05rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: grab;
+  letter-spacing: -0.12em;
+  font-size: 0.75rem;
+  line-height: 1;
+  user-select: none;
+}
+
+.company-todo-drag:active {
+  cursor: grabbing;
+}
+
+.company-todo-drag:hover {
+  color: var(--text-muted);
 }
 
 .company-todo-check {
