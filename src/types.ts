@@ -29,12 +29,30 @@ export interface OpenLoop {
   done: boolean
 }
 
+/** A single pause segment within a work session */
+export interface PauseSegment {
+  /** Epoch ms when the pause started */
+  startedAt: number
+  /** How long the pause lasted in ms */
+  durationMs: number
+}
+
 export interface TimeEntry {
   id: string
   projectId: ProjectId
   date: string // YYYY-MM-DD
   minutes: number
   note?: string
+  /** Epoch ms when the session started (enables duration + time-of-day analytics) */
+  startedAt?: number
+  /** Epoch ms when the session ended */
+  endedAt?: number
+  /** Total paused time during this session (minutes) */
+  pausedMinutes?: number
+  /** Number of pause events in this session */
+  pauseCount?: number
+  /** Individual pause segments for time-of-day pause trends */
+  pauses?: PauseSegment[]
 }
 
 /** Recurrence rule for a calendar block. */
@@ -61,9 +79,21 @@ export interface CalendarBlock {
 
 export interface ActiveTimer {
   projectId: ProjectId
+  /** When the current active segment started (resets on resume) */
   startedAt: number
+  /** Original session start — preserved across pauses */
+  sessionStartedAt: number
   focusNote: string
+  /** Accumulated active (work) ms before the current segment */
   elapsedBefore: number
+  /** Accumulated pause ms from completed pauses */
+  pausedBefore: number
+  /** When the current pause started; undefined while running */
+  pausedAt?: number
+  /** Number of pause events this session */
+  pauseCount: number
+  /** Completed pause segments (current pause finalized on resume) */
+  pauses: PauseSegment[]
 }
 
 /** Per-day one-liner: the single outcome that matters */

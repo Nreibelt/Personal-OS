@@ -50,10 +50,69 @@ import {
   todayMonthKey,
   weekDays,
 } from '../utils/time'
+import {
+  aggregatePausesByHour,
+  aggregateSessionsByHour,
+  computeDurationBuckets,
+  computePauseStats,
+  computeSessionStats,
+  filterEntriesByScope,
+  peakPauseHour,
+  peakSessionHour,
+  recentSessions,
+} from '../utils/sessionAnalytics'
 import { revolutCredentialsChangedEvent } from '../utils/revolutApi'
 
 const STORAGE_KEY = 'batcave-deep-work-os-v2'
 const FINANCE_BACKUP_KEY = 'batcave-finance-backup-v1'
+
+/** Active work ms for a timer — excludes pause time. */
+function activeTimerWorkMs(t: ActiveTimer, now = Date.now()): number {
+  if (t.pausedAt) return t.elapsedBefore
+  return now - t.startedAt + t.elapsedBefore
+}
+
+function migrateActiveTimer(raw: unknown): ActiveTimer | null {
+  if (!raw || typeof raw !== 'object') return null
+  const t = raw as Partial<ActiveTimer>
+  if (!t.projectId || typeof t.startedAt !== 'number') return null
+  const sessionStartedAt =
+    typeof t.sessionStartedAt === 'number' ? t.sessionStartedAt : t.startedAt
+  return {
+    projectId: t.projectId,
+    startedAt: t.startedAt,
+    sessionStartedAt,
+    focusNote: typeof t.focusNote === 'string' ? t.focusNote : '',
+    elapsedBefore: typeof t.elapsedBefore === 'number' ? t.elapsedBefore : 0,
+    pausedBefore: typeof t.pausedBefore === 'number' ? t.pausedBefore : 0,
+    pausedAt: typeof t.pausedAt === 'number' ? t.pausedAt : undefined,
+    pauseCount: typeof t.pauseCount === 'number' ? t.pauseCount : 0,
+    pauses: Array.isArray(t.pauses) ? t.pauses : [],
+  }
+}
+
+function migrateTimeEntry(raw: unknown): TimeEntry | null {
+  if (!raw || typeof raw !== 'object') return null
+  const e = raw as Partial<TimeEntry>
+  if (!e.id || !e.projectId || !e.date || typeof e.minutes !== 'number') return null
+  return {
+    id: e.id,
+    projectId: e.projectId,
+    date: e.date,
+    minutes: e.minutes,
+    note: e.note,
+    startedAt: typeof e.startedAt === 'number' ? e.startedAt : undefined,
+    endedAt: typeof e.endedAt === 'number' ? e.endedAt : undefined,
+    pausedMinutes: typeof e.pausedMinutes === 'number' ? e.pausedMinutes : undefined,
+    pauseCount: typeof e.pauseCount === 'number' ? e.pauseCount : undefined,
+    pauses: Array.isArray(e.pauses) ? e.pauses : undefined,
+  }
+}
+
+function migrateTimeEntries(raw: unknown, fallback: TimeEntry[]): TimeEntry[] {
+  if (!Array.isArray(raw)) return fallback
+  return raw.map(migrateTimeEntry).filter((e): e is TimeEntry => e != null)
+}
 
 function migrateTasks(tasks: AppState['tasks']): AppState['tasks'] {
   const next = { ...tasks }
@@ -290,6 +349,8 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
           }
         })
       : seed.companyIdeas,
+    timeEntries: migrateTimeEntries(parsed.timeEntries, seed.timeEntries),
+    activeTimer: migrateActiveTimer(parsed.activeTimer),
   }
 }
 
@@ -664,28 +725,87 @@ export function useStore() {
   const setCalendarMonth = useCallback((calendarMonth: string) => update({ calendarMonth }), [update])
 
   const startTimer = useCallback((projectId: ProjectId, focusNote: string) => {
+    const now = Date.now()
     update((s) => ({
       ...s,
       activeTimer: {
         projectId,
-        startedAt: Date.now(),
+        startedAt: now,
+        sessionStartedAt: now,
         focusNote,
         elapsedBefore: 0,
+        pausedBefore: 0,
+        pauseCount: 0,
+        pauses: [],
       } satisfies ActiveTimer,
     }))
+  }, [update])
+
+  const pauseTimer = useCallback(() => {
+    update((s) => {
+      const t = s.activeTimer
+      if (!t || t.pausedAt) return s
+      const now = Date.now()
+      return {
+        ...s,
+        activeTimer: {
+          ...t,
+          elapsedBefore: t.elapsedBefore + (now - t.startedAt),
+          pausedAt: now,
+          pauseCount: t.pauseCount + 1,
+        },
+      }
+    })
+  }, [update])
+
+  const resumeTimer = useCallback(() => {
+    update((s) => {
+      const t = s.activeTimer
+      if (!t || !t.pausedAt) return s
+      const now = Date.now()
+      const pauseDuration = now - t.pausedAt
+      return {
+        ...s,
+        activeTimer: {
+          ...t,
+          startedAt: now,
+          pausedAt: undefined,
+          pausedBefore: t.pausedBefore + pauseDuration,
+          pauses: [...t.pauses, { startedAt: t.pausedAt, durationMs: pauseDuration }],
+        },
+      }
+    })
   }, [update])
 
   const finishTimer = useCallback(() => {
     update((s) => {
       if (!s.activeTimer) return s
-      const elapsedMs = Date.now() - s.activeTimer.startedAt + s.activeTimer.elapsedBefore
-      const minutes = Math.max(1, Math.round(elapsedMs / 60000))
+      const t = s.activeTimer
+      const now = Date.now()
+
+      let pauses = [...t.pauses]
+      let pausedBefore = t.pausedBefore
+      if (t.pausedAt) {
+        const durationMs = now - t.pausedAt
+        pauses.push({ startedAt: t.pausedAt, durationMs })
+        pausedBefore += durationMs
+      }
+
+      const activeMs = activeTimerWorkMs(t, now)
+      const minutes = Math.max(1, Math.round(activeMs / 60000))
+      const pausedMinutes = Math.round(pausedBefore / 60000)
+
       const entry: TimeEntry = {
         id: uid('te'),
-        projectId: s.activeTimer.projectId,
+        projectId: t.projectId,
         date: s.selectedDate,
         minutes,
-        note: s.activeTimer.focusNote || undefined,
+        note: t.focusNote || undefined,
+        startedAt: t.sessionStartedAt,
+        endedAt: now,
+        pausedMinutes: pausedMinutes > 0 ? pausedMinutes : undefined,
+        pauseCount: t.pauseCount > 0 ? t.pauseCount : undefined,
+        pauses: pauses.length > 0 ? pauses : undefined,
       }
       return { ...s, activeTimer: null, timeEntries: [...s.timeEntries, entry] }
     })
@@ -1177,9 +1297,7 @@ export function useStore() {
         state.selectedDate === date &&
         isDeepWorkId(state.activeTimer.projectId)
       ) {
-        total += Math.floor(
-          (Date.now() - state.activeTimer.startedAt + state.activeTimer.elapsedBefore) / 60000,
-        )
+        total += Math.floor(activeTimerWorkMs(state.activeTimer) / 60000)
       }
       return total
     },
@@ -1229,9 +1347,57 @@ export function useStore() {
 
   const liveTimerSeconds = useMemo(() => {
     void tick
-    if (!state.activeTimer) return 0
-    return Math.floor((Date.now() - state.activeTimer.startedAt + state.activeTimer.elapsedBefore) / 1000)
+    const t = state.activeTimer
+    if (!t) return 0
+    return Math.floor(activeTimerWorkMs(t) / 1000)
   }, [state.activeTimer, tick])
+
+  const livePauseSeconds = useMemo(() => {
+    void tick
+    const t = state.activeTimer
+    if (!t) return 0
+    let ms = t.pausedBefore
+    if (t.pausedAt) ms += Date.now() - t.pausedAt
+    return Math.floor(ms / 1000)
+  }, [state.activeTimer, tick])
+
+  const isTimerPaused = !!state.activeTimer?.pausedAt
+
+  const scopedTimeEntries = useMemo(
+    () => filterEntriesByScope(state.timeEntries, state.summaryMode, state.selectedDate),
+    [state.timeEntries, state.summaryMode, state.selectedDate],
+  )
+
+  const sessionStats = useMemo(
+    () => computeSessionStats(scopedTimeEntries),
+    [scopedTimeEntries],
+  )
+
+  const durationBuckets = useMemo(
+    () => computeDurationBuckets(scopedTimeEntries),
+    [scopedTimeEntries],
+  )
+
+  const sessionsByHour = useMemo(
+    () => aggregateSessionsByHour(scopedTimeEntries),
+    [scopedTimeEntries],
+  )
+
+  const peakSession = useMemo(() => peakSessionHour(sessionsByHour), [sessionsByHour])
+
+  const pauseStats = useMemo(() => computePauseStats(scopedTimeEntries), [scopedTimeEntries])
+
+  const pausesByHour = useMemo(
+    () => aggregatePausesByHour(scopedTimeEntries),
+    [scopedTimeEntries],
+  )
+
+  const peakPause = useMemo(() => peakPauseHour(pausesByHour), [pausesByHour])
+
+  const recentSessionEntries = useMemo(
+    () => recentSessions(scopedTimeEntries),
+    [scopedTimeEntries],
+  )
 
   const projectMinutesToday = useMemo(() => {
     const map = Object.fromEntries(PROJECTS.map((p) => [p.id, 0])) as Record<ProjectId, number>
@@ -1261,6 +1427,16 @@ export function useStore() {
     pushBrowserToCloud,
     projects: PROJECTS,
     liveTimerSeconds,
+    livePauseSeconds,
+    isTimerPaused,
+    sessionStats,
+    durationBuckets,
+    sessionsByHour,
+    peakSession,
+    pauseStats,
+    pausesByHour,
+    peakPause,
+    recentSessionEntries,
     projectMinutesToday,
     weekStart,
     weekEnd,
@@ -1291,6 +1467,8 @@ export function useStore() {
     setSummaryMode,
     setCalendarMonth,
     startTimer,
+    pauseTimer,
+    resumeTimer,
     finishTimer,
     discardTimer,
     addCalendarBlock,
