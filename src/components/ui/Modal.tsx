@@ -19,6 +19,7 @@ export function Modal({
   children,
   size = 'md',
   footer,
+  className,
 }: {
   open: boolean
   onClose: () => void
@@ -26,6 +27,7 @@ export function Modal({
   children: ReactNode
   size?: ModalSize
   footer?: ReactNode
+  className?: string
 }) {
   useEffect(() => {
     if (!open) return
@@ -46,7 +48,7 @@ export function Modal({
   return createPortal(
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <div
-        className={`modal platform-modal ${SIZE_CLASS[size]}`}
+        className={`modal platform-modal ${SIZE_CLASS[size]}${className ? ` ${className}` : ''}`}
         role="dialog"
         aria-modal
         aria-labelledby="platform-modal-title"
