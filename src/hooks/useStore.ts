@@ -95,13 +95,18 @@ function migrateTimeEntry(raw: unknown): TimeEntry | null {
   if (!raw || typeof raw !== 'object') return null
   const e = raw as Partial<TimeEntry>
   if (!e.id || !e.projectId || !e.date || typeof e.minutes !== 'number') return null
+  const startedAt = typeof e.startedAt === 'number' ? e.startedAt : undefined
+  // Timers used to save against the calendar’s selected day. Prefer the Bali
+  // wall-clock day of the session so a browse-away doesn’t misfile hours.
+  const date =
+    startedAt != null ? todayDateKey(new Date(startedAt)) : e.date
   return {
     id: e.id,
     projectId: e.projectId,
-    date: e.date,
+    date,
     minutes: e.minutes,
     note: e.note,
-    startedAt: typeof e.startedAt === 'number' ? e.startedAt : undefined,
+    startedAt,
     endedAt: typeof e.endedAt === 'number' ? e.endedAt : undefined,
     pausedMinutes: typeof e.pausedMinutes === 'number' ? e.pausedMinutes : undefined,
     pauseCount: typeof e.pauseCount === 'number' ? e.pauseCount : undefined,
@@ -794,11 +799,12 @@ export function useStore() {
       const activeMs = activeTimerWorkMs(t, now)
       const minutes = Math.max(1, Math.round(activeMs / 60000))
       const pausedMinutes = Math.round(pausedBefore / 60000)
+      const sessionDate = todayDateKey(new Date(t.sessionStartedAt))
 
       const entry: TimeEntry = {
         id: uid('te'),
         projectId: t.projectId,
-        date: s.selectedDate,
+        date: sessionDate,
         minutes,
         note: t.focusNote || undefined,
         startedAt: t.sessionStartedAt,
@@ -807,7 +813,12 @@ export function useStore() {
         pauseCount: t.pauseCount > 0 ? t.pauseCount : undefined,
         pauses: pauses.length > 0 ? pauses : undefined,
       }
-      return { ...s, activeTimer: null, timeEntries: [...s.timeEntries, entry] }
+      return {
+        ...s,
+        selectedDate: sessionDate,
+        activeTimer: null,
+        timeEntries: [...s.timeEntries, entry],
+      }
     })
   }, [update])
 
@@ -1294,14 +1305,14 @@ export function useStore() {
         .reduce((s, e) => s + e.minutes, 0)
       if (
         state.activeTimer &&
-        state.selectedDate === date &&
-        isDeepWorkId(state.activeTimer.projectId)
+        isDeepWorkId(state.activeTimer.projectId) &&
+        todayDateKey(new Date(state.activeTimer.sessionStartedAt)) === date
       ) {
         total += Math.floor(activeTimerWorkMs(state.activeTimer) / 60000)
       }
       return total
     },
-    [state.timeEntries, state.activeTimer, state.selectedDate, tick],
+    [state.timeEntries, state.activeTimer, tick],
   )
 
   const hitTarget = useCallback(
@@ -1404,7 +1415,10 @@ export function useStore() {
     for (const e of state.timeEntries) {
       if (e.date === state.selectedDate) map[e.projectId] += e.minutes
     }
-    if (state.activeTimer) {
+    if (
+      state.activeTimer &&
+      todayDateKey(new Date(state.activeTimer.sessionStartedAt)) === state.selectedDate
+    ) {
       const liveMin = Math.floor(liveTimerSeconds / 60)
       map[state.activeTimer.projectId] += liveMin
     }
