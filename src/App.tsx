@@ -13,6 +13,7 @@ import { FinancesView } from './components/FinancesView'
 import { LayerGate } from './components/LayerGate'
 import { MentorView } from './components/MentorView'
 import { TasksView } from './components/TasksView'
+import { VisionView } from './components/VisionView'
 import { ConfirmDialog } from './components/ui/ConfirmDialog'
 import { useStore } from './hooks/useStore'
 import type { AppLayer, AppTab, BusinessTab, DeepWorkId, ProjectId } from './types'
@@ -23,6 +24,7 @@ const BUSINESS_TAB_KEY = 'batcave-business-tab-v1'
 
 const PERSONAL_TABS: { id: AppTab; label: string; sub: string; enabled?: boolean }[] = [
   { id: 'dashboard', label: 'Dashboard', sub: 'Command Center' },
+  { id: 'vision', label: 'Vision', sub: 'Horizon' },
   { id: 'autopilot', label: 'Autopilot', sub: 'Set paths' },
   { id: 'calendar', label: 'Calendar', sub: 'Schedule' },
   { id: 'tasks', label: 'Tasks', sub: 'Projects' },
@@ -392,6 +394,7 @@ export default function App() {
           ) : (
             <>
               {tab === 'dashboard' && <DashboardView store={store} onStartProject={startSession} />}
+              {tab === 'vision' && <VisionView store={store} />}
               {tab === 'autopilot' && (
                 <AutopilotView store={store} onStartPersonalMinimized={startPersonalMinimized} />
               )}

@@ -36,6 +36,7 @@ import type {
   Task,
   TimeEntry,
   WeekReflection,
+  VisionGoal,
   WeeklyGoal,
   WeeklyGoalsArchiveEntry,
 } from '../types'
@@ -452,6 +453,23 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
     companyFinance,
     revolutSync: migrateRevolutSync(parsed.revolutSync, seed.revolutSync),
     revolutCredentials: parsed.revolutCredentials,
+    visionGoals: Array.isArray(parsed.visionGoals)
+      ? (parsed.visionGoals as VisionGoal[])
+          .map((g) => {
+            if (!g || typeof g !== 'object') return null
+            const title = typeof g.title === 'string' ? g.title.trim() : ''
+            const body = typeof g.body === 'string' ? g.body : ''
+            if (!title && !body.trim()) return null
+            return {
+              id: typeof g.id === 'string' && g.id ? g.id : uid('vision'),
+              title: title || 'Untitled vision',
+              body,
+              createdAt: typeof g.createdAt === 'string' ? g.createdAt : new Date().toISOString(),
+              updatedAt: typeof g.updatedAt === 'string' ? g.updatedAt : new Date().toISOString(),
+            } satisfies VisionGoal
+          })
+          .filter((g): g is VisionGoal => g != null)
+      : seed.visionGoals,
     companyDocuments: Array.isArray(parsed.companyDocuments)
       ? parsed.companyDocuments
       : seed.companyDocuments,
@@ -1480,6 +1498,7 @@ export function useStore() {
         revolutSync: s.revolutSync,
         companyDocuments: s.companyDocuments,
         companyIdeas: s.companyIdeas,
+        visionGoals: s.visionGoals,
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       writeFinanceBackup(next.personalFinance, next.companyFinance)
@@ -1536,6 +1555,56 @@ export function useStore() {
       update((s) => ({
         ...s,
         companyDocuments: s.companyDocuments.filter((d) => d.id !== id),
+      }))
+    },
+    [update],
+  )
+
+  const addVisionGoal = useCallback(
+    (input: { title: string; body: string }) => {
+      const title = input.title.trim()
+      const body = input.body.trim()
+      if (!title && !body) return
+      const now = new Date().toISOString()
+      update((s) => ({
+        ...s,
+        visionGoals: [
+          {
+            id: uid('vision'),
+            title: title || 'Untitled vision',
+            body,
+            createdAt: now,
+            updatedAt: now,
+          },
+          ...(s.visionGoals ?? []),
+        ],
+      }))
+    },
+    [update],
+  )
+
+  const updateVisionGoal = useCallback(
+    (id: string, patch: Partial<{ title: string; body: string }>) => {
+      const now = new Date().toISOString()
+      update((s) => ({
+        ...s,
+        visionGoals: (s.visionGoals ?? []).map((goal) => {
+          if (goal.id !== id) return goal
+          const title =
+            patch.title !== undefined ? patch.title.trim() || goal.title : goal.title
+          const body = patch.body !== undefined ? patch.body : goal.body
+          return { ...goal, title, body, updatedAt: now }
+        }),
+      }))
+    },
+    [update],
+  )
+
+  const removeVisionGoal = useCallback(
+    (id: string) => {
+      update((s) => ({
+        ...s,
+        visionGoals: (s.visionGoals ?? []).filter((goal) => goal.id !== id),
       }))
     },
     [update],
@@ -1821,6 +1890,9 @@ export function useStore() {
     addCompanyDocument,
     updateCompanyDocument,
     removeCompanyDocument,
+    addVisionGoal,
+    updateVisionGoal,
+    removeVisionGoal,
     addCompanyIdea,
     updateCompanyIdea,
     removeCompanyIdea,
