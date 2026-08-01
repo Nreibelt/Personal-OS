@@ -634,7 +634,7 @@ select:focus {
 
 .grid-projects {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--space-4);
 }
 
@@ -651,6 +651,12 @@ select:focus {
   .grid-3,
   .grid-2 {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1400px) {
+  .grid-projects {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
