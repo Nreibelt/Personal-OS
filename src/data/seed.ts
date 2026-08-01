@@ -34,6 +34,7 @@ function task(text: string, forToday: boolean, done = false): Task {
     plannedDate: forToday ? today : null,
     notes: '',
     archived: done,
+    sundayDeferCount: 0,
   }
 }
 
@@ -233,6 +234,7 @@ export function createSeedState(): AppState {
     weeklyGoalsWeekStart: startOfWeekMonday(today),
     weeklyGoalsArchive: [],
     weekReflections: {},
+    lastSaturdayDumpSunday: null,
     personalFinance: emptyFinanceLedger(personalBillsId),
     companyFinance: emptyFinanceLedger(companyBillsId),
     revolutSync: {

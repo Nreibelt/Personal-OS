@@ -204,6 +204,10 @@ function migrateTasks(tasks: AppState['tasks']): AppState['tasks'] {
         plannedDate,
         notes: typeof t.notes === 'string' ? t.notes : '',
         archived: typeof t.archived === 'boolean' ? t.archived : done,
+        sundayDeferCount:
+          typeof t.sundayDeferCount === 'number' && t.sundayDeferCount >= 0
+            ? Math.floor(t.sundayDeferCount)
+            : 0,
       }
     })
   }
@@ -423,6 +427,12 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
           .filter((e) => typeof e.weekStart === 'string')
       : seed.weeklyGoalsArchive,
     weekReflections: migrateWeekReflections(parsed.weekReflections),
+    lastSaturdayDumpSunday:
+      typeof parsed.lastSaturdayDumpSunday === 'string'
+        ? parsed.lastSaturdayDumpSunday
+        : parsed.lastSaturdayDumpSunday === null
+          ? null
+          : seed.lastSaturdayDumpSunday ?? null,
     habits: migrateHabits(parsed.habits ?? seed.habits, today),
     personalFinance: mergePersonalFoodAndDrink(personalFinance),
     companyFinance,
@@ -902,6 +912,67 @@ export function useStore() {
     }))
   }, [update])
 
+  /**
+   * Finalize Saturday Dump for `sundayDate`:
+   * - allocated ids → planned for that Sunday, defer count reset
+   * - non-allocated → defer count +1; at 2 consecutive dumps → deleted
+   * Re-running the same Sunday updates allocations without double-counting deferrals.
+   */
+  const finalizeSaturdayDump = useCallback(
+    (
+      sundayDate: string,
+      allocatedIds: string[],
+      notesById: Record<string, string>,
+    ) => {
+      const allocated = new Set(allocatedIds)
+      update((s) => {
+        const sameSunday = s.lastSaturdayDumpSunday === sundayDate
+        const today = todayDateKey()
+        const list = s.tasks.sundayAdmin ?? []
+        const nextList: Task[] = []
+        for (const t of list) {
+          if (t.archived || t.done) {
+            nextList.push(t)
+            continue
+          }
+          const notes =
+            notesById[t.id] !== undefined ? notesById[t.id] : (t.notes ?? '')
+          if (allocated.has(t.id)) {
+            nextList.push({
+              ...t,
+              notes,
+              plannedDate: sundayDate,
+              forToday: sundayDate === today,
+              sundayDeferCount: 0,
+            })
+            continue
+          }
+          // Not allocated to this Sunday
+          const prevDefer = typeof t.sundayDeferCount === 'number' ? t.sundayDeferCount : 0
+          const deferCount = sameSunday ? prevDefer : prevDefer + 1
+          if (deferCount >= 2) {
+            // Purged — two Saturday Dumps without allocation
+            continue
+          }
+          const plannedDate = t.plannedDate === sundayDate ? null : t.plannedDate
+          nextList.push({
+            ...t,
+            notes,
+            plannedDate,
+            forToday: plannedDate === today,
+            sundayDeferCount: deferCount,
+          })
+        }
+        return {
+          ...s,
+          tasks: { ...s.tasks, sundayAdmin: nextList },
+          lastSaturdayDumpSunday: sundayDate,
+        }
+      })
+    },
+    [update],
+  )
+
   const addTask = useCallback(
     (projectId: ProjectId, text: string, opts: boolean | AddTaskOptions = true) => {
       const trimmed = text.trim()
@@ -929,6 +1000,7 @@ export function useStore() {
               plannedDate,
               notes: options.notes?.trim() ?? '',
               archived: false,
+              sundayDeferCount: 0,
             } satisfies Task,
           ],
         },
@@ -1703,6 +1775,7 @@ export function useStore() {
     setTaskForToday,
     setTaskPlannedDate,
     setTaskNotes,
+    finalizeSaturdayDump,
     addTask,
     removeTask,
     setSummaryMode,

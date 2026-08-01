@@ -18,6 +18,11 @@ export interface Task {
   notes?: string
   /** Completed tasks are archived and hidden from active lists */
   archived?: boolean
+  /**
+   * Sunday Admin deferral counter. Incremented when a Saturday Dump completes
+   * without allocating this task to that Sunday. At 2 → purged. Reset to 0 when allocated.
+   */
+  sundayDeferCount?: number
 }
 
 export type AddTaskOptions = {
@@ -189,6 +194,7 @@ export type AppTab =
   | 'personalFinances'
   | 'companyFinances'
   | 'autopilot'
+  | 'mentor'
 
 const APP_TABS: readonly AppTab[] = [
   'dashboard',
@@ -197,6 +203,7 @@ const APP_TABS: readonly AppTab[] = [
   'personalFinances',
   'companyFinances',
   'autopilot',
+  'mentor',
 ]
 
 /** Map persisted / legacy tab ids onto current AppTab values. */
@@ -362,6 +369,8 @@ export interface AppState {
   weeklyGoalsArchive: WeeklyGoalsArchiveEntry[]
   /** Reflections keyed by the Monday of the week reflected on */
   weekReflections: Record<string, WeekReflection>
+  /** Sunday date last prepared by Saturday Dump (avoids double-defer on re-edit) */
+  lastSaturdayDumpSunday?: string | null
   personalFinance: FinanceLedger
   companyFinance: FinanceLedger
   revolutSync: RevolutSyncState

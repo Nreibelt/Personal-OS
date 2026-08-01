@@ -353,6 +353,12 @@ select:focus {
 .rail-item.active .nav-glyph-autopilot .nav-glyph-core {
   box-shadow: 0 0 0 2px #04140c;
 }
+.nav-glyph-mentor .nav-glyph-core {
+  width: 0.22rem;
+  height: 0.55rem;
+  border-radius: 99px;
+  opacity: 0.55;
+}
 .nav-glyph-metaAds .nav-glyph-core,
 .nav-glyph-coldEmail .nav-glyph-core,
 .nav-glyph-agents .nav-glyph-core { opacity: 0.55; }
