@@ -11,6 +11,7 @@ import { DashboardView } from './components/DashboardView'
 import { DeepWorkTimerHost } from './components/DeepWorkTimerHost'
 import { FinancesView } from './components/FinancesView'
 import { LayerGate } from './components/LayerGate'
+import { MentorView } from './components/MentorView'
 import { TasksView } from './components/TasksView'
 import { ConfirmDialog } from './components/ui/ConfirmDialog'
 import { useStore } from './hooks/useStore'
@@ -20,12 +21,13 @@ import { formatLongDate, formatMinutes, todayDateKey } from './utils/time'
 const LAYER_KEY = 'batcave-app-layer-v1'
 const BUSINESS_TAB_KEY = 'batcave-business-tab-v1'
 
-const PERSONAL_TABS: { id: AppTab; label: string; sub: string }[] = [
+const PERSONAL_TABS: { id: AppTab; label: string; sub: string; enabled?: boolean }[] = [
   { id: 'dashboard', label: 'Dashboard', sub: 'Command Center' },
   { id: 'autopilot', label: 'Autopilot', sub: 'Set paths' },
   { id: 'calendar', label: 'Calendar', sub: 'Schedule' },
   { id: 'tasks', label: 'Tasks', sub: 'Projects' },
   { id: 'personalFinances', label: 'Personal Finances', sub: 'Personal Finances' },
+  { id: 'mentor', label: 'Mentor', sub: 'Synthesis', enabled: false },
 ]
 
 const BUSINESS_TABS: {
@@ -99,6 +101,8 @@ export default function App() {
   const [layer, setLayer] = useState<AppLayer>('gate')
   const [businessTab, setBusinessTab] = useState<BusinessTab>('todos')
   const [pendingSession, setPendingSession] = useState<ProjectId | null>(null)
+  const [pendingSessionMinimized, setPendingSessionMinimized] = useState(false)
+  const [pendingFocusNote, setPendingFocusNote] = useState('')
   const [hydrated, setHydrated] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
   const [docsDirty, setDocsDirty] = useState(false)
@@ -133,7 +137,11 @@ export default function App() {
   const targetHit = store.hitTarget(store.state.selectedDate)
   const allTime = store.minutesFor('all', 'total')
 
-  const clearPendingSession = useCallback(() => setPendingSession(null), [])
+  const clearPendingSession = useCallback(() => {
+    setPendingSession(null)
+    setPendingSessionMinimized(false)
+    setPendingFocusNote('')
+  }, [])
 
   const openTasks = () => {
     if (layer !== 'personal') setLayer('personal')
@@ -144,7 +152,15 @@ export default function App() {
   const startSession = (projectId: DeepWorkId | ProjectId) => {
     store.setSelectedDate(todayDateKey())
     openTasks()
+    setPendingSessionMinimized(false)
+    setPendingFocusNote('')
     setPendingSession(projectId)
+  }
+
+  const startPersonalMinimized = (focusNote: string) => {
+    setPendingSessionMinimized(true)
+    setPendingFocusNote(focusNote)
+    setPendingSession('personal')
   }
 
   const leaveDocumentsIfNeeded = useCallback(
@@ -244,19 +260,26 @@ export default function App() {
                   {!t.enabled && <span className="tab-soon">Soon</span>}
                 </button>
               ))
-            : PERSONAL_TABS.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === t.id}
-                  className={`rail-item${tab === t.id ? ' active' : ''}`}
-                  onClick={() => store.setActiveTab(t.id)}
-                >
-                  <NavGlyph kind={t.id} />
-                  <span className="rail-item-label">{t.label}</span>
-                </button>
-              ))}
+            : PERSONAL_TABS.map((t) => {
+                const enabled = t.enabled !== false
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === t.id}
+                    className={`rail-item${tab === t.id ? ' active' : ''}${enabled ? '' : ' disabled'}`}
+                    disabled={!enabled}
+                    onClick={() => {
+                      if (enabled) store.setActiveTab(t.id)
+                    }}
+                  >
+                    <NavGlyph kind={t.id} />
+                    <span className="rail-item-label">{t.label}</span>
+                    {!enabled && <span className="tab-soon">Soon</span>}
+                  </button>
+                )
+              })}
         </nav>
 
         <div className="rail-foot">
@@ -369,10 +392,13 @@ export default function App() {
           ) : (
             <>
               {tab === 'dashboard' && <DashboardView store={store} onStartProject={startSession} />}
-              {tab === 'autopilot' && <AutopilotView store={store} />}
+              {tab === 'autopilot' && (
+                <AutopilotView store={store} onStartPersonalMinimized={startPersonalMinimized} />
+              )}
               {tab === 'calendar' && <CalendarView store={store} />}
               {tab === 'tasks' && <TasksView store={store} onStartSession={startSession} />}
               {tab === 'personalFinances' && <FinancesView store={store} realm="personal" />}
+              {tab === 'mentor' && <MentorView />}
             </>
           )}
         </main>
@@ -381,6 +407,8 @@ export default function App() {
       <DeepWorkTimerHost
         store={store}
         pendingSession={pendingSession}
+        pendingSessionMinimized={pendingSessionMinimized}
+        pendingFocusNote={pendingFocusNote}
         onPendingSessionHandled={clearPendingSession}
         browseKey={browseKey}
       />

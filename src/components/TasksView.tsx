@@ -1,8 +1,6 @@
 import type { Store } from '../hooks/useStore'
 import type { ProjectId } from '../types'
-import { DailyOneThing } from './DeepWorkTarget'
 import { ProjectCard } from './ProjectCard'
-import { WeekSelector } from './WeekSelector'
 
 export function TasksView({
   store,
@@ -13,11 +11,6 @@ export function TasksView({
 }) {
   return (
     <div className="layout-stack tasks-stage">
-      <div className="deep-focus-strip">
-        <WeekSelector store={store} />
-        <DailyOneThing store={store} />
-      </div>
-
       <div className="tasks-toolbar">
         <h2>Projects</h2>
         <button

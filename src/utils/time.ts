@@ -90,6 +90,13 @@ export function startOfWeekMonday(key: string): string {
   return toDateKey(d)
 }
 
+/** Today if Sunday, otherwise the next upcoming Sunday. */
+export function upcomingSunday(key: string = todayDateKey()): string {
+  const dow = parseDateKey(key).getDay()
+  if (dow === 0) return key
+  return addDays(key, 7 - dow)
+}
+
 export function weekDays(selectedDate: string): string[] {
   const start = startOfWeekMonday(selectedDate)
   return Array.from({ length: 7 }, (_, i) => addDays(start, i))

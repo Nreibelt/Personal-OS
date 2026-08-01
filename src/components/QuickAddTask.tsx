@@ -78,7 +78,7 @@ export function QuickAddTask({ store }: { store: Store }) {
               value={projectId}
               onChange={(e) => setProjectId(e.target.value as ProjectId)}
             >
-              {PROJECTS.map((p) => (
+              {PROJECTS.filter((p) => p.id !== 'personal').map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>

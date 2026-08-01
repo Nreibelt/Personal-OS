@@ -15,11 +15,16 @@ import { TimerOverlay } from './TimerViews'
 export function DeepWorkTimerHost({
   store,
   pendingSession,
+  pendingSessionMinimized = false,
+  pendingFocusNote = '',
   onPendingSessionHandled,
   browseKey,
 }: {
   store: Store
   pendingSession?: ProjectId | null
+  /** When true, a pending session starts minimized (e.g. Sunday Admin focus UI owns the screen). */
+  pendingSessionMinimized?: boolean
+  pendingFocusNote?: string
   onPendingSessionHandled?: () => void
   /** Changes when the user navigates tabs/layers — keeps the timer minimized so UI stays usable */
   browseKey?: string
@@ -28,6 +33,7 @@ export function DeepWorkTimerHost({
   const [dockOpen, setDockOpen] = useState(false)
   const hadTimer = useRef(false)
   const skipBrowseMinimize = useRef(false)
+  const startMinimizedRef = useRef(false)
 
   const activeTimer = store.state.activeTimer
   const startTimer = store.startTimer
@@ -36,12 +42,13 @@ export function DeepWorkTimerHost({
     onPendingSessionHandled?.()
   }, [onPendingSessionHandled])
 
-  // Fresh start → enter focus (fullscreen). Timer cleared → reset.
+  // Fresh start → enter focus (fullscreen) unless caller asked for minimized.
   useEffect(() => {
     const live = !!activeTimer
     if (live && !hadTimer.current) {
       skipBrowseMinimize.current = true
-      setTimerMinimized(false)
+      setTimerMinimized(startMinimizedRef.current)
+      startMinimizedRef.current = false
     }
     if (!live) {
       setTimerMinimized(true)
@@ -61,7 +68,7 @@ export function DeepWorkTimerHost({
     setDockOpen(false)
   }, [browseKey, activeTimer])
 
-  // Pending session requests from dashboard / project cards — start immediately
+  // Pending session requests from dashboard / project cards / Sunday Admin
   useEffect(() => {
     if (!pendingSession) return
     if (activeTimer?.projectId === pendingSession) {
@@ -75,9 +82,17 @@ export function DeepWorkTimerHost({
       clearPending()
       return
     }
-    startTimer(pendingSession, '')
+    startMinimizedRef.current = pendingSessionMinimized
+    startTimer(pendingSession, pendingFocusNote)
     clearPending()
-  }, [pendingSession, activeTimer, startTimer, clearPending])
+  }, [
+    pendingSession,
+    pendingSessionMinimized,
+    pendingFocusNote,
+    activeTimer,
+    startTimer,
+    clearPending,
+  ])
 
   const busy = !!activeTimer
 

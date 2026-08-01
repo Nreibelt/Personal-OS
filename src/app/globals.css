@@ -353,6 +353,12 @@ select:focus {
 .rail-item.active .nav-glyph-autopilot .nav-glyph-core {
   box-shadow: 0 0 0 2px #04140c;
 }
+.nav-glyph-mentor .nav-glyph-core {
+  width: 0.22rem;
+  height: 0.55rem;
+  border-radius: 99px;
+  opacity: 0.55;
+}
 .nav-glyph-metaAds .nav-glyph-core,
 .nav-glyph-coldEmail .nav-glyph-core,
 .nav-glyph-agents .nav-glyph-core { opacity: 0.55; }
@@ -628,7 +634,7 @@ select:focus {
 
 .grid-projects {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--space-4);
 }
 
@@ -645,6 +651,12 @@ select:focus {
   .grid-3,
   .grid-2 {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1400px) {
+  .grid-projects {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

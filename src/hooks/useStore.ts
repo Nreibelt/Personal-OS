@@ -182,31 +182,49 @@ function migrateWeekReflections(raw: unknown): Record<string, WeekReflection> {
   return out
 }
 
+function normalizeTask(t: Task, today: string): Task {
+  const forToday = typeof t.forToday === 'boolean' ? t.forToday : true
+  const plannedDate =
+    typeof t.plannedDate === 'string'
+      ? t.plannedDate
+      : t.plannedDate === null
+        ? null
+        : forToday
+          ? today
+          : null
+  const done = Boolean(t.done)
+  return {
+    ...t,
+    forToday: plannedDate === today,
+    plannedDate,
+    notes: typeof t.notes === 'string' ? t.notes : '',
+    archived: typeof t.archived === 'boolean' ? t.archived : done,
+    sundayDeferCount:
+      typeof t.sundayDeferCount === 'number' && t.sundayDeferCount >= 0
+        ? Math.floor(t.sundayDeferCount)
+        : 0,
+  }
+}
+
 function migrateTasks(tasks: AppState['tasks']): AppState['tasks'] {
   const today = todayDateKey()
   const next = { ...tasks } as AppState['tasks']
   for (const project of PROJECTS) {
     const list = Array.isArray(next[project.id]) ? next[project.id] : []
-    next[project.id] = list.map((t) => {
-      const forToday = typeof t.forToday === 'boolean' ? t.forToday : true
-      const plannedDate =
-        typeof t.plannedDate === 'string'
-          ? t.plannedDate
-          : t.plannedDate === null
-            ? null
-            : forToday
-              ? today
-              : null
-      const done = Boolean(t.done)
-      return {
-        ...t,
-        forToday: plannedDate === today,
-        plannedDate,
-        notes: typeof t.notes === 'string' ? t.notes : '',
-        archived: typeof t.archived === 'boolean' ? t.archived : done,
-      }
-    })
+    next[project.id] = list.map((t) => normalizeTask(t, today))
   }
+
+  // Personal Time tasks live under Sunday Admin — migrate any leftovers.
+  const personalLeft = next.personal ?? []
+  if (personalLeft.length > 0) {
+    const existingIds = new Set((next.sundayAdmin ?? []).map((t) => t.id))
+    const moved = personalLeft.filter((t) => !existingIds.has(t.id))
+    next.sundayAdmin = [...(next.sundayAdmin ?? []), ...moved]
+    next.personal = []
+  } else if (!Array.isArray(next.personal)) {
+    next.personal = []
+  }
+
   return next
 }
 
@@ -423,6 +441,12 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
           .filter((e) => typeof e.weekStart === 'string')
       : seed.weeklyGoalsArchive,
     weekReflections: migrateWeekReflections(parsed.weekReflections),
+    lastSaturdayDumpSunday:
+      typeof parsed.lastSaturdayDumpSunday === 'string'
+        ? parsed.lastSaturdayDumpSunday
+        : parsed.lastSaturdayDumpSunday === null
+          ? null
+          : seed.lastSaturdayDumpSunday ?? null,
     habits: migrateHabits(parsed.habits ?? seed.habits, today),
     personalFinance: mergePersonalFoodAndDrink(personalFinance),
     companyFinance,
@@ -902,10 +926,73 @@ export function useStore() {
     }))
   }, [update])
 
+  /**
+   * Finalize Saturday Dump for `sundayDate`:
+   * - allocated ids → planned for that Sunday, defer count reset
+   * - non-allocated → defer count +1; at 2 consecutive dumps → deleted
+   * Re-running the same Sunday updates allocations without double-counting deferrals.
+   */
+  const finalizeSaturdayDump = useCallback(
+    (
+      sundayDate: string,
+      allocatedIds: string[],
+      notesById: Record<string, string>,
+    ) => {
+      const allocated = new Set(allocatedIds)
+      update((s) => {
+        const sameSunday = s.lastSaturdayDumpSunday === sundayDate
+        const today = todayDateKey()
+        const list = s.tasks.sundayAdmin ?? []
+        const nextList: Task[] = []
+        for (const t of list) {
+          if (t.archived || t.done) {
+            nextList.push(t)
+            continue
+          }
+          const notes =
+            notesById[t.id] !== undefined ? notesById[t.id] : (t.notes ?? '')
+          if (allocated.has(t.id)) {
+            nextList.push({
+              ...t,
+              notes,
+              plannedDate: sundayDate,
+              forToday: sundayDate === today,
+              sundayDeferCount: 0,
+            })
+            continue
+          }
+          // Not allocated to this Sunday
+          const prevDefer = typeof t.sundayDeferCount === 'number' ? t.sundayDeferCount : 0
+          const deferCount = sameSunday ? prevDefer : prevDefer + 1
+          if (deferCount >= 2) {
+            // Purged — two Saturday Dumps without allocation
+            continue
+          }
+          const plannedDate = t.plannedDate === sundayDate ? null : t.plannedDate
+          nextList.push({
+            ...t,
+            notes,
+            plannedDate,
+            forToday: plannedDate === today,
+            sundayDeferCount: deferCount,
+          })
+        }
+        return {
+          ...s,
+          tasks: { ...s.tasks, sundayAdmin: nextList },
+          lastSaturdayDumpSunday: sundayDate,
+        }
+      })
+    },
+    [update],
+  )
+
   const addTask = useCallback(
     (projectId: ProjectId, text: string, opts: boolean | AddTaskOptions = true) => {
       const trimmed = text.trim()
       if (!trimmed) return
+      // Personal Time is timer-only — task capture goes to Sunday Admin.
+      const targetId: ProjectId = projectId === 'personal' ? 'sundayAdmin' : projectId
       const today = todayDateKey()
       const options: AddTaskOptions = typeof opts === 'boolean' ? { forToday: opts } : opts
       const plannedDate =
@@ -919,8 +1006,8 @@ export function useStore() {
         ...s,
         tasks: {
           ...s.tasks,
-          [projectId]: [
-            ...(s.tasks[projectId] ?? []),
+          [targetId]: [
+            ...(s.tasks[targetId] ?? []),
             {
               id: uid('task'),
               text: trimmed,
@@ -929,6 +1016,7 @@ export function useStore() {
               plannedDate,
               notes: options.notes?.trim() ?? '',
               archived: false,
+              sundayDeferCount: 0,
             } satisfies Task,
           ],
         },
@@ -1703,6 +1791,7 @@ export function useStore() {
     setTaskForToday,
     setTaskPlannedDate,
     setTaskNotes,
+    finalizeSaturdayDump,
     addTask,
     removeTask,
     setSummaryMode,
