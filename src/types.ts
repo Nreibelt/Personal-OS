@@ -303,10 +303,21 @@ export interface SpendEntry {
   revolutId?: string
 }
 
+/** Want-to-buy item on the personal spendings wishlist */
+export interface WishlistItem {
+  id: string
+  name: string
+  /** Rough price estimate */
+  amount: number
+  createdAt: string
+}
+
 export interface FinanceLedger {
   categories: ExpenseCategory[]
   allocations: CashAllocation[]
   spends: SpendEntry[]
+  /** Personal spendings wishlist (item + rough price) */
+  wishlist: WishlistItem[]
 }
 
 /** Pending Revolut row awaiting categorize / discard in a finance realm. */

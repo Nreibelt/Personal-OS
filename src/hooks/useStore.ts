@@ -47,7 +47,7 @@ import {
   isDeepWorkId,
   scaleDeepWorkSplit,
 } from '../types'
-import { mergePersonalFoodAndDrink } from '../utils/finance'
+import { mergePersonalFoodAndDrink, migrateWishlist } from '../utils/finance'
 import {
   addDays,
   parseDateKey,
@@ -297,12 +297,14 @@ function migrateLedger(raw: Partial<FinanceLedger> | undefined, fallback: Financ
     categories: hasBills ? categories : [...fallback.categories, ...categories],
     allocations: Array.isArray(raw.allocations) ? raw.allocations : [],
     spends: Array.isArray(raw.spends) ? raw.spends : [],
+    wishlist: migrateWishlist(raw.wishlist),
   }
 }
 
 /** True when the ledger has more than a bare empty Bills preset. */
 function isRichLedger(ledger: FinanceLedger): boolean {
   const cats = ledger.categories || []
+  if ((ledger.wishlist?.length || 0) > 0) return true
   if (cats.length === 0) return false
   if (cats.length > 1) return true
   const only = cats[0]
@@ -1380,6 +1382,36 @@ export function useStore() {
     [patchLedger],
   )
 
+  const addWishlistItem = useCallback(
+    (realm: FinanceRealm, input: { name: string; amount: number }) => {
+      const name = input.name.trim()
+      if (!name || !(input.amount >= 0)) return
+      patchLedger(realm, (ledger) => ({
+        ...ledger,
+        wishlist: [
+          {
+            id: uid('wish'),
+            name,
+            amount: Math.round(input.amount * 100) / 100,
+            createdAt: new Date().toISOString(),
+          },
+          ...(ledger.wishlist ?? []),
+        ],
+      }))
+    },
+    [patchLedger],
+  )
+
+  const removeWishlistItem = useCallback(
+    (realm: FinanceRealm, id: string) => {
+      patchLedger(realm, (ledger) => ({
+        ...ledger,
+        wishlist: (ledger.wishlist ?? []).filter((item) => item.id !== id),
+      }))
+    },
+    [patchLedger],
+  )
+
   const setRevolutAccountIds = useCallback(
     (realm: FinanceRealm, accountIds: string[]) => {
       const key = accountIdsKey(realm)
@@ -1882,6 +1914,8 @@ export function useStore() {
     removeCashAllocation,
     addSpend,
     removeSpend,
+    addWishlistItem,
+    removeWishlistItem,
     setRevolutAccountIds,
     mergeRevolutReviewItems,
     discardRevolutReviewItem,
