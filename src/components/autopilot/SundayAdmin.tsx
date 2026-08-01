@@ -12,6 +12,23 @@ import {
 } from '../../utils/time'
 import { ModalPortal } from '../ui/ModalPortal'
 
+const STEPS = [
+  {
+    id: 'reply',
+    title: 'Reply to all',
+    kicker: 'Step 1',
+    copy: 'Clear every open message first. Reply to all, tick it off, then move into the pile.',
+  },
+  {
+    id: 'tasks',
+    title: 'One at a time',
+    kicker: 'Step 2',
+    copy: 'Pick a task. Full focus. Personal Time timer runs under you.',
+  },
+] as const
+
+type Phase = (typeof STEPS)[number]['id']
+
 export function SundayAdmin({
   store,
   open,
@@ -25,8 +42,13 @@ export function SundayAdmin({
   onStartPersonalTimer: (focusNote: string) => void
 }) {
   const sunday = upcomingSunday()
+  const [phase, setPhase] = useState<Phase>('reply')
+  const [replyDone, setReplyDone] = useState(false)
   const [focusId, setFocusId] = useState<string | null>(null)
   const [draftNotes, setDraftNotes] = useState('')
+
+  const stepIndex = STEPS.findIndex((s) => s.id === phase)
+  const step = STEPS[stepIndex] ?? STEPS[0]
 
   const tasks = useMemo(
     () =>
@@ -52,12 +74,15 @@ export function SundayAdmin({
 
   useEffect(() => {
     if (!open) {
+      setPhase('reply')
+      setReplyDone(false)
       setFocusId(null)
       return
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (focusId) setFocusId(null)
+        else if (phase === 'tasks') setPhase('reply')
         else onClose()
       }
     }
@@ -68,7 +93,7 @@ export function SundayAdmin({
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
     }
-  }, [open, onClose, focusId])
+  }, [open, onClose, focusId, phase])
 
   useEffect(() => {
     if (focusTask) setDraftNotes(focusTask.notes ?? '')
@@ -115,10 +140,11 @@ export function SundayAdmin({
             <header className="wind-down-head">
               <div className="wind-down-brand">
                 <span className="wind-down-kicker">Autopilot · Sunday Admin</span>
-                <h2 id="sunday-admin-title">One at a time</h2>
+                <h2 id="sunday-admin-title">{step.title}</h2>
                 <p className="wind-down-copy">
-                  {formatLongDate(sunday)}. Pick a task. Full focus. Personal Time timer runs under
-                  you.
+                  {phase === 'tasks'
+                    ? `${formatLongDate(sunday)}. ${step.copy}`
+                    : step.copy}
                 </p>
               </div>
               <button type="button" className="x-btn visible" onClick={onClose} aria-label="Close">
@@ -126,70 +152,130 @@ export function SundayAdmin({
               </button>
             </header>
 
-            <div className="wind-down-body">
-              <div className="sunday-pulse">
-                <span className="status-pill" style={{ borderColor: `${personal.color}66` }}>
-                  PERSONAL TIME
-                </span>
-                <span>
-                  {timerLive ? 'Timer live' : 'Timer starts when you pick a task'} · today{' '}
-                  {formatMinutes(personalMinutes)}
-                </span>
-              </div>
+            <ol className="wind-down-steps" aria-label="Sunday Admin progress">
+              {STEPS.map((s, i) => (
+                <li
+                  key={s.id}
+                  className={`wind-down-step${i === stepIndex ? ' active' : ''}${i < stepIndex ? ' done' : ''}`}
+                >
+                  <span className="wind-down-step-index">{i + 1}</span>
+                  <span className="wind-down-step-label">{s.kicker}</span>
+                </li>
+              ))}
+            </ol>
 
-              {tasks.length === 0 ? (
-                <div className="wind-down-done">
-                  <div className="wind-down-done-mark" aria-hidden="true" />
-                  {sessionComplete ? (
-                    <>
-                      <p>Sunday Admin complete. Locked for {formatLongDate(sunday)}.</p>
-                      <p className="sunday-rec-note">
-                        Come back next week after Saturday Dump loads the next pile.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p>No tasks allocated for this Sunday.</p>
-                      <p className="sunday-rec-note">
-                        Run Saturday Dump to load the pile, then come back.
-                      </p>
-                    </>
-                  )}
-                  <button type="button" className="btn-primary" onClick={onClose}>
-                    Close
-                  </button>
+            <div className="wind-down-body">
+              {phase === 'reply' ? (
+                <div className="wind-down-panel wind-down-journal">
+                  <div className="wind-down-journal-card">
+                    <p className="wind-down-journal-prompt">
+                      Open your inbox. Reply to every message that needs a response — no
+                      half-clears. Empty the loop before the admin pile.
+                    </p>
+                    <p className="wind-down-journal-hint">
+                      Email, WhatsApp, Slack — wherever the replies live. Tick only when
+                      every one is sent.
+                    </p>
+                    <label className="wind-down-check">
+                      <input
+                        type="checkbox"
+                        checked={replyDone}
+                        onChange={(e) => setReplyDone(e.target.checked)}
+                      />
+                      <span>Reply to all messages</span>
+                    </label>
+                  </div>
                 </div>
               ) : (
-                <ul className="sunday-admin-list">
-                  {tasks.map((t, i) => (
-                    <li key={t.id}>
-                      <button
-                        type="button"
-                        className="sunday-admin-pick"
-                        onClick={() => enterFocus(t)}
-                      >
-                        <span className="sunday-admin-pick-index">{i + 1}</span>
-                        <span className="sunday-admin-pick-body">
-                          <span className="sunday-admin-pick-title">{t.text}</span>
-                          {t.notes?.trim() ? (
-                            <span className="sunday-admin-pick-notes">{t.notes}</span>
-                          ) : null}
-                        </span>
-                        <span className="sunday-admin-pick-cta">Focus</span>
+                <>
+                  <div className="sunday-pulse">
+                    <span className="status-pill" style={{ borderColor: `${personal.color}66` }}>
+                      PERSONAL TIME
+                    </span>
+                    <span>
+                      {timerLive ? 'Timer live' : 'Timer starts when you pick a task'} · today{' '}
+                      {formatMinutes(personalMinutes)}
+                    </span>
+                  </div>
+
+                  {tasks.length === 0 ? (
+                    <div className="wind-down-done">
+                      <div className="wind-down-done-mark" aria-hidden="true" />
+                      {sessionComplete ? (
+                        <>
+                          <p>Sunday Admin complete. Locked for {formatLongDate(sunday)}.</p>
+                          <p className="sunday-rec-note">
+                            Come back next week after Saturday Dump loads the next pile.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p>No tasks allocated for this Sunday.</p>
+                          <p className="sunday-rec-note">
+                            Run Saturday Dump to load the pile, then come back.
+                          </p>
+                        </>
+                      )}
+                      <button type="button" className="btn-primary" onClick={onClose}>
+                        Close
                       </button>
-                    </li>
-                  ))}
-                </ul>
+                    </div>
+                  ) : (
+                    <ul className="sunday-admin-list">
+                      {tasks.map((t, i) => (
+                        <li key={t.id}>
+                          <button
+                            type="button"
+                            className="sunday-admin-pick"
+                            onClick={() => enterFocus(t)}
+                          >
+                            <span className="sunday-admin-pick-index">{i + 1}</span>
+                            <span className="sunday-admin-pick-body">
+                              <span className="sunday-admin-pick-title">{t.text}</span>
+                              {t.notes?.trim() ? (
+                                <span className="sunday-admin-pick-notes">{t.notes}</span>
+                              ) : null}
+                            </span>
+                            <span className="sunday-admin-pick-cta">Focus</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </div>
 
-            {tasks.length > 0 && (
+            {phase === 'reply' ? (
               <footer className="wind-down-foot">
+                <button type="button" className="ghost-btn" onClick={onClose}>
+                  Close
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setPhase('tasks')}
+                  disabled={!replyDone}
+                >
+                  Complete · next
+                </button>
+              </footer>
+            ) : tasks.length > 0 ? (
+              <footer className="wind-down-foot">
+                <button type="button" className="ghost-btn" onClick={() => setPhase('reply')}>
+                  Back
+                </button>
                 <span className="sunday-finance-lede">
                   {tasks.length} remaining · complete one, return, pick the next
                 </span>
                 <button type="button" className="ghost-btn" onClick={onClose}>
                   Done for now
+                </button>
+              </footer>
+            ) : (
+              <footer className="wind-down-foot">
+                <button type="button" className="ghost-btn" onClick={() => setPhase('reply')}>
+                  Back
                 </button>
               </footer>
             )}

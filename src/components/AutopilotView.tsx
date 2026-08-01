@@ -35,7 +35,7 @@ const ROUTINES: {
     id: 'sunday-admin',
     kicker: 'Sunday',
     name: 'Sunday Admin',
-    desc: 'One allocated task at a time. Full focus. Personal Time timer on.',
+    desc: 'Reply to all → one allocated task at a time. Full focus. Personal Time on.',
   },
   {
     id: 'sunday-center',
