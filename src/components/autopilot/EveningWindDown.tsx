@@ -90,6 +90,7 @@ export function EveningWindDown({
 
   const advance = () => {
     if (isLast) {
+      store.completeAutopilot('eveningWindDown', today)
       setFinished(true)
       return
     }
@@ -97,10 +98,7 @@ export function EveningWindDown({
   }
 
   const back = () => {
-    if (finished) {
-      setFinished(false)
-      return
-    }
+    if (finished) return
     setStepIndex((i) => Math.max(i - 1, 0))
   }
 

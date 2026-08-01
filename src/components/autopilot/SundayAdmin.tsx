@@ -36,9 +36,19 @@ export function SundayAdmin({
     [store.state.tasks.sundayAdmin, sunday],
   )
 
+  const sundayPrepared = store.state.lastSaturdayDumpSunday === sunday
+  const sessionComplete = sundayPrepared && tasks.length === 0
+
   const focusTask: Task | null = focusId
     ? (tasks.find((t) => t.id === focusId) ?? null)
     : null
+
+  // Lock Sunday Admin once the allocated pile is cleared.
+  useEffect(() => {
+    if (!open || !sessionComplete) return
+    if (store.state.autopilotCompletions?.sundayAdminDate === sunday) return
+    store.completeAutopilot('sundayAdmin', sunday)
+  }, [open, sessionComplete, sunday, store])
 
   useEffect(() => {
     if (!open) {
@@ -130,10 +140,21 @@ export function SundayAdmin({
               {tasks.length === 0 ? (
                 <div className="wind-down-done">
                   <div className="wind-down-done-mark" aria-hidden="true" />
-                  <p>No tasks allocated for this Sunday.</p>
-                  <p className="sunday-rec-note">
-                    Run Saturday Dump to load the pile, then come back.
-                  </p>
+                  {sessionComplete ? (
+                    <>
+                      <p>Sunday Admin complete. Locked for {formatLongDate(sunday)}.</p>
+                      <p className="sunday-rec-note">
+                        Come back next week after Saturday Dump loads the next pile.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p>No tasks allocated for this Sunday.</p>
+                      <p className="sunday-rec-note">
+                        Run Saturday Dump to load the pile, then come back.
+                      </p>
+                    </>
+                  )}
                   <button type="button" className="btn-primary" onClick={onClose}>
                     Close
                   </button>

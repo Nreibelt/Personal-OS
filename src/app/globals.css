@@ -6318,6 +6318,14 @@ select:focus {
   right: 0.85rem;
 }
 
+.autopilot-view .action-tile.locked {
+  opacity: 0.55;
+}
+
+.autopilot-view .action-tile.locked .action-tile-desc {
+  color: var(--accent);
+}
+
 .task-date-assign {
   display: flex;
   flex-wrap: wrap;

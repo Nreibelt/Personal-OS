@@ -33,6 +33,7 @@ import type {
   SpendEntry,
   SummaryMode,
   AddTaskOptions,
+  AutopilotCompletions,
   Task,
   TimeEntry,
   WeekReflection,
@@ -42,6 +43,7 @@ import type {
 } from '../types'
 import {
   DEEP_WORK_IDS,
+  EMPTY_AUTOPILOT_COMPLETIONS,
   equalDeepWorkSplit,
   normalizeActiveTab,
   isDeepWorkId,
@@ -151,6 +153,18 @@ function migrateWeeklyGoals(raw: unknown, fallback: WeeklyGoal[]): WeeklyGoal[] 
   const goals = raw.map(migrateWeeklyGoal).filter((g): g is WeeklyGoal => g != null)
   while (goals.length < 3) goals.push(...emptyWeeklyGoals().slice(0, 3 - goals.length))
   return goals.slice(0, 3)
+}
+
+function migrateAutopilotCompletions(raw: unknown): AutopilotCompletions {
+  if (!raw || typeof raw !== 'object') return { ...EMPTY_AUTOPILOT_COMPLETIONS }
+  const c = raw as Partial<AutopilotCompletions>
+  return {
+    eveningWindDownDate:
+      typeof c.eveningWindDownDate === 'string' ? c.eveningWindDownDate : null,
+    sundayAdminDate: typeof c.sundayAdminDate === 'string' ? c.sundayAdminDate : null,
+    sundayCenterWeekStart:
+      typeof c.sundayCenterWeekStart === 'string' ? c.sundayCenterWeekStart : null,
+  }
 }
 
 function migrateWeekReflections(raw: unknown): Record<string, WeekReflection> {
@@ -450,6 +464,7 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
         : parsed.lastSaturdayDumpSunday === null
           ? null
           : seed.lastSaturdayDumpSunday ?? null,
+    autopilotCompletions: migrateAutopilotCompletions(parsed.autopilotCompletions),
     habits: migrateHabits(parsed.habits ?? seed.habits, today),
     personalFinance: mergePersonalFoodAndDrink(personalFinance),
     companyFinance,
@@ -710,6 +725,34 @@ export function useStore() {
   )
 
   const setWeekIntention = useCallback((weekIntention: string) => update({ weekIntention }), [update])
+
+  const completeAutopilot = useCallback(
+    (
+      kind: 'eveningWindDown' | 'sundayAdmin' | 'sundayCenter',
+      key: string,
+    ) => {
+      update((s) => {
+        const current = s.autopilotCompletions ?? { ...EMPTY_AUTOPILOT_COMPLETIONS }
+        if (kind === 'eveningWindDown') {
+          return {
+            ...s,
+            autopilotCompletions: { ...current, eveningWindDownDate: key },
+          }
+        }
+        if (kind === 'sundayAdmin') {
+          return {
+            ...s,
+            autopilotCompletions: { ...current, sundayAdminDate: key },
+          }
+        }
+        return {
+          ...s,
+          autopilotCompletions: { ...current, sundayCenterWeekStart: key },
+        }
+      })
+    },
+    [update],
+  )
 
   const saveWeekReflection = useCallback((weekStart: string, reflection: WeekReflection) => {
     update((s) => ({
@@ -1531,6 +1574,8 @@ export function useStore() {
         companyDocuments: s.companyDocuments,
         companyIdeas: s.companyIdeas,
         visionGoals: s.visionGoals,
+        autopilotCompletions: s.autopilotCompletions,
+        lastSaturdayDumpSunday: s.lastSaturdayDumpSunday,
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       writeFinanceBackup(next.personalFinance, next.companyFinance)
@@ -1873,6 +1918,7 @@ export function useStore() {
     setActiveTab,
     setIdentity,
     setWeekIntention,
+    completeAutopilot,
     saveWeekReflection,
     reviewWeeklyGoals,
     commitWeeklyPlan,
