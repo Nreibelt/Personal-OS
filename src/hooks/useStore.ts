@@ -1498,6 +1498,7 @@ export function useStore() {
         revolutSync: s.revolutSync,
         companyDocuments: s.companyDocuments,
         companyIdeas: s.companyIdeas,
+        visionGoals: s.visionGoals,
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       writeFinanceBackup(next.personalFinance, next.companyFinance)
