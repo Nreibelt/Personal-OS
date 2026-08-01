@@ -41,6 +41,7 @@ import {
   isDeepWorkId,
   scaleDeepWorkSplit,
 } from '../types'
+import { mergePersonalFoodAndDrink } from '../utils/finance'
 import {
   addDays,
   parseDateKey,
@@ -330,7 +331,7 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
     showAllTasks: parsed.showAllTasks ?? false,
     dailyOneThing: { ...seed.dailyOneThing, ...(parsed.dailyOneThing || {}) },
     habits: migrateHabits(parsed.habits ?? seed.habits, today),
-    personalFinance,
+    personalFinance: mergePersonalFoodAndDrink(personalFinance),
     companyFinance,
     revolutSync: migrateRevolutSync(parsed.revolutSync, seed.revolutSync),
     revolutCredentials: parsed.revolutCredentials,

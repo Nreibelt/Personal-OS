@@ -169,4 +169,127 @@ export function parseAmount(raw: string): number | null {
   return Math.round(n * 100) / 100
 }
 
+function normalizeExpenseName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function isFoodName(name: string): boolean {
+  const n = normalizeExpenseName(name)
+  return n === 'food' || n === 'foods'
+}
+
+function isDrinkName(name: string): boolean {
+  const n = normalizeExpenseName(name)
+  return n === 'drink' || n === 'drinks'
+}
+
+function isFoodAndDrinkName(name: string): boolean {
+  const n = normalizeExpenseName(name)
+  return (
+    n === 'food and drink' ||
+    n === 'food and drinks' ||
+    n === 'foods and drinks' ||
+    n === 'food drink'
+  )
+}
+
+/**
+ * Hard-merge personal Food + Drink into one weekly fixed expense ($185),
+ * remapping every spend / allocation line so history and weekly progress stay intact.
+ * Idempotent — safe to run on every load.
+ */
+export function mergePersonalFoodAndDrink(ledger: FinanceLedger): FinanceLedger {
+  const COMBINED_NAME = 'Food & Drink'
+  const COMBINED_AMOUNT = 185
+  const COMBINED_FREQUENCY: ExpenseFrequency = 'weekly'
+
+  const foodLike = ledger.categories.filter(
+    (c) => isFoodName(c.name) || isDrinkName(c.name) || isFoodAndDrinkName(c.name),
+  )
+  if (foodLike.length === 0) return ledger
+
+  const alreadyCombined =
+    foodLike.length === 1 &&
+    isFoodAndDrinkName(foodLike[0].name) &&
+    foodLike[0].frequency === COMBINED_FREQUENCY &&
+    foodLike[0].amount === COMBINED_AMOUNT &&
+    !foodLike[0].parentId
+
+  if (alreadyCombined) return ledger
+
+  const combined = foodLike.find((c) => isFoodAndDrinkName(c.name))
+  const food = foodLike.find((c) => isFoodName(c.name))
+  const drink = foodLike.find((c) => isDrinkName(c.name))
+  const keeper = combined ?? food ?? drink ?? foodLike[0]
+  if (!keeper) return ledger
+
+  const absorbIds = new Set(
+    foodLike.filter((c) => c.id !== keeper.id).map((c) => c.id),
+  )
+
+  // Also absorb direct children of categories being removed (keeps micro-spend history)
+  for (const cat of ledger.categories) {
+    if (cat.parentId && absorbIds.has(cat.parentId)) absorbIds.add(cat.id)
+  }
+
+  const categories = ledger.categories
+    .filter((c) => !absorbIds.has(c.id))
+    .map((c) => {
+      if (c.id !== keeper.id) {
+        if (c.parentId && absorbIds.has(c.parentId)) {
+          return { ...c, parentId: keeper.id }
+        }
+        return c
+      }
+      return {
+        ...c,
+        name: COMBINED_NAME,
+        frequency: COMBINED_FREQUENCY,
+        amount: COMBINED_AMOUNT,
+        parentId: undefined,
+      }
+    })
+
+  const spends = ledger.spends.map((s) => {
+    if (s.kind !== 'category' || !s.categoryId || !absorbIds.has(s.categoryId)) return s
+    return { ...s, categoryId: keeper.id }
+  })
+
+  const allocations = ledger.allocations.map((a) => ({
+    ...a,
+    lines: a.lines.map((line) => {
+      if (line.kind !== 'category' || !line.categoryId || !absorbIds.has(line.categoryId)) {
+        return line
+      }
+      return { ...line, categoryId: keeper.id }
+    }),
+  }))
+
+  // Collapse duplicate allocation lines that now point at the same category
+  const collapsedAllocations = allocations.map((a) => {
+    const mergedLines: typeof a.lines = []
+    for (const line of a.lines) {
+      if (line.kind === 'category' && line.categoryId === keeper.id) {
+        const existing = mergedLines.find(
+          (l) => l.kind === 'category' && l.categoryId === keeper.id,
+        )
+        if (existing) {
+          existing.amount = Math.round((existing.amount + line.amount) * 100) / 100
+          continue
+        }
+      }
+      mergedLines.push({ ...line })
+    }
+    return { ...a, lines: mergedLines }
+  })
+
+  return { categories, allocations: collapsedAllocations, spends }
+}
+
 export { startOfWeekMonday }
