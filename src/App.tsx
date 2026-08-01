@@ -5,11 +5,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { CompanyDocumentsView } from './components/business/CompanyDocumentsView'
 import { CompanyIdeasView } from './components/business/CompanyIdeasView'
 import { CompanyTodosView } from './components/business/CompanyTodosView'
+import { CalendarView } from './components/CalendarView'
 import { DashboardView } from './components/DashboardView'
 import { DeepWorkTimerHost } from './components/DeepWorkTimerHost'
-import { DeepWorkView } from './components/DeepWorkView'
 import { FinancesView } from './components/FinancesView'
 import { LayerGate } from './components/LayerGate'
+import { TasksView } from './components/TasksView'
 import { ConfirmDialog } from './components/ui/ConfirmDialog'
 import { useStore } from './hooks/useStore'
 import type { AppLayer, AppTab, BusinessTab, DeepWorkId, ProjectId } from './types'
@@ -20,7 +21,8 @@ const BUSINESS_TAB_KEY = 'batcave-business-tab-v1'
 
 const PERSONAL_TABS: { id: AppTab; label: string; sub: string }[] = [
   { id: 'dashboard', label: 'Dashboard', sub: 'Command Center' },
-  { id: 'deepWork', label: 'Deep Work', sub: 'Deep Work' },
+  { id: 'calendar', label: 'Calendar', sub: 'Schedule' },
+  { id: 'tasks', label: 'Tasks', sub: 'Projects' },
   { id: 'personalFinances', label: 'Personal Finances', sub: 'Personal Finances' },
 ]
 
@@ -131,15 +133,15 @@ export default function App() {
 
   const clearPendingSession = useCallback(() => setPendingSession(null), [])
 
-  const openDeepWork = () => {
+  const openTasks = () => {
     if (layer !== 'personal') setLayer('personal')
-    store.setActiveTab('deepWork')
+    store.setActiveTab('tasks')
     store.setSelectedDate(todayDateKey())
   }
 
   const startSession = (projectId: DeepWorkId | ProjectId) => {
     store.setSelectedDate(todayDateKey())
-    openDeepWork()
+    openTasks()
     setPendingSession(projectId)
   }
 
@@ -292,7 +294,7 @@ export default function App() {
             ) : (
               <>
                 <span className="status-pill">{formatLongDate(store.state.selectedDate)}</span>
-                {tab === 'deepWork' && (
+                {(tab === 'calendar' || tab === 'tasks') && (
                   <>
                     <span className={`status-pill ${targetHit ? 'hit' : 'miss'}`}>
                       DEEP <strong>{formatMinutes(deepToday)}</strong>
@@ -365,7 +367,8 @@ export default function App() {
           ) : (
             <>
               {tab === 'dashboard' && <DashboardView store={store} onStartProject={startSession} />}
-              {tab === 'deepWork' && <DeepWorkView store={store} onStartSession={startSession} />}
+              {tab === 'calendar' && <CalendarView store={store} />}
+              {tab === 'tasks' && <TasksView store={store} onStartSession={startSession} />}
               {tab === 'personalFinances' && <FinancesView store={store} realm="personal" />}
             </>
           )}

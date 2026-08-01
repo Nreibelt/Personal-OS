@@ -38,6 +38,7 @@ import type {
 import {
   DEEP_WORK_IDS,
   equalDeepWorkSplit,
+  normalizeActiveTab,
   isDeepWorkId,
   scaleDeepWorkSplit,
 } from '../types'
@@ -319,7 +320,7 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
     // Always open on Bali “today” so the day label matches WITA
     selectedDate: today,
     calendarMonth: todayMonthKey(),
-    activeTab: parsed.activeTab ?? 'dashboard',
+    activeTab: normalizeActiveTab(parsed.activeTab),
     tasks: migrateTasks((parsed.tasks as AppState['tasks']) || seed.tasks),
     dailyDeepWorkTargetMinutes:
       parsed.dailyDeepWorkTargetMinutes ?? seed.dailyDeepWorkTargetMinutes,

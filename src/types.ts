@@ -139,7 +139,29 @@ export function scaleDeepWorkSplit(
 }
 
 /** Top-level product surface */
-export type AppTab = 'dashboard' | 'deepWork' | 'personalFinances' | 'companyFinances'
+export type AppTab =
+  | 'dashboard'
+  | 'calendar'
+  | 'tasks'
+  | 'personalFinances'
+  | 'companyFinances'
+
+const APP_TABS: readonly AppTab[] = [
+  'dashboard',
+  'calendar',
+  'tasks',
+  'personalFinances',
+  'companyFinances',
+]
+
+/** Map persisted / legacy tab ids onto current AppTab values. */
+export function normalizeActiveTab(tab: unknown): AppTab {
+  if (tab === 'deepWork') return 'calendar'
+  if (typeof tab === 'string' && (APP_TABS as readonly string[]).includes(tab)) {
+    return tab as AppTab
+  }
+  return 'dashboard'
+}
 
 /** Post-login layer: hub gate, personal OS, or company Batcave */
 export type AppLayer = 'gate' | 'personal' | 'business'

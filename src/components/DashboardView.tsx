@@ -3,9 +3,18 @@ import { PROJECT_MAP } from '../data/seed'
 import type { Store } from '../hooks/useStore'
 import { DEEP_WORK_IDS, type DeepWorkId } from '../types'
 import { formatMinutes, todayDateKey } from '../utils/time'
+import { AttentionAllocation } from './AttentionAllocation'
+import { DailyNotes } from './DailyNotes'
+import { IdentityPanel } from './IdentityPanel'
+import { MentalRam } from './MentalRam'
+import { NonNegotiables } from './NonNegotiables'
+import { PauseAnalytics, SessionAnalytics } from './SessionAnalytics'
+import { TimeSummary } from './TimeSummary'
+import { WeekIntention } from './WeekIntention'
 import { Modal } from './ui/Modal'
 
 type RitualId = 'morning' | 'evening' | 'week'
+type CommandModal = 'identity' | 'mental' | 'habits' | 'analytics' | null
 
 const RITUAL_CARDS: {
   id: RitualId
@@ -27,6 +36,7 @@ export function DashboardView({
   const today = todayDateKey()
   const busy = !!store.state.activeTimer
   const [ritualOpen, setRitualOpen] = useState<RitualId | null>(null)
+  const [commandModal, setCommandModal] = useState<CommandModal>(null)
   const activeRitual = RITUAL_CARDS.find((card) => card.id === ritualOpen)
 
   return (
@@ -67,6 +77,33 @@ export function DashboardView({
               </button>
             )
           })}
+        </div>
+      </section>
+
+      <section className="action-board compact">
+        <header className="action-board-head">
+          <h2 className="action-board-title">Command surfaces</h2>
+          <p className="action-board-copy">
+            Identity, mental RAM, habits, and analytics stay out of the way.
+          </p>
+        </header>
+        <div className="action-board-grid four">
+          <button type="button" className="action-tile compact" onClick={() => setCommandModal('identity')}>
+            <span className="action-tile-kicker">90-day</span>
+            <span className="action-tile-name">Identity</span>
+          </button>
+          <button type="button" className="action-tile compact" onClick={() => setCommandModal('mental')}>
+            <span className="action-tile-kicker">Mind</span>
+            <span className="action-tile-name">Intention & loops</span>
+          </button>
+          <button type="button" className="action-tile compact" onClick={() => setCommandModal('habits')}>
+            <span className="action-tile-kicker">Rituals</span>
+            <span className="action-tile-name">Non-negotiables</span>
+          </button>
+          <button type="button" className="action-tile compact" onClick={() => setCommandModal('analytics')}>
+            <span className="action-tile-kicker">Readouts</span>
+            <span className="action-tile-name">Time analytics</span>
+          </button>
         </div>
       </section>
 
@@ -127,6 +164,35 @@ export function DashboardView({
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal open={commandModal === 'identity'} onClose={() => setCommandModal(null)} title="90-day identity" size="lg">
+        <IdentityPanel store={store} />
+      </Modal>
+
+      <Modal open={commandModal === 'mental'} onClose={() => setCommandModal(null)} title="Mental OS" size="lg">
+        <div className="layout-stack">
+          <WeekIntention store={store} />
+          <MentalRam store={store} />
+          <DailyNotes store={store} />
+        </div>
+      </Modal>
+
+      <Modal open={commandModal === 'habits'} onClose={() => setCommandModal(null)} title="Non-negotiables" size="md">
+        <NonNegotiables store={store} />
+      </Modal>
+
+      <Modal open={commandModal === 'analytics'} onClose={() => setCommandModal(null)} title="Time analytics" size="xl">
+        <div className="analytics-stack">
+          <div className="grid-2">
+            <TimeSummary store={store} />
+            <AttentionAllocation store={store} />
+          </div>
+          <div className="grid-2">
+            <SessionAnalytics store={store} />
+            <PauseAnalytics store={store} />
+          </div>
+        </div>
       </Modal>
     </div>
   )
