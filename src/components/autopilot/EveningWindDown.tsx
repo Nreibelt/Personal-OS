@@ -78,8 +78,8 @@ export function EveningWindDown({
 
   const openTasks = useMemo(() => {
     return PROJECTS.flatMap((project) =>
-      store.state.tasks[project.id]
-        .filter((t) => !t.done)
+      (store.state.tasks[project.id] ?? [])
+        .filter((t) => !t.done && !t.archived)
         .map((task) => ({ project, task })),
     )
   }, [store.state.tasks])

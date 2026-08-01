@@ -626,6 +626,12 @@ select:focus {
   gap: var(--space-4);
 }
 
+.grid-projects {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+
 .grid-2 {
   display: grid;
   grid-template-columns: 1.1fr 1fr;
@@ -639,6 +645,12 @@ select:focus {
   .grid-3,
   .grid-2 {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .grid-projects {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -664,7 +676,8 @@ select:focus {
   .app-stage {
     padding: 1rem 1rem 2.5rem;
   }
-  .grid-4 {
+  .grid-4,
+  .grid-projects {
     grid-template-columns: 1fr;
   }
   .command-bar {
@@ -863,6 +876,58 @@ select:focus {
   gap: 0.5rem;
   padding: 0.35rem 0;
   border-bottom: 1px solid var(--line-soft);
+}
+
+.check-item.task-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.task-row-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.task-row-main .check-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.notes-toggle {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.18rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--line-soft);
+  color: var(--text-dim);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.notes-toggle:hover,
+.notes-toggle.open {
+  color: var(--text);
+  border-color: rgba(var(--accent-rgb), 0.35);
+}
+
+.notes-toggle.has-notes {
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.3);
+}
+
+.task-notes textarea {
+  width: 100%;
+  margin: 0;
+  min-height: 3.25rem;
+  resize: vertical;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .check-item:last-child {
@@ -4390,6 +4455,10 @@ a.btn-secondary.compact {
 }
 
 .platform-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.55rem;
   padding: 0.9rem 1.25rem 1.15rem;
   border-top: 1px solid var(--line);
   flex-shrink: 0;
@@ -4760,14 +4829,97 @@ a.btn-secondary.compact {
   margin-bottom: 1.15rem;
 }
 
-/* Sticky deep work dock */
-.deep-dock {
+/* Sticky corner dock: +task + deep work */
+.corner-dock {
   position: fixed;
   right: 1.25rem;
   bottom: 1.25rem;
   z-index: 70;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
+  gap: 0.55rem;
+}
+
+/* Leave room for the minimized timer pill on the right */
+.corner-dock.beside-timer {
+  right: calc(1.25rem + 13rem);
+}
+
+.corner-dock-actions {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-end;
+  gap: 0.55rem;
+}
+
+.quick-task-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.7rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 50%), var(--bg-elevated);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  box-shadow: var(--panel-highlight), 0 12px 40px rgba(0, 0, 0, 0.45);
+  transition:
+    border-color var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease),
+    transform var(--duration) var(--ease);
+}
+
+.quick-task-toggle:hover {
+  transform: translateY(-1px);
+  border-color: rgba(var(--accent-rgb), 0.45);
+}
+
+.quick-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.quick-add-form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+
+.quick-add-form .field-label {
+  margin: 0;
+}
+
+.quick-add-form .field-optional {
+  opacity: 0.55;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  font-weight: 400;
+}
+
+.quick-add-form input,
+.quick-add-form textarea,
+.quick-add-form select {
+  width: 100%;
+  margin: 0;
+}
+
+.quick-add-form .field-select {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Sticky deep work dock (nested in corner-dock) */
+.deep-dock {
+  position: relative;
+  display: flex;
+  flex-direction: column-reverse;
   align-items: flex-end;
   gap: 0.55rem;
 }

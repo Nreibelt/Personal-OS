@@ -1,4 +1,4 @@
-export type ProjectId = 'chase' | 'myProject' | 'rav' | 'personal'
+export type ProjectId = 'chase' | 'myProject' | 'rav' | 'personal' | 'sundayAdmin'
 
 export interface Project {
   id: ProjectId
@@ -14,6 +14,17 @@ export interface Task {
   forToday: boolean
   /** YYYY-MM-DD when this task is planned; null/undefined = undated backlog */
   plannedDate?: string | null
+  /** Freeform notes for the task */
+  notes?: string
+  /** Completed tasks are archived and hidden from active lists */
+  archived?: boolean
+}
+
+export type AddTaskOptions = {
+  plannedDate?: string | null
+  notes?: string
+  /** @deprecated prefer plannedDate — kept for call-site convenience */
+  forToday?: boolean
 }
 
 export interface Habit {

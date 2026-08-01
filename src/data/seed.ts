@@ -7,6 +7,7 @@ export const PROJECTS: Project[] = [
   { id: 'myProject', name: 'My Project', color: '#3dfa8e' },
   { id: 'rav', name: 'Rav Work', color: '#c4a574' },
   { id: 'personal', name: 'Personal Time', color: '#7f8f86' },
+  { id: 'sundayAdmin', name: 'Sunday Admin', color: '#8a9bb5' },
 ]
 
 export const PROJECT_MAP = Object.fromEntries(PROJECTS.map((p) => [p.id, p])) as Record<
@@ -31,6 +32,8 @@ function task(text: string, forToday: boolean, done = false): Task {
     done,
     forToday,
     plannedDate: forToday ? today : null,
+    notes: '',
+    archived: done,
   }
 }
 
@@ -128,6 +131,11 @@ export function createSeedState(): AppState {
         task('Move Attention OS To Vercel', false),
         task('Mumma Bday Card', true),
         task('Apartment Deposit + Finances', false),
+      ],
+      sundayAdmin: [
+        task('Clear inbox to zero', false),
+        task('Pay bills / review subscriptions', false),
+        task('House admin sweep', false),
       ],
     },
     timeEntries: [

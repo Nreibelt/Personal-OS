@@ -32,6 +32,7 @@ import type {
   RevolutSyncState,
   SpendEntry,
   SummaryMode,
+  AddTaskOptions,
   Task,
   TimeEntry,
 } from '../types'
@@ -123,9 +124,10 @@ function migrateTimeEntries(raw: unknown, fallback: TimeEntry[]): TimeEntry[] {
 
 function migrateTasks(tasks: AppState['tasks']): AppState['tasks'] {
   const today = todayDateKey()
-  const next = { ...tasks }
-  for (const id of Object.keys(next) as ProjectId[]) {
-    next[id] = (next[id] || []).map((t) => {
+  const next = { ...tasks } as AppState['tasks']
+  for (const project of PROJECTS) {
+    const list = Array.isArray(next[project.id]) ? next[project.id] : []
+    next[project.id] = list.map((t) => {
       const forToday = typeof t.forToday === 'boolean' ? t.forToday : true
       const plannedDate =
         typeof t.plannedDate === 'string'
@@ -135,10 +137,13 @@ function migrateTasks(tasks: AppState['tasks']): AppState['tasks'] {
             : forToday
               ? today
               : null
+      const done = Boolean(t.done)
       return {
         ...t,
         forToday: plannedDate === today,
         plannedDate,
+        notes: typeof t.notes === 'string' ? t.notes : '',
+        archived: typeof t.archived === 'boolean' ? t.archived : done,
       }
     })
   }
@@ -697,9 +702,12 @@ export function useStore() {
       ...s,
       tasks: {
         ...s.tasks,
-        [projectId]: s.tasks[projectId].map((t) =>
-          t.id === taskId ? { ...t, done: !t.done } : t,
-        ),
+        [projectId]: s.tasks[projectId].map((t) => {
+          if (t.id !== taskId) return t
+          // Completing a task archives it (hidden from active lists).
+          if (!t.done) return { ...t, done: true, archived: true }
+          return { ...t, done: false, archived: false }
+        }),
       },
     }))
   }, [update])
@@ -745,27 +753,52 @@ export function useStore() {
     [update],
   )
 
-  const addTask = useCallback((projectId: ProjectId, text: string, forToday = true) => {
-    const trimmed = text.trim()
-    if (!trimmed) return
-    const today = todayDateKey()
+  const setTaskNotes = useCallback((projectId: ProjectId, taskId: string, notes: string) => {
     update((s) => ({
       ...s,
       tasks: {
         ...s.tasks,
-        [projectId]: [
-          ...s.tasks[projectId],
-          {
-            id: uid('task'),
-            text: trimmed,
-            done: false,
-            forToday,
-            plannedDate: forToday ? today : null,
-          } satisfies Task,
-        ],
+        [projectId]: s.tasks[projectId].map((t) =>
+          t.id === taskId ? { ...t, notes } : t,
+        ),
       },
     }))
   }, [update])
+
+  const addTask = useCallback(
+    (projectId: ProjectId, text: string, opts: boolean | AddTaskOptions = true) => {
+      const trimmed = text.trim()
+      if (!trimmed) return
+      const today = todayDateKey()
+      const options: AddTaskOptions = typeof opts === 'boolean' ? { forToday: opts } : opts
+      const plannedDate =
+        options.plannedDate !== undefined
+          ? options.plannedDate
+          : options.forToday === false
+            ? null
+            : today
+      const forToday = plannedDate === today
+      update((s) => ({
+        ...s,
+        tasks: {
+          ...s.tasks,
+          [projectId]: [
+            ...(s.tasks[projectId] ?? []),
+            {
+              id: uid('task'),
+              text: trimmed,
+              done: false,
+              forToday,
+              plannedDate,
+              notes: options.notes?.trim() ?? '',
+              archived: false,
+            } satisfies Task,
+          ],
+        },
+      }))
+    },
+    [update],
+  )
 
   const removeTask = useCallback((projectId: ProjectId, taskId: string) => {
     update((s) => ({
@@ -1464,11 +1497,12 @@ export function useStore() {
   const projectMinutesToday = useMemo(() => {
     const map = Object.fromEntries(PROJECTS.map((p) => [p.id, 0])) as Record<ProjectId, number>
     for (const e of state.timeEntries) {
-      if (e.date === state.selectedDate) map[e.projectId] += e.minutes
+      if (e.date === state.selectedDate && e.projectId in map) map[e.projectId] += e.minutes
     }
     if (
       state.activeTimer &&
-      todayDateKey(new Date(state.activeTimer.sessionStartedAt)) === state.selectedDate
+      todayDateKey(new Date(state.activeTimer.sessionStartedAt)) === state.selectedDate &&
+      state.activeTimer.projectId in map
     ) {
       const liveMin = Math.floor(liveTimerSeconds / 60)
       map[state.activeTimer.projectId] += liveMin
@@ -1528,6 +1562,7 @@ export function useStore() {
     toggleTask,
     setTaskForToday,
     setTaskPlannedDate,
+    setTaskNotes,
     addTask,
     removeTask,
     setSummaryMode,

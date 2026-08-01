@@ -26,9 +26,10 @@ export function TimerOverlay({
   const paused = store.isTimerPaused
   const hasPauses = timer.pauseCount > 0 || paused
   const today = todayDateKey()
-  const todayTasks = store.state.tasks[timer.projectId].filter((t) =>
-    typeof t.plannedDate === 'string' ? t.plannedDate === today : t.forToday,
-  )
+  const todayTasks = (store.state.tasks[timer.projectId] ?? []).filter((t) => {
+    if (t.archived || t.done) return false
+    return typeof t.plannedDate === 'string' ? t.plannedDate === today : t.forToday
+  })
   const openCount = todayTasks.filter((t) => !t.done).length
 
   if (minimized) {
