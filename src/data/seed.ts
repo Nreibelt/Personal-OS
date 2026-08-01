@@ -243,6 +243,7 @@ export function createSeedState(): AppState {
       companyQueue: [],
       settledIds: [],
     },
+    visionGoals: [],
     companyDocuments: [],
     companyIdeas: [],
   }

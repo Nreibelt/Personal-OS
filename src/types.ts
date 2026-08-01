@@ -195,6 +195,7 @@ export type AppTab =
   | 'companyFinances'
   | 'autopilot'
   | 'mentor'
+  | 'vision'
 
 const APP_TABS: readonly AppTab[] = [
   'dashboard',
@@ -204,7 +205,18 @@ const APP_TABS: readonly AppTab[] = [
   'companyFinances',
   'autopilot',
   'mentor',
+  'vision',
 ]
+
+/** Long-term inspiring goals on the Vision surface */
+export interface VisionGoal {
+  id: string
+  title: string
+  /** Why it pulls you — vivid picture, feeling, stake */
+  body: string
+  createdAt: string
+  updatedAt: string
+}
 
 /** Map persisted / legacy tab ids onto current AppTab values. */
 export function normalizeActiveTab(tab: unknown): AppTab {
@@ -376,6 +388,8 @@ export interface AppState {
   revolutSync: RevolutSyncState
   /** Optional — synced to Supabase so Revolut works across browsers for this user */
   revolutCredentials?: RevolutCredentials
+  /** Long-term inspiring goals */
+  visionGoals: VisionGoal[]
   /** Batcave documents (offer docs, briefs, etc.) */
   companyDocuments: CompanyDocument[]
   /** Batcave idea dump */

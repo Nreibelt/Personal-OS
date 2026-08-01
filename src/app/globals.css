@@ -359,6 +359,19 @@ select:focus {
   border-radius: 99px;
   opacity: 0.55;
 }
+.nav-glyph-vision .nav-glyph-core {
+  width: 0;
+  height: 0;
+  border-radius: 0;
+  background: transparent;
+  border-left: 0.28rem solid transparent;
+  border-right: 0.28rem solid transparent;
+  border-bottom: 0.48rem solid var(--text-dim);
+  box-shadow: none;
+}
+.rail-item.active .nav-glyph-vision .nav-glyph-core {
+  border-bottom-color: #04140c;
+}
 .nav-glyph-metaAds .nav-glyph-core,
 .nav-glyph-coldEmail .nav-glyph-core,
 .nav-glyph-agents .nav-glyph-core { opacity: 0.55; }
