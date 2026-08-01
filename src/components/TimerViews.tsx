@@ -1,63 +1,9 @@
 import { useState } from 'react'
 import { PROJECT_MAP } from '../data/seed'
-import type { ProjectId } from '../types'
 import type { Store } from '../hooks/useStore'
 import { formatMinutes, formatTimer } from '../utils/time'
+import { TaskRow } from './TaskRow'
 import { ModalPortal } from './ui/ModalPortal'
-
-export function StartSessionModal({
-  store,
-  projectId,
-  onClose,
-}: {
-  store: Store
-  projectId: ProjectId
-  onClose: () => void
-}) {
-  const project = PROJECT_MAP[projectId]
-  const [note, setNote] = useState('')
-
-  return (
-    <ModalPortal>
-      <div className="modal-backdrop" role="presentation" onClick={onClose}>
-        <div
-          className="modal"
-          role="dialog"
-          aria-modal
-          aria-labelledby="session-title"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h2 id="session-title">
-            <span className="dot" style={{ background: project.color, color: project.color }} />
-            START {project.name.toUpperCase()} SESSION
-          </h2>
-          <p>What are you focusing on this session?</p>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="List your priorities for this session..."
-            autoFocus
-          />
-          <div className="btn-row">
-            <button className="btn-secondary" type="button" onClick={onClose}>
-              Cancel
-            </button>
-            <button
-              className="btn-primary"
-              type="button"
-              onClick={() => {
-                store.startTimer(projectId, note)
-                onClose()
-              }}
-            >
-              Start Focus Session
-            </button>
-          </div>
-        </div>
-      </div>
-    </ModalPortal>
-  )
-}
 
 export function TimerOverlay({
   store,
@@ -71,12 +17,16 @@ export function TimerOverlay({
   onExpand: () => void
 }) {
   const timer = store.state.activeTimer
+  const [taskText, setTaskText] = useState('')
+
   if (!timer) return null
 
   const project = PROJECT_MAP[timer.projectId]
   const displayToday = store.projectMinutesToday[timer.projectId]
   const paused = store.isTimerPaused
   const hasPauses = timer.pauseCount > 0 || paused
+  const todayTasks = store.state.tasks[timer.projectId].filter((t) => t.forToday)
+  const openCount = todayTasks.filter((t) => !t.done).length
 
   if (minimized) {
     return (
@@ -120,7 +70,43 @@ export function TimerOverlay({
               {timer.pauseCount} pause{timer.pauseCount === 1 ? '' : 's'} · {formatTimer(store.livePauseSeconds)} total break
             </div>
           )}
-          {timer.focusNote && <p className="timer-note">{timer.focusNote}</p>}
+
+          <div className="timer-todos">
+            <div className="todo-header">
+              <span className="todo-label">TODAY&apos;S TASKS</span>
+              <span className="todo-meta">{openCount} open</span>
+            </div>
+            <ul className="check-list">
+              {todayTasks.length === 0 && (
+                <li className="empty-tasks">No tasks for today — add one below</li>
+              )}
+              {todayTasks.map((task) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  project={project}
+                  store={store}
+                  showScope={false}
+                />
+              ))}
+            </ul>
+            <form
+              className="inline-add"
+              onSubmit={(e) => {
+                e.preventDefault()
+                store.addTask(timer.projectId, taskText, true)
+                setTaskText('')
+              }}
+            >
+              <input
+                value={taskText}
+                onChange={(e) => setTaskText(e.target.value)}
+                placeholder="+ Add today's task"
+                aria-label={`Add task to ${project.name}`}
+              />
+            </form>
+          </div>
+
           <div className="timer-actions">
             {paused ? (
               <button className="btn-primary" type="button" onClick={() => store.resumeTimer()}>

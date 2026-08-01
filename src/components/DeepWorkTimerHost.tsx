@@ -5,7 +5,7 @@ import { PROJECT_MAP } from '../data/seed'
 import type { Store } from '../hooks/useStore'
 import { DEEP_WORK_IDS, type DeepWorkId, type ProjectId } from '../types'
 import { formatMinutes, todayDateKey } from '../utils/time'
-import { StartSessionModal, TimerOverlay } from './TimerViews'
+import { TimerOverlay } from './TimerViews'
 
 /**
  * Platform-wide deep work launcher + timer chrome.
@@ -23,11 +23,13 @@ export function DeepWorkTimerHost({
   /** Changes when the user navigates tabs/layers — keeps the timer minimized so UI stays usable */
   browseKey?: string
 }) {
-  const [sessionProject, setSessionProject] = useState<ProjectId | null>(null)
   const [timerMinimized, setTimerMinimized] = useState(true)
   const [dockOpen, setDockOpen] = useState(false)
   const hadTimer = useRef(false)
   const skipBrowseMinimize = useRef(false)
+
+  const activeTimer = store.state.activeTimer
+  const startTimer = store.startTimer
 
   const clearPending = useCallback(() => {
     onPendingSessionHandled?.()
@@ -35,7 +37,7 @@ export function DeepWorkTimerHost({
 
   // Fresh start → enter focus (fullscreen). Timer cleared → reset.
   useEffect(() => {
-    const live = !!store.state.activeTimer
+    const live = !!activeTimer
     if (live && !hadTimer.current) {
       skipBrowseMinimize.current = true
       setTimerMinimized(false)
@@ -45,7 +47,7 @@ export function DeepWorkTimerHost({
       setDockOpen(false)
     }
     hadTimer.current = live
-  }, [store.state.activeTimer])
+  }, [activeTimer])
 
   // Navigating around the OS must never trap the user under the fullscreen overlay
   useEffect(() => {
@@ -54,38 +56,38 @@ export function DeepWorkTimerHost({
       skipBrowseMinimize.current = false
       return
     }
-    if (store.state.activeTimer) setTimerMinimized(true)
+    if (activeTimer) setTimerMinimized(true)
     setDockOpen(false)
-  }, [browseKey, store.state.activeTimer])
+  }, [browseKey, activeTimer])
 
-  // Pending session requests from dashboard / project cards
+  // Pending session requests from dashboard / project cards — start immediately
   useEffect(() => {
     if (!pendingSession) return
-    if (store.state.activeTimer?.projectId === pendingSession) {
+    if (activeTimer?.projectId === pendingSession) {
       // Already live — stay minimized so Deep Work UI is usable
       setTimerMinimized(true)
       clearPending()
       return
     }
-    if (store.state.activeTimer) {
-      // Different project live — don't stack a second session modal over the timer
+    if (activeTimer) {
+      // Different project live — don't stack a second session
       clearPending()
       return
     }
-    setSessionProject(pendingSession)
+    startTimer(pendingSession, '')
     clearPending()
-  }, [pendingSession, store.state.activeTimer, clearPending])
+  }, [pendingSession, activeTimer, startTimer, clearPending])
 
-  const busy = !!store.state.activeTimer
+  const busy = !!activeTimer
 
   const startProject = (id: DeepWorkId) => {
     setDockOpen(false)
-    if (store.state.activeTimer?.projectId === id) {
+    if (activeTimer?.projectId === id) {
       setTimerMinimized(false)
       return
     }
-    if (store.state.activeTimer) return
-    setSessionProject(id)
+    if (activeTimer) return
+    startTimer(id, '')
   }
 
   return (
@@ -127,14 +129,6 @@ export function DeepWorkTimerHost({
             </div>
           )}
         </div>
-      )}
-
-      {sessionProject && !store.state.activeTimer && (
-        <StartSessionModal
-          store={store}
-          projectId={sessionProject}
-          onClose={() => setSessionProject(null)}
-        />
       )}
 
       {store.state.activeTimer && (
