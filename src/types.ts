@@ -27,6 +27,36 @@ export type AddTaskOptions = {
   forToday?: boolean
 }
 
+/** Pattern noticed in Sunday Center reflection */
+export interface WeekPattern {
+  id: string
+  pattern: string
+  evolution: string
+}
+
+/** One of the three weekly goals set in Sunday Center */
+export interface WeeklyGoal {
+  id: string
+  text: string
+  /** Reviewed the following Sunday — null = not reviewed yet */
+  hit: boolean | null
+  why: string
+}
+
+/** Reflection answers for a closed week (keyed by that week’s Monday) */
+export interface WeekReflection {
+  proud: string
+  patterns: WeekPattern[]
+  improve: string
+  productivityShortfall: string
+  productivityRemedy: string
+}
+
+export interface WeeklyGoalsArchiveEntry {
+  weekStart: string
+  goals: WeeklyGoal[]
+}
+
 export interface Habit {
   id: string
   name: string
@@ -324,6 +354,14 @@ export interface AppState {
   showAllTasks: boolean
   /** Date → most important outcome for that day */
   dailyOneThing: DailyOneThing
+  /** Active weekly goals from Sunday Center (visible all week) */
+  weeklyGoals: WeeklyGoal[]
+  /** Monday YYYY-MM-DD the active weeklyGoals were set for */
+  weeklyGoalsWeekStart: string
+  /** Past weeks’ goals (for Sunday review) */
+  weeklyGoalsArchive: WeeklyGoalsArchiveEntry[]
+  /** Reflections keyed by the Monday of the week reflected on */
+  weekReflections: Record<string, WeekReflection>
   personalFinance: FinanceLedger
   companyFinance: FinanceLedger
   revolutSync: RevolutSyncState

@@ -35,6 +35,9 @@ import type {
   AddTaskOptions,
   Task,
   TimeEntry,
+  WeekReflection,
+  WeeklyGoal,
+  WeeklyGoalsArchiveEntry,
 } from '../types'
 import {
   DEEP_WORK_IDS,
@@ -120,6 +123,63 @@ function migrateTimeEntry(raw: unknown): TimeEntry | null {
 function migrateTimeEntries(raw: unknown, fallback: TimeEntry[]): TimeEntry[] {
   if (!Array.isArray(raw)) return fallback
   return raw.map(migrateTimeEntry).filter((e): e is TimeEntry => e != null)
+}
+
+function emptyWeeklyGoals(): WeeklyGoal[] {
+  return [0, 1, 2].map(() => ({
+    id: uid('wgoal'),
+    text: '',
+    hit: null,
+    why: '',
+  }))
+}
+
+function migrateWeeklyGoal(raw: unknown): WeeklyGoal | null {
+  if (!raw || typeof raw !== 'object') return null
+  const g = raw as Partial<WeeklyGoal>
+  return {
+    id: typeof g.id === 'string' && g.id ? g.id : uid('wgoal'),
+    text: typeof g.text === 'string' ? g.text : '',
+    hit: g.hit === true || g.hit === false ? g.hit : null,
+    why: typeof g.why === 'string' ? g.why : '',
+  }
+}
+
+function migrateWeeklyGoals(raw: unknown, fallback: WeeklyGoal[]): WeeklyGoal[] {
+  if (!Array.isArray(raw)) return fallback
+  const goals = raw.map(migrateWeeklyGoal).filter((g): g is WeeklyGoal => g != null)
+  while (goals.length < 3) goals.push(...emptyWeeklyGoals().slice(0, 3 - goals.length))
+  return goals.slice(0, 3)
+}
+
+function migrateWeekReflections(raw: unknown): Record<string, WeekReflection> {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Record<string, WeekReflection> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object') continue
+    const r = value as Partial<WeekReflection>
+    const patterns = Array.isArray(r.patterns)
+      ? r.patterns
+          .map((p) => {
+            if (!p || typeof p !== 'object') return null
+            const row = p as { id?: string; pattern?: string; evolution?: string }
+            return {
+              id: typeof row.id === 'string' && row.id ? row.id : uid('pat'),
+              pattern: typeof row.pattern === 'string' ? row.pattern : '',
+              evolution: typeof row.evolution === 'string' ? row.evolution : '',
+            }
+          })
+          .filter((p): p is NonNullable<typeof p> => p != null)
+      : []
+    out[key] = {
+      proud: typeof r.proud === 'string' ? r.proud : '',
+      patterns,
+      improve: typeof r.improve === 'string' ? r.improve : '',
+      productivityShortfall: typeof r.productivityShortfall === 'string' ? r.productivityShortfall : '',
+      productivityRemedy: typeof r.productivityRemedy === 'string' ? r.productivityRemedy : '',
+    }
+  }
+  return out
 }
 
 function migrateTasks(tasks: AppState['tasks']): AppState['tasks'] {
@@ -349,6 +409,20 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
     ),
     showAllTasks: parsed.showAllTasks ?? false,
     dailyOneThing: { ...seed.dailyOneThing, ...(parsed.dailyOneThing || {}) },
+    weeklyGoals: migrateWeeklyGoals(parsed.weeklyGoals, seed.weeklyGoals),
+    weeklyGoalsWeekStart:
+      typeof parsed.weeklyGoalsWeekStart === 'string' && parsed.weeklyGoalsWeekStart
+        ? parsed.weeklyGoalsWeekStart
+        : seed.weeklyGoalsWeekStart,
+    weeklyGoalsArchive: Array.isArray(parsed.weeklyGoalsArchive)
+      ? (parsed.weeklyGoalsArchive as WeeklyGoalsArchiveEntry[])
+          .map((entry) => ({
+            weekStart: entry.weekStart,
+            goals: migrateWeeklyGoals(entry.goals, emptyWeeklyGoals()),
+          }))
+          .filter((e) => typeof e.weekStart === 'string')
+      : seed.weeklyGoalsArchive,
+    weekReflections: migrateWeekReflections(parsed.weekReflections),
     habits: migrateHabits(parsed.habits ?? seed.habits, today),
     personalFinance: mergePersonalFoodAndDrink(personalFinance),
     companyFinance,
@@ -592,6 +666,69 @@ export function useStore() {
   )
 
   const setWeekIntention = useCallback((weekIntention: string) => update({ weekIntention }), [update])
+
+  const saveWeekReflection = useCallback((weekStart: string, reflection: WeekReflection) => {
+    update((s) => ({
+      ...s,
+      weekReflections: {
+        ...s.weekReflections,
+        [weekStart]: reflection,
+      },
+    }))
+  }, [update])
+
+  const reviewWeeklyGoals = useCallback((weekStart: string, goals: WeeklyGoal[]) => {
+    const next = migrateWeeklyGoals(goals, emptyWeeklyGoals())
+    update((s) => {
+      if (s.weeklyGoalsWeekStart === weekStart) {
+        return { ...s, weeklyGoals: next }
+      }
+      const hasArchive = (s.weeklyGoalsArchive || []).some((e) => e.weekStart === weekStart)
+      if (hasArchive) {
+        return {
+          ...s,
+          weeklyGoalsArchive: s.weeklyGoalsArchive.map((e) =>
+            e.weekStart === weekStart ? { ...e, goals: next } : e,
+          ),
+        }
+      }
+      // Fallback: attach review onto the active goals the user just walked
+      return { ...s, weeklyGoals: next }
+    })
+  }, [update])
+
+  /** Commit a new weekly plan; archives the previous goals if they belong to another week. */
+  const commitWeeklyPlan = useCallback(
+    (weekStart: string, goals: WeeklyGoal[], focus: string) => {
+      const nextGoals = migrateWeeklyGoals(goals, emptyWeeklyGoals()).map((g) => ({
+        ...g,
+        hit: null as boolean | null,
+        why: '',
+      }))
+      update((s) => {
+        const archive = [...(s.weeklyGoalsArchive || [])]
+        const hasContent = s.weeklyGoals.some((g) => g.text.trim())
+        if (
+          hasContent &&
+          s.weeklyGoalsWeekStart &&
+          s.weeklyGoalsWeekStart !== weekStart
+        ) {
+          archive.unshift({
+            weekStart: s.weeklyGoalsWeekStart,
+            goals: s.weeklyGoals,
+          })
+        }
+        return {
+          ...s,
+          weeklyGoals: nextGoals,
+          weeklyGoalsWeekStart: weekStart,
+          weeklyGoalsArchive: archive.slice(0, 24),
+          weekIntention: focus.trim() || s.weekIntention,
+        }
+      })
+    },
+    [update],
+  )
 
   const setDailyTargetHours = useCallback((hours: number) => {
     const clamped = Math.max(0.5, Math.min(16, hours))
@@ -1547,6 +1684,9 @@ export function useStore() {
     setActiveTab,
     setIdentity,
     setWeekIntention,
+    saveWeekReflection,
+    reviewWeeklyGoals,
+    commitWeeklyPlan,
     setDailyTargetHours,
     setDailyDeepWorkSplit,
     setShowAllTasks,

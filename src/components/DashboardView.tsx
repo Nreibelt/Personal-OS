@@ -11,6 +11,7 @@ import { NonNegotiables } from './NonNegotiables'
 import { PauseAnalytics, SessionAnalytics } from './SessionAnalytics'
 import { TimeSummary } from './TimeSummary'
 import { WeekIntention } from './WeekIntention'
+import { WeeklyGoalsPanel } from './WeeklyGoalsPanel'
 import { Modal } from './ui/Modal'
 
 type RitualId = 'morning' | 'evening' | 'week'
@@ -42,6 +43,8 @@ export function DashboardView({
   return (
     <div className="dashboard dashboard-clean">
       <p className="dashboard-lede">Center. Then move.</p>
+
+      <WeeklyGoalsPanel store={store} />
 
       <section className="dashboard-section dashboard-timers">
         <h2 className="dashboard-heading">Start deep work</h2>
@@ -172,6 +175,7 @@ export function DashboardView({
 
       <Modal open={commandModal === 'mental'} onClose={() => setCommandModal(null)} title="Mental OS" size="lg">
         <div className="layout-stack">
+          <WeeklyGoalsPanel store={store} />
           <WeekIntention store={store} />
           <MentalRam store={store} />
           <DailyNotes store={store} />

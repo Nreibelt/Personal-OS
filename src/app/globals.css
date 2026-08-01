@@ -6625,3 +6625,275 @@ select:focus {
     margin-left: 0;
   }
 }
+
+/* ——— Sunday Center + weekly goals ——— */
+
+.sunday-center-steps {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow-x: auto;
+}
+
+@media (min-width: 900px) {
+  .sunday-center-steps {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+
+.sunday-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.sunday-pulse {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+
+.sunday-field .field-label,
+.sunday-field-head .field-label {
+  margin: 0 0 0.35rem;
+}
+
+.sunday-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.45rem;
+}
+
+.sunday-pattern-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sunday-pattern-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.55rem;
+  align-items: end;
+  padding: 0.75rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.sunday-pattern-row .field {
+  margin: 0;
+}
+
+.sunday-split-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+}
+
+.sunday-goal-review-list,
+.sunday-goal-set-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.sunday-goal-review {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.sunday-goal-review-top {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sunday-goal-review-top strong {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.sunday-hit-toggle {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.sunday-finance-lede {
+  margin: 0;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+.sunday-finance-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.sunday-finance-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.sunday-finance-row.ok {
+  border-color: rgba(var(--accent-rgb), 0.28);
+}
+
+.sunday-finance-row.over {
+  border-color: rgba(220, 120, 100, 0.45);
+}
+
+.sunday-finance-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 12rem;
+  flex: 1;
+}
+
+.sunday-finance-meta {
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
+
+.sunday-budget-pill {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  color: var(--accent);
+}
+
+.sunday-budget-pill.over {
+  border-color: rgba(220, 120, 100, 0.5);
+  color: #e8a090;
+}
+
+.sunday-finance-amount {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  width: min(8.5rem, 100%);
+}
+
+.sunday-finance-amount input {
+  margin: 0;
+  width: 100%;
+}
+
+.sunday-dump-form {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 0.9fr auto;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.sunday-dump-form .field {
+  margin: 0;
+}
+
+.sunday-dump-form .field-select,
+.sunday-dump-form input {
+  margin: 0;
+}
+
+.sunday-rec-note {
+  max-width: 28rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.weekly-goals-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.weekly-goals-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.weekly-goals-index {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.weekly-goals-text {
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.weekly-goals-when {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.weekly-goals-focus {
+  margin-top: 0.9rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line-soft);
+}
+
+.weekly-goals-focus p {
+  margin: 0.25rem 0 0;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.weekly-goals-empty {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 800px) {
+  .sunday-pattern-row,
+  .sunday-split-fields,
+  .sunday-dump-form {
+    grid-template-columns: 1fr;
+  }
+}
