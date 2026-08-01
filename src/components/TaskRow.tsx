@@ -1,17 +1,32 @@
 import type { Project, Task } from '../types'
 import type { Store } from '../hooks/useStore'
+import { addDays, todayDateKey } from '../utils/time'
+
+function plannedLabel(plannedDate: string | null | undefined, today: string): string {
+  if (!plannedDate) return 'Later'
+  if (plannedDate === today) return 'Today'
+  if (plannedDate === addDays(today, 1)) return 'Tomorrow'
+  return plannedDate.slice(5)
+}
 
 export function TaskRow({
   task,
   project,
   store,
   showScope,
+  showDateAssign = false,
 }: {
   task: Task
   project: Project
   store: Store
   showScope: boolean
+  /** Quick date chips: Today / Tomorrow / Clear */
+  showDateAssign?: boolean
 }) {
+  const today = todayDateKey()
+  const tomorrow = addDays(today, 1)
+  const planned = task.plannedDate ?? null
+
   return (
     <li className="check-item">
       <button
@@ -23,14 +38,60 @@ export function TaskRow({
         {task.done ? '✓' : ''}
       </button>
       <span className={`check-text${task.done ? ' done' : ''}`}>{task.text}</span>
-      {showScope && (
+      {showDateAssign && (
+        <div className="task-date-assign" role="group" aria-label="Assign date">
+          <button
+            type="button"
+            className={`date-chip${planned === today ? ' active' : ''}`}
+            onClick={() => store.setTaskPlannedDate(project.id, task.id, today)}
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            className={`date-chip${planned === tomorrow ? ' active' : ''}`}
+            onClick={() => store.setTaskPlannedDate(project.id, task.id, tomorrow)}
+          >
+            Tomorrow
+          </button>
+          <button
+            type="button"
+            className={`date-chip${planned === null ? ' active' : ''}`}
+            onClick={() => store.setTaskPlannedDate(project.id, task.id, null)}
+            title="Clear planned date"
+          >
+            Later
+          </button>
+          <label className="date-chip date-chip-input" title="Pick a date">
+            <input
+              type="date"
+              aria-label="Pick planned date"
+              value={planned ?? ''}
+              onChange={(e) =>
+                store.setTaskPlannedDate(project.id, task.id, e.target.value || null)
+              }
+            />
+          </label>
+        </div>
+      )}
+      {showScope && !showDateAssign && (
         <button
           type="button"
-          className={`scope-toggle ${task.forToday ? 'today' : 'future'}`}
-          onClick={() => store.setTaskForToday(project.id, task.id, !task.forToday)}
-          title={task.forToday ? 'Scheduled today — click for backlog' : 'Backlog — click for today'}
+          className={`scope-toggle ${planned === today || (!planned && task.forToday) ? 'today' : 'future'}`}
+          onClick={() => {
+            if (planned === today || (!planned && task.forToday)) {
+              store.setTaskPlannedDate(project.id, task.id, null)
+            } else {
+              store.setTaskPlannedDate(project.id, task.id, today)
+            }
+          }}
+          title={
+            planned === today || (!planned && task.forToday)
+              ? 'Scheduled today — click for backlog'
+              : 'Backlog — click for today'
+          }
         >
-          {task.forToday ? 'Today' : 'Later'}
+          {plannedLabel(planned, today)}
         </button>
       )}
       <button

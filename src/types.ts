@@ -12,6 +12,8 @@ export interface Task {
   done: boolean
   /** Planned for execution today vs backlog brain-dump */
   forToday: boolean
+  /** YYYY-MM-DD when this task is planned; null/undefined = undated backlog */
+  plannedDate?: string | null
 }
 
 export interface Habit {
@@ -145,6 +147,7 @@ export type AppTab =
   | 'tasks'
   | 'personalFinances'
   | 'companyFinances'
+  | 'autopilot'
 
 const APP_TABS: readonly AppTab[] = [
   'dashboard',
@@ -152,6 +155,7 @@ const APP_TABS: readonly AppTab[] = [
   'tasks',
   'personalFinances',
   'companyFinances',
+  'autopilot',
 ]
 
 /** Map persisted / legacy tab ids onto current AppTab values. */

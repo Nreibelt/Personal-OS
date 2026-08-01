@@ -122,12 +122,25 @@ function migrateTimeEntries(raw: unknown, fallback: TimeEntry[]): TimeEntry[] {
 }
 
 function migrateTasks(tasks: AppState['tasks']): AppState['tasks'] {
+  const today = todayDateKey()
   const next = { ...tasks }
   for (const id of Object.keys(next) as ProjectId[]) {
-    next[id] = (next[id] || []).map((t) => ({
-      ...t,
-      forToday: typeof t.forToday === 'boolean' ? t.forToday : true,
-    }))
+    next[id] = (next[id] || []).map((t) => {
+      const forToday = typeof t.forToday === 'boolean' ? t.forToday : true
+      const plannedDate =
+        typeof t.plannedDate === 'string'
+          ? t.plannedDate
+          : t.plannedDate === null
+            ? null
+            : forToday
+              ? today
+              : null
+      return {
+        ...t,
+        forToday: plannedDate === today,
+        plannedDate,
+      }
+    })
   }
   return next
 }
@@ -692,27 +705,63 @@ export function useStore() {
   }, [update])
 
   const setTaskForToday = useCallback((projectId: ProjectId, taskId: string, forToday: boolean) => {
+    const today = todayDateKey()
     update((s) => ({
       ...s,
       tasks: {
         ...s.tasks,
         [projectId]: s.tasks[projectId].map((t) =>
-          t.id === taskId ? { ...t, forToday } : t,
+          t.id === taskId
+            ? {
+                ...t,
+                forToday,
+                plannedDate: forToday ? today : null,
+              }
+            : t,
         ),
       },
     }))
   }, [update])
 
+  const setTaskPlannedDate = useCallback(
+    (projectId: ProjectId, taskId: string, plannedDate: string | null) => {
+      const today = todayDateKey()
+      update((s) => ({
+        ...s,
+        tasks: {
+          ...s.tasks,
+          [projectId]: s.tasks[projectId].map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  plannedDate,
+                  forToday: plannedDate === today,
+                }
+              : t,
+          ),
+        },
+      }))
+    },
+    [update],
+  )
+
   const addTask = useCallback((projectId: ProjectId, text: string, forToday = true) => {
     const trimmed = text.trim()
     if (!trimmed) return
+    const today = todayDateKey()
     update((s) => ({
       ...s,
       tasks: {
         ...s.tasks,
         [projectId]: [
           ...s.tasks[projectId],
-          { id: uid('task'), text: trimmed, done: false, forToday } satisfies Task,
+          {
+            id: uid('task'),
+            text: trimmed,
+            done: false,
+            forToday,
+            plannedDate: forToday ? today : null,
+          } satisfies Task,
         ],
       },
     }))
@@ -1478,6 +1527,7 @@ export function useStore() {
     removeHabit,
     toggleTask,
     setTaskForToday,
+    setTaskPlannedDate,
     addTask,
     removeTask,
     setSummaryMode,

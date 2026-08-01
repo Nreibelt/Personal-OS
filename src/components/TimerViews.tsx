@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { PROJECT_MAP } from '../data/seed'
 import type { Store } from '../hooks/useStore'
-import { formatMinutes, formatTimer } from '../utils/time'
+import { formatMinutes, formatTimer, todayDateKey } from '../utils/time'
 import { TaskRow } from './TaskRow'
 import { ModalPortal } from './ui/ModalPortal'
 
@@ -25,7 +25,10 @@ export function TimerOverlay({
   const displayToday = store.projectMinutesToday[timer.projectId]
   const paused = store.isTimerPaused
   const hasPauses = timer.pauseCount > 0 || paused
-  const todayTasks = store.state.tasks[timer.projectId].filter((t) => t.forToday)
+  const today = todayDateKey()
+  const todayTasks = store.state.tasks[timer.projectId].filter((t) =>
+    typeof t.plannedDate === 'string' ? t.plannedDate === today : t.forToday,
+  )
   const openCount = todayTasks.filter((t) => !t.done).length
 
   if (minimized) {

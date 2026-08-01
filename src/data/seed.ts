@@ -24,7 +24,14 @@ export function uid(prefix = 'id') {
 }
 
 function task(text: string, forToday: boolean, done = false): Task {
-  return { id: uid('task'), text, done, forToday }
+  const today = todayDateKey()
+  return {
+    id: uid('task'),
+    text,
+    done,
+    forToday,
+    plannedDate: forToday ? today : null,
+  }
 }
 
 /** Demo session with timestamps and optional pauses for analytics seed data */

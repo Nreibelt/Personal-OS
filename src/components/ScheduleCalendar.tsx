@@ -77,20 +77,30 @@ function sameDays(a: number[], b: number[]) {
 export function ScheduleCalendar({
   store,
   bodyHeight = BODY_HEIGHT,
+  lockSpan,
+  hideNav = false,
+  centerDate,
 }: {
   store: Store
   /** Visible scroll viewport height for the day grid (px). */
   bodyHeight?: number
+  /** Lock the day span (e.g. single-day tomorrow view in Autopilot). */
+  lockSpan?: Span
+  /** Hide prev/next/today nav (when the parent owns the date). */
+  hideNav?: boolean
+  /** Override the centered date without mutating global selectedDate. */
+  centerDate?: string
 }) {
-  const center = store.state.selectedDate
+  const center = centerDate ?? store.state.selectedDate
   const today = todayDateKey()
-  const [span, setSpan] = useState<Span>(3)
+  const [span, setSpan] = useState<Span>(lockSpan ?? 3)
+  const effectiveSpan = lockSpan ?? span
 
   const days = useMemo(() => {
-    if (span === 1) return [center]
-    if (span === 7) return weekDays(center)
+    if (effectiveSpan === 1) return [center]
+    if (effectiveSpan === 7) return weekDays(center)
     return [addDays(center, -1), center, addDays(center, 1)]
-  }, [center, span])
+  }, [center, effectiveSpan])
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const columnsRef = useRef<Map<string, HTMLElement>>(new Map())
@@ -486,43 +496,47 @@ export function ScheduleCalendar({
         label="SCHEDULE"
         action={
           <div className="sched-toolbar">
-            <div className="sched-span" role="group" aria-label="View span">
-              {([1, 3, 7] as Span[]).map((s) => (
+            {!lockSpan && (
+              <div className="sched-span" role="group" aria-label="View span">
+                {([1, 3, 7] as Span[]).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={`sched-span-btn${effectiveSpan === s ? ' active' : ''}`}
+                    onClick={() => setSpan(s)}
+                  >
+                    {s === 1 ? 'Day' : s === 3 ? '3-Day' : 'Week'}
+                  </button>
+                ))}
+              </div>
+            )}
+            {!hideNav && (
+              <div className="month-nav">
                 <button
-                  key={s}
+                  className="ghost-btn"
                   type="button"
-                  className={`sched-span-btn${span === s ? ' active' : ''}`}
-                  onClick={() => setSpan(s)}
+                  aria-label="Back"
+                  onClick={() => store.setSelectedDate(addDays(center, -effectiveSpan))}
                 >
-                  {s === 1 ? 'Day' : s === 3 ? '3-Day' : 'Week'}
+                  ‹
                 </button>
-              ))}
-            </div>
-            <div className="month-nav">
-              <button
-                className="ghost-btn"
-                type="button"
-                aria-label="Back"
-                onClick={() => store.setSelectedDate(addDays(center, -span))}
-              >
-                ‹
-              </button>
-              <button
-                className={`ghost-btn${days.includes(today) ? ' active' : ''}`}
-                type="button"
-                onClick={() => store.setSelectedDate(today)}
-              >
-                Today
-              </button>
-              <button
-                className="ghost-btn"
-                type="button"
-                aria-label="Forward"
-                onClick={() => store.setSelectedDate(addDays(center, span))}
-              >
-                ›
-              </button>
-            </div>
+                <button
+                  className={`ghost-btn${days.includes(today) ? ' active' : ''}`}
+                  type="button"
+                  onClick={() => store.setSelectedDate(today)}
+                >
+                  Today
+                </button>
+                <button
+                  className="ghost-btn"
+                  type="button"
+                  aria-label="Forward"
+                  onClick={() => store.setSelectedDate(addDays(center, effectiveSpan))}
+                >
+                  ›
+                </button>
+              </div>
+            )}
           </div>
         }
         className="sched"
