@@ -126,17 +126,16 @@ export function createSeedState(): AppState {
         task('Invoice follow-up batch', false),
         task('Scope next deliverable', false),
       ],
-      personal: [
+      personal: [],
+      sundayAdmin: [
+        task('Clear inbox to zero', false),
+        task('Pay bills / review subscriptions', false),
+        task('House admin sweep', false),
         task('Deep Reflection', true),
         task('Fuck You List', false),
         task('Move Attention OS To Vercel', false),
         task('Mumma Bday Card', true),
         task('Apartment Deposit + Finances', false),
-      ],
-      sundayAdmin: [
-        task('Clear inbox to zero', false),
-        task('Pay bills / review subscriptions', false),
-        task('House admin sweep', false),
       ],
     },
     timeEntries: [

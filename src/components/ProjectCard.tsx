@@ -35,6 +35,8 @@ export function ProjectCard({
   const isPaused = isLive && store.isTimerPaused
   const visible = showAll ? allTasks : todayTasks
   const showTimer = project.id !== 'sundayAdmin'
+  // Personal Time is timer-only — tasks live under Sunday Admin.
+  const showTasks = project.id !== 'personal'
 
   return (
     <HudPanel className="project-card" style={{ borderColor: `${project.color}44` }}>
@@ -66,59 +68,67 @@ export function ProjectCard({
         </>
       )}
 
-      <div className="todo-header">
-        <span className="todo-label">{showAll ? 'ALL TASKS' : "TODAY'S TASKS"}</span>
-        <span className="todo-meta">
-          {todayTasks.length} today
-          {laterTasks.length > 0 ? ` · ${laterTasks.length} later` : ''}
-        </span>
-      </div>
-
-      {showAll ? (
+      {showTasks ? (
         <>
-          <div className="task-section-label">Today</div>
-          <ul className="check-list">
-            {todayTasks.length === 0 && <li className="empty-tasks">Nothing planned for today</li>}
-            {todayTasks.map((task) => (
-              <TaskRow key={task.id} task={task} project={project} store={store} showScope />
-            ))}
-          </ul>
-          <div className="task-section-label future-label">Backlog</div>
-          <ul className="check-list">
-            {laterTasks.length === 0 && <li className="empty-tasks">Empty backlog</li>}
-            {laterTasks.map((task) => (
-              <TaskRow key={task.id} task={task} project={project} store={store} showScope />
-            ))}
-          </ul>
+          <div className="todo-header">
+            <span className="todo-label">{showAll ? 'ALL TASKS' : "TODAY'S TASKS"}</span>
+            <span className="todo-meta">
+              {todayTasks.length} today
+              {laterTasks.length > 0 ? ` · ${laterTasks.length} later` : ''}
+            </span>
+          </div>
+
+          {showAll ? (
+            <>
+              <div className="task-section-label">Today</div>
+              <ul className="check-list">
+                {todayTasks.length === 0 && <li className="empty-tasks">Nothing planned for today</li>}
+                {todayTasks.map((task) => (
+                  <TaskRow key={task.id} task={task} project={project} store={store} showScope />
+                ))}
+              </ul>
+              <div className="task-section-label future-label">Backlog</div>
+              <ul className="check-list">
+                {laterTasks.length === 0 && <li className="empty-tasks">Empty backlog</li>}
+                {laterTasks.map((task) => (
+                  <TaskRow key={task.id} task={task} project={project} store={store} showScope />
+                ))}
+              </ul>
+            </>
+          ) : (
+            <ul className="check-list">
+              {visible.length === 0 && (
+                <li className="empty-tasks">No tasks for today — dump into backlog via Show all</li>
+              )}
+              {visible.map((task) => (
+                <TaskRow key={task.id} task={task} project={project} store={store} showScope={false} />
+              ))}
+            </ul>
+          )}
+
+          <form
+            className="inline-add"
+            onSubmit={(e) => {
+              e.preventDefault()
+              // When viewing all, new tasks go to backlog by default (brain dump).
+              // When viewing today, new tasks are for today.
+              store.addTask(project.id, taskText, !showAll)
+              setTaskText('')
+            }}
+          >
+            <input
+              value={taskText}
+              onChange={(e) => setTaskText(e.target.value)}
+              placeholder={showAll ? '+ Brain dump task' : "+ Add today's task"}
+              aria-label={`Add task to ${project.name}`}
+            />
+          </form>
         </>
       ) : (
-        <ul className="check-list">
-          {visible.length === 0 && (
-            <li className="empty-tasks">No tasks for today — dump into backlog via Show all</li>
-          )}
-          {visible.map((task) => (
-            <TaskRow key={task.id} task={task} project={project} store={store} showScope={false} />
-          ))}
-        </ul>
+        <p className="empty-tasks" style={{ marginTop: '0.85rem' }}>
+          Tasks live in Sunday Admin — use Saturday Dump / Autopilot.
+        </p>
       )}
-
-      <form
-        className="inline-add"
-        onSubmit={(e) => {
-          e.preventDefault()
-          // When viewing all, new tasks go to backlog by default (brain dump).
-          // When viewing today, new tasks are for today.
-          store.addTask(project.id, taskText, !showAll)
-          setTaskText('')
-        }}
-      >
-        <input
-          value={taskText}
-          onChange={(e) => setTaskText(e.target.value)}
-          placeholder={showAll ? '+ Brain dump task' : "+ Add today's task"}
-          aria-label={`Add task to ${project.name}`}
-        />
-      </form>
     </HudPanel>
   )
 }
