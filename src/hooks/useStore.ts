@@ -32,8 +32,12 @@ import type {
   RevolutSyncState,
   SpendEntry,
   SummaryMode,
+  AddTaskOptions,
   Task,
   TimeEntry,
+  WeekReflection,
+  WeeklyGoal,
+  WeeklyGoalsArchiveEntry,
 } from '../types'
 import {
   DEEP_WORK_IDS,
@@ -121,13 +125,87 @@ function migrateTimeEntries(raw: unknown, fallback: TimeEntry[]): TimeEntry[] {
   return raw.map(migrateTimeEntry).filter((e): e is TimeEntry => e != null)
 }
 
+function emptyWeeklyGoals(): WeeklyGoal[] {
+  return [0, 1, 2].map(() => ({
+    id: uid('wgoal'),
+    text: '',
+    hit: null,
+    why: '',
+  }))
+}
+
+function migrateWeeklyGoal(raw: unknown): WeeklyGoal | null {
+  if (!raw || typeof raw !== 'object') return null
+  const g = raw as Partial<WeeklyGoal>
+  return {
+    id: typeof g.id === 'string' && g.id ? g.id : uid('wgoal'),
+    text: typeof g.text === 'string' ? g.text : '',
+    hit: g.hit === true || g.hit === false ? g.hit : null,
+    why: typeof g.why === 'string' ? g.why : '',
+  }
+}
+
+function migrateWeeklyGoals(raw: unknown, fallback: WeeklyGoal[]): WeeklyGoal[] {
+  if (!Array.isArray(raw)) return fallback
+  const goals = raw.map(migrateWeeklyGoal).filter((g): g is WeeklyGoal => g != null)
+  while (goals.length < 3) goals.push(...emptyWeeklyGoals().slice(0, 3 - goals.length))
+  return goals.slice(0, 3)
+}
+
+function migrateWeekReflections(raw: unknown): Record<string, WeekReflection> {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Record<string, WeekReflection> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object') continue
+    const r = value as Partial<WeekReflection>
+    const patterns = Array.isArray(r.patterns)
+      ? r.patterns
+          .map((p) => {
+            if (!p || typeof p !== 'object') return null
+            const row = p as { id?: string; pattern?: string; evolution?: string }
+            return {
+              id: typeof row.id === 'string' && row.id ? row.id : uid('pat'),
+              pattern: typeof row.pattern === 'string' ? row.pattern : '',
+              evolution: typeof row.evolution === 'string' ? row.evolution : '',
+            }
+          })
+          .filter((p): p is NonNullable<typeof p> => p != null)
+      : []
+    out[key] = {
+      proud: typeof r.proud === 'string' ? r.proud : '',
+      patterns,
+      improve: typeof r.improve === 'string' ? r.improve : '',
+      productivityShortfall: typeof r.productivityShortfall === 'string' ? r.productivityShortfall : '',
+      productivityRemedy: typeof r.productivityRemedy === 'string' ? r.productivityRemedy : '',
+    }
+  }
+  return out
+}
+
 function migrateTasks(tasks: AppState['tasks']): AppState['tasks'] {
-  const next = { ...tasks }
-  for (const id of Object.keys(next) as ProjectId[]) {
-    next[id] = (next[id] || []).map((t) => ({
-      ...t,
-      forToday: typeof t.forToday === 'boolean' ? t.forToday : true,
-    }))
+  const today = todayDateKey()
+  const next = { ...tasks } as AppState['tasks']
+  for (const project of PROJECTS) {
+    const list = Array.isArray(next[project.id]) ? next[project.id] : []
+    next[project.id] = list.map((t) => {
+      const forToday = typeof t.forToday === 'boolean' ? t.forToday : true
+      const plannedDate =
+        typeof t.plannedDate === 'string'
+          ? t.plannedDate
+          : t.plannedDate === null
+            ? null
+            : forToday
+              ? today
+              : null
+      const done = Boolean(t.done)
+      return {
+        ...t,
+        forToday: plannedDate === today,
+        plannedDate,
+        notes: typeof t.notes === 'string' ? t.notes : '',
+        archived: typeof t.archived === 'boolean' ? t.archived : done,
+      }
+    })
   }
   return next
 }
@@ -331,6 +409,20 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
     ),
     showAllTasks: parsed.showAllTasks ?? false,
     dailyOneThing: { ...seed.dailyOneThing, ...(parsed.dailyOneThing || {}) },
+    weeklyGoals: migrateWeeklyGoals(parsed.weeklyGoals, seed.weeklyGoals),
+    weeklyGoalsWeekStart:
+      typeof parsed.weeklyGoalsWeekStart === 'string' && parsed.weeklyGoalsWeekStart
+        ? parsed.weeklyGoalsWeekStart
+        : seed.weeklyGoalsWeekStart,
+    weeklyGoalsArchive: Array.isArray(parsed.weeklyGoalsArchive)
+      ? (parsed.weeklyGoalsArchive as WeeklyGoalsArchiveEntry[])
+          .map((entry) => ({
+            weekStart: entry.weekStart,
+            goals: migrateWeeklyGoals(entry.goals, emptyWeeklyGoals()),
+          }))
+          .filter((e) => typeof e.weekStart === 'string')
+      : seed.weeklyGoalsArchive,
+    weekReflections: migrateWeekReflections(parsed.weekReflections),
     habits: migrateHabits(parsed.habits ?? seed.habits, today),
     personalFinance: mergePersonalFoodAndDrink(personalFinance),
     companyFinance,
@@ -575,6 +667,69 @@ export function useStore() {
 
   const setWeekIntention = useCallback((weekIntention: string) => update({ weekIntention }), [update])
 
+  const saveWeekReflection = useCallback((weekStart: string, reflection: WeekReflection) => {
+    update((s) => ({
+      ...s,
+      weekReflections: {
+        ...s.weekReflections,
+        [weekStart]: reflection,
+      },
+    }))
+  }, [update])
+
+  const reviewWeeklyGoals = useCallback((weekStart: string, goals: WeeklyGoal[]) => {
+    const next = migrateWeeklyGoals(goals, emptyWeeklyGoals())
+    update((s) => {
+      if (s.weeklyGoalsWeekStart === weekStart) {
+        return { ...s, weeklyGoals: next }
+      }
+      const hasArchive = (s.weeklyGoalsArchive || []).some((e) => e.weekStart === weekStart)
+      if (hasArchive) {
+        return {
+          ...s,
+          weeklyGoalsArchive: s.weeklyGoalsArchive.map((e) =>
+            e.weekStart === weekStart ? { ...e, goals: next } : e,
+          ),
+        }
+      }
+      // Fallback: attach review onto the active goals the user just walked
+      return { ...s, weeklyGoals: next }
+    })
+  }, [update])
+
+  /** Commit a new weekly plan; archives the previous goals if they belong to another week. */
+  const commitWeeklyPlan = useCallback(
+    (weekStart: string, goals: WeeklyGoal[], focus: string) => {
+      const nextGoals = migrateWeeklyGoals(goals, emptyWeeklyGoals()).map((g) => ({
+        ...g,
+        hit: null as boolean | null,
+        why: '',
+      }))
+      update((s) => {
+        const archive = [...(s.weeklyGoalsArchive || [])]
+        const hasContent = s.weeklyGoals.some((g) => g.text.trim())
+        if (
+          hasContent &&
+          s.weeklyGoalsWeekStart &&
+          s.weeklyGoalsWeekStart !== weekStart
+        ) {
+          archive.unshift({
+            weekStart: s.weeklyGoalsWeekStart,
+            goals: s.weeklyGoals,
+          })
+        }
+        return {
+          ...s,
+          weeklyGoals: nextGoals,
+          weeklyGoalsWeekStart: weekStart,
+          weeklyGoalsArchive: archive.slice(0, 24),
+          weekIntention: focus.trim() || s.weekIntention,
+        }
+      })
+    },
+    [update],
+  )
+
   const setDailyTargetHours = useCallback((hours: number) => {
     const clamped = Math.max(0.5, Math.min(16, hours))
     const minutes = Math.round(clamped * 60)
@@ -684,39 +839,103 @@ export function useStore() {
       ...s,
       tasks: {
         ...s.tasks,
-        [projectId]: s.tasks[projectId].map((t) =>
-          t.id === taskId ? { ...t, done: !t.done } : t,
-        ),
+        [projectId]: s.tasks[projectId].map((t) => {
+          if (t.id !== taskId) return t
+          // Completing a task archives it (hidden from active lists).
+          if (!t.done) return { ...t, done: true, archived: true }
+          return { ...t, done: false, archived: false }
+        }),
       },
     }))
   }, [update])
 
   const setTaskForToday = useCallback((projectId: ProjectId, taskId: string, forToday: boolean) => {
+    const today = todayDateKey()
     update((s) => ({
       ...s,
       tasks: {
         ...s.tasks,
         [projectId]: s.tasks[projectId].map((t) =>
-          t.id === taskId ? { ...t, forToday } : t,
+          t.id === taskId
+            ? {
+                ...t,
+                forToday,
+                plannedDate: forToday ? today : null,
+              }
+            : t,
         ),
       },
     }))
   }, [update])
 
-  const addTask = useCallback((projectId: ProjectId, text: string, forToday = true) => {
-    const trimmed = text.trim()
-    if (!trimmed) return
+  const setTaskPlannedDate = useCallback(
+    (projectId: ProjectId, taskId: string, plannedDate: string | null) => {
+      const today = todayDateKey()
+      update((s) => ({
+        ...s,
+        tasks: {
+          ...s.tasks,
+          [projectId]: s.tasks[projectId].map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  plannedDate,
+                  forToday: plannedDate === today,
+                }
+              : t,
+          ),
+        },
+      }))
+    },
+    [update],
+  )
+
+  const setTaskNotes = useCallback((projectId: ProjectId, taskId: string, notes: string) => {
     update((s) => ({
       ...s,
       tasks: {
         ...s.tasks,
-        [projectId]: [
-          ...s.tasks[projectId],
-          { id: uid('task'), text: trimmed, done: false, forToday } satisfies Task,
-        ],
+        [projectId]: s.tasks[projectId].map((t) =>
+          t.id === taskId ? { ...t, notes } : t,
+        ),
       },
     }))
   }, [update])
+
+  const addTask = useCallback(
+    (projectId: ProjectId, text: string, opts: boolean | AddTaskOptions = true) => {
+      const trimmed = text.trim()
+      if (!trimmed) return
+      const today = todayDateKey()
+      const options: AddTaskOptions = typeof opts === 'boolean' ? { forToday: opts } : opts
+      const plannedDate =
+        options.plannedDate !== undefined
+          ? options.plannedDate
+          : options.forToday === false
+            ? null
+            : today
+      const forToday = plannedDate === today
+      update((s) => ({
+        ...s,
+        tasks: {
+          ...s.tasks,
+          [projectId]: [
+            ...(s.tasks[projectId] ?? []),
+            {
+              id: uid('task'),
+              text: trimmed,
+              done: false,
+              forToday,
+              plannedDate,
+              notes: options.notes?.trim() ?? '',
+              archived: false,
+            } satisfies Task,
+          ],
+        },
+      }))
+    },
+    [update],
+  )
 
   const removeTask = useCallback((projectId: ProjectId, taskId: string) => {
     update((s) => ({
@@ -1415,11 +1634,12 @@ export function useStore() {
   const projectMinutesToday = useMemo(() => {
     const map = Object.fromEntries(PROJECTS.map((p) => [p.id, 0])) as Record<ProjectId, number>
     for (const e of state.timeEntries) {
-      if (e.date === state.selectedDate) map[e.projectId] += e.minutes
+      if (e.date === state.selectedDate && e.projectId in map) map[e.projectId] += e.minutes
     }
     if (
       state.activeTimer &&
-      todayDateKey(new Date(state.activeTimer.sessionStartedAt)) === state.selectedDate
+      todayDateKey(new Date(state.activeTimer.sessionStartedAt)) === state.selectedDate &&
+      state.activeTimer.projectId in map
     ) {
       const liveMin = Math.floor(liveTimerSeconds / 60)
       map[state.activeTimer.projectId] += liveMin
@@ -1464,6 +1684,9 @@ export function useStore() {
     setActiveTab,
     setIdentity,
     setWeekIntention,
+    saveWeekReflection,
+    reviewWeeklyGoals,
+    commitWeeklyPlan,
     setDailyTargetHours,
     setDailyDeepWorkSplit,
     setShowAllTasks,
@@ -1478,6 +1701,8 @@ export function useStore() {
     removeHabit,
     toggleTask,
     setTaskForToday,
+    setTaskPlannedDate,
+    setTaskNotes,
     addTask,
     removeTask,
     setSummaryMode,

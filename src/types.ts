@@ -1,4 +1,4 @@
-export type ProjectId = 'chase' | 'myProject' | 'rav' | 'personal'
+export type ProjectId = 'chase' | 'myProject' | 'rav' | 'personal' | 'sundayAdmin'
 
 export interface Project {
   id: ProjectId
@@ -12,6 +12,49 @@ export interface Task {
   done: boolean
   /** Planned for execution today vs backlog brain-dump */
   forToday: boolean
+  /** YYYY-MM-DD when this task is planned; null/undefined = undated backlog */
+  plannedDate?: string | null
+  /** Freeform notes for the task */
+  notes?: string
+  /** Completed tasks are archived and hidden from active lists */
+  archived?: boolean
+}
+
+export type AddTaskOptions = {
+  plannedDate?: string | null
+  notes?: string
+  /** @deprecated prefer plannedDate — kept for call-site convenience */
+  forToday?: boolean
+}
+
+/** Pattern noticed in Sunday Center reflection */
+export interface WeekPattern {
+  id: string
+  pattern: string
+  evolution: string
+}
+
+/** One of the three weekly goals set in Sunday Center */
+export interface WeeklyGoal {
+  id: string
+  text: string
+  /** Reviewed the following Sunday — null = not reviewed yet */
+  hit: boolean | null
+  why: string
+}
+
+/** Reflection answers for a closed week (keyed by that week’s Monday) */
+export interface WeekReflection {
+  proud: string
+  patterns: WeekPattern[]
+  improve: string
+  productivityShortfall: string
+  productivityRemedy: string
+}
+
+export interface WeeklyGoalsArchiveEntry {
+  weekStart: string
+  goals: WeeklyGoal[]
 }
 
 export interface Habit {
@@ -145,6 +188,7 @@ export type AppTab =
   | 'tasks'
   | 'personalFinances'
   | 'companyFinances'
+  | 'autopilot'
 
 const APP_TABS: readonly AppTab[] = [
   'dashboard',
@@ -152,6 +196,7 @@ const APP_TABS: readonly AppTab[] = [
   'tasks',
   'personalFinances',
   'companyFinances',
+  'autopilot',
 ]
 
 /** Map persisted / legacy tab ids onto current AppTab values. */
@@ -309,6 +354,14 @@ export interface AppState {
   showAllTasks: boolean
   /** Date → most important outcome for that day */
   dailyOneThing: DailyOneThing
+  /** Active weekly goals from Sunday Center (visible all week) */
+  weeklyGoals: WeeklyGoal[]
+  /** Monday YYYY-MM-DD the active weeklyGoals were set for */
+  weeklyGoalsWeekStart: string
+  /** Past weeks’ goals (for Sunday review) */
+  weeklyGoalsArchive: WeeklyGoalsArchiveEntry[]
+  /** Reflections keyed by the Monday of the week reflected on */
+  weekReflections: Record<string, WeekReflection>
   personalFinance: FinanceLedger
   companyFinance: FinanceLedger
   revolutSync: RevolutSyncState

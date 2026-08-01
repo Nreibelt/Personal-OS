@@ -5,6 +5,7 @@ import { PROJECT_MAP } from '../data/seed'
 import type { Store } from '../hooks/useStore'
 import { DEEP_WORK_IDS, type DeepWorkId, type ProjectId } from '../types'
 import { formatMinutes, todayDateKey } from '../utils/time'
+import { QuickAddTask } from './QuickAddTask'
 import { TimerOverlay } from './TimerViews'
 
 /**
@@ -92,44 +93,49 @@ export function DeepWorkTimerHost({
 
   return (
     <>
-      {!busy && (
-        <div className={`deep-dock${dockOpen ? ' open' : ''}`}>
-          <button
-            type="button"
-            className="deep-dock-toggle"
-            aria-expanded={dockOpen}
-            onClick={() => setDockOpen((v) => !v)}
-          >
-            <span className="deep-dock-pulse" aria-hidden />
-            Deep work
-          </button>
-          {dockOpen && (
-            <div className="deep-dock-panel" role="menu">
-              <p className="deep-dock-hint">Start a focus session</p>
-              {DEEP_WORK_IDS.map((id) => {
-                const project = PROJECT_MAP[id]
-                const logged = store.minutesFor(id, 'day', todayDateKey())
-                const target = store.state.dailyDeepWorkSplit[id]
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    className="deep-dock-item"
-                    role="menuitem"
-                    style={{ ['--project-color' as string]: project.color }}
-                    onClick={() => startProject(id)}
-                  >
-                    <span className="deep-dock-name">{project.name}</span>
-                    <span className="deep-dock-meta">
-                      {formatMinutes(logged)} / {formatMinutes(target)}
-                    </span>
-                  </button>
-                )
-              })}
+      <div className={`corner-dock${busy && timerMinimized ? ' beside-timer' : ''}`}>
+        <div className="corner-dock-actions">
+          <QuickAddTask store={store} />
+          {!busy && (
+            <div className={`deep-dock${dockOpen ? ' open' : ''}`}>
+              <button
+                type="button"
+                className="deep-dock-toggle"
+                aria-expanded={dockOpen}
+                onClick={() => setDockOpen((v) => !v)}
+              >
+                <span className="deep-dock-pulse" aria-hidden />
+                Deep work
+              </button>
+              {dockOpen && (
+                <div className="deep-dock-panel" role="menu">
+                  <p className="deep-dock-hint">Start a focus session</p>
+                  {DEEP_WORK_IDS.map((id) => {
+                    const project = PROJECT_MAP[id]
+                    const logged = store.minutesFor(id, 'day', todayDateKey())
+                    const target = store.state.dailyDeepWorkSplit[id]
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        className="deep-dock-item"
+                        role="menuitem"
+                        style={{ ['--project-color' as string]: project.color }}
+                        onClick={() => startProject(id)}
+                      >
+                        <span className="deep-dock-name">{project.name}</span>
+                        <span className="deep-dock-meta">
+                          {formatMinutes(logged)} / {formatMinutes(target)}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+      </div>
 
       {store.state.activeTimer && (
         <TimerOverlay

@@ -1,12 +1,13 @@
 import type { AppState, Project, ProjectId, Task, TimeEntry } from '../types'
 import { emptyFinanceLedger } from '../utils/finance'
-import { parseDateKey, todayDateKey, todayMonthKey } from '../utils/time'
+import { parseDateKey, startOfWeekMonday, todayDateKey, todayMonthKey } from '../utils/time'
 
 export const PROJECTS: Project[] = [
   { id: 'chase', name: 'Chase Build', color: '#5aa889' },
   { id: 'myProject', name: 'My Project', color: '#3dfa8e' },
   { id: 'rav', name: 'Rav Work', color: '#c4a574' },
   { id: 'personal', name: 'Personal Time', color: '#7f8f86' },
+  { id: 'sundayAdmin', name: 'Sunday Admin', color: '#8a9bb5' },
 ]
 
 export const PROJECT_MAP = Object.fromEntries(PROJECTS.map((p) => [p.id, p])) as Record<
@@ -24,7 +25,16 @@ export function uid(prefix = 'id') {
 }
 
 function task(text: string, forToday: boolean, done = false): Task {
-  return { id: uid('task'), text, done, forToday }
+  const today = todayDateKey()
+  return {
+    id: uid('task'),
+    text,
+    done,
+    forToday,
+    plannedDate: forToday ? today : null,
+    notes: '',
+    archived: done,
+  }
 }
 
 /** Demo session with timestamps and optional pauses for analytics seed data */
@@ -122,6 +132,11 @@ export function createSeedState(): AppState {
         task('Mumma Bday Card', true),
         task('Apartment Deposit + Finances', false),
       ],
+      sundayAdmin: [
+        task('Clear inbox to zero', false),
+        task('Pay bills / review subscriptions', false),
+        task('House admin sweep', false),
+      ],
     },
     timeEntries: [
       sessionEntry('chase', '2026-07-20', 90, 8, 30),
@@ -210,6 +225,14 @@ export function createSeedState(): AppState {
       '2026-07-21': 'Clear Chase backend integration block',
       '2026-07-20': 'Protect 4h deep work — no phone',
     },
+    weeklyGoals: [
+      { id: uid('wgoal'), text: 'Ship Chase phone setup section', hit: null, why: '' },
+      { id: uid('wgoal'), text: '3h/day My Project academy blocks', hit: null, why: '' },
+      { id: uid('wgoal'), text: 'Nicotine taper on plan — no slips', hit: null, why: '' },
+    ],
+    weeklyGoalsWeekStart: startOfWeekMonday(today),
+    weeklyGoalsArchive: [],
+    weekReflections: {},
     personalFinance: emptyFinanceLedger(personalBillsId),
     companyFinance: emptyFinanceLedger(companyBillsId),
     revolutSync: {

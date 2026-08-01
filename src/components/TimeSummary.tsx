@@ -47,7 +47,7 @@ export function TimeSummary({ store }: { store: Store }) {
         {formatMinutes(deepTotal)}
       </div>
       {rows
-        .filter((r) => r.id !== 'personal')
+        .filter((r) => r.id !== 'personal' && r.id !== 'sundayAdmin')
         .map((r) => (
           <div key={r.id} className="breakdown-row">
             <span className="dot" style={{ background: r.color, color: r.color }} />

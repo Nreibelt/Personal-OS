@@ -1,9 +1,19 @@
 import { useState } from 'react'
 import type { Project } from '../types'
 import type { Store } from '../hooks/useStore'
-import { formatMinutes } from '../utils/time'
+import { formatMinutes, todayDateKey } from '../utils/time'
 import { HudPanel } from './HudPanel'
 import { TaskRow } from './TaskRow'
+
+function isTodayTask(plannedDate: string | null | undefined, forToday: boolean, today: string) {
+  if (typeof plannedDate === 'string') return plannedDate === today
+  if (plannedDate === null) return false
+  return forToday
+}
+
+function isActiveTask(task: { done: boolean; archived?: boolean }) {
+  return !task.archived && !task.done
+}
 
 export function ProjectCard({
   store,
@@ -16,13 +26,15 @@ export function ProjectCard({
 }) {
   const [taskText, setTaskText] = useState('')
   const minutes = store.projectMinutesToday[project.id]
-  const allTasks = store.state.tasks[project.id]
+  const allTasks = (store.state.tasks[project.id] ?? []).filter(isActiveTask)
   const showAll = store.state.showAllTasks
-  const todayTasks = allTasks.filter((t) => t.forToday)
-  const laterTasks = allTasks.filter((t) => !t.forToday)
+  const today = todayDateKey()
+  const todayTasks = allTasks.filter((t) => isTodayTask(t.plannedDate, t.forToday, today))
+  const laterTasks = allTasks.filter((t) => !isTodayTask(t.plannedDate, t.forToday, today))
   const isLive = store.state.activeTimer?.projectId === project.id
   const isPaused = isLive && store.isTimerPaused
   const visible = showAll ? allTasks : todayTasks
+  const showTimer = project.id !== 'sundayAdmin'
 
   return (
     <HudPanel className="project-card" style={{ borderColor: `${project.color}44` }}>
@@ -32,28 +44,32 @@ export function ProjectCard({
           {project.name}
         </h3>
       </div>
-      <div className="project-time">
-        {formatMinutes(minutes)}
-        <small>TODAY {isPaused ? '• PAUSED' : isLive ? '• LIVE' : ''}</small>
-      </div>
-      <button
-        className="btn-primary"
-        type="button"
-        onClick={onStart}
-        disabled={!!store.state.activeTimer && !isLive}
-        style={
-          isLive
-            ? { background: project.color, color: '#0c0c0c' }
-            : undefined
-        }
-      >
-        {isPaused ? 'Paused' : isLive ? 'Timer Running' : 'Start Timer'}
-      </button>
+      {showTimer && (
+        <>
+          <div className="project-time">
+            {formatMinutes(minutes)}
+            <small>TODAY {isPaused ? '• PAUSED' : isLive ? '• LIVE' : ''}</small>
+          </div>
+          <button
+            className="btn-primary"
+            type="button"
+            onClick={onStart}
+            disabled={!!store.state.activeTimer && !isLive}
+            style={
+              isLive
+                ? { background: project.color, color: '#0c0c0c' }
+                : undefined
+            }
+          >
+            {isPaused ? 'Paused' : isLive ? 'Timer Running' : 'Start Timer'}
+          </button>
+        </>
+      )}
 
       <div className="todo-header">
         <span className="todo-label">{showAll ? 'ALL TASKS' : "TODAY'S TASKS"}</span>
         <span className="todo-meta">
-          {todayTasks.filter((t) => !t.done).length} today
+          {todayTasks.length} today
           {laterTasks.length > 0 ? ` · ${laterTasks.length} later` : ''}
         </span>
       </div>

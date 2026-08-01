@@ -29,7 +29,7 @@ export function TasksView({
         </button>
       </div>
 
-      <div className="grid-4">
+      <div className="grid-projects">
         {store.projects.map((p) => (
           <ProjectCard
             key={p.id}

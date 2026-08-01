@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { CompanyDocumentsView } from './components/business/CompanyDocumentsView'
 import { CompanyIdeasView } from './components/business/CompanyIdeasView'
 import { CompanyTodosView } from './components/business/CompanyTodosView'
+import { AutopilotView } from './components/AutopilotView'
 import { CalendarView } from './components/CalendarView'
 import { DashboardView } from './components/DashboardView'
 import { DeepWorkTimerHost } from './components/DeepWorkTimerHost'
@@ -21,6 +22,7 @@ const BUSINESS_TAB_KEY = 'batcave-business-tab-v1'
 
 const PERSONAL_TABS: { id: AppTab; label: string; sub: string }[] = [
   { id: 'dashboard', label: 'Dashboard', sub: 'Command Center' },
+  { id: 'autopilot', label: 'Autopilot', sub: 'Set paths' },
   { id: 'calendar', label: 'Calendar', sub: 'Schedule' },
   { id: 'tasks', label: 'Tasks', sub: 'Projects' },
   { id: 'personalFinances', label: 'Personal Finances', sub: 'Personal Finances' },
@@ -367,6 +369,7 @@ export default function App() {
           ) : (
             <>
               {tab === 'dashboard' && <DashboardView store={store} onStartProject={startSession} />}
+              {tab === 'autopilot' && <AutopilotView store={store} />}
               {tab === 'calendar' && <CalendarView store={store} />}
               {tab === 'tasks' && <TasksView store={store} onStartSession={startSession} />}
               {tab === 'personalFinances' && <FinancesView store={store} realm="personal" />}
