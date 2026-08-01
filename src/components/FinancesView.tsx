@@ -7,9 +7,10 @@ import { CashTrackerPanel } from './finance/CashTrackerPanel'
 import { CompanyRevolutBuckets } from './finance/CompanyRevolutBuckets'
 import { RevolutSyncPanel } from './finance/RevolutSyncPanel'
 import { SetExpensesPanel } from './finance/SetExpensesPanel'
+import { WishlistPanel } from './finance/WishlistPanel'
 import { Modal } from './ui/Modal'
 
-type FinanceModal = 'allocate' | 'expenses' | 'spend' | 'revolut' | null
+type FinanceModal = 'allocate' | 'expenses' | 'spend' | 'revolut' | 'wishlist' | null
 
 export function FinancesView({
   store,
@@ -75,6 +76,17 @@ export function FinancesView({
               {realm === 'personal' ? 'Daily cash tracker' : 'Record company spend'}
             </span>
           </button>
+          {realm === 'personal' && (
+            <button type="button" className="action-tile" onClick={() => setModal('wishlist')}>
+              <span className="action-tile-kicker">Want</span>
+              <span className="action-tile-name">Wishlist</span>
+              <span className="action-tile-desc">
+                {(ledger.wishlist?.length ?? 0) > 0
+                  ? `${ledger.wishlist.length} item${ledger.wishlist.length === 1 ? '' : 's'} parked`
+                  : 'Item + rough price before you buy'}
+              </span>
+            </button>
+          )}
           <button type="button" className="action-tile accent" onClick={() => setModal('revolut')}>
             <span className="action-tile-kicker">Bank</span>
             <span className="action-tile-name">Sync Revolut</span>
@@ -107,6 +119,15 @@ export function FinancesView({
 
       <Modal open={modal === 'spend'} onClose={() => setModal(null)} title="Log spend" size="lg">
         <CashTrackerPanel store={store} realm={realm} mode={spendMode} embedded />
+      </Modal>
+
+      <Modal
+        open={modal === 'wishlist'}
+        onClose={() => setModal(null)}
+        title="Spendings wishlist"
+        size="md"
+      >
+        <WishlistPanel store={store} realm={realm} embedded />
       </Modal>
 
       <Modal

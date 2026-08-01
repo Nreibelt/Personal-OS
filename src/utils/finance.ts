@@ -1,4 +1,10 @@
-import type { ExpenseCategory, ExpenseFrequency, FinanceLedger, SpendEntry } from '../types'
+import type {
+  ExpenseCategory,
+  ExpenseFrequency,
+  FinanceLedger,
+  SpendEntry,
+  WishlistItem,
+} from '../types'
 import { addDays, startOfWeekMonday, weekDays } from './time'
 
 export const FREQUENCIES: ExpenseFrequency[] = ['daily', 'weekly', 'monthly']
@@ -158,7 +164,27 @@ export function emptyFinanceLedger(billsId: string): FinanceLedger {
     ],
     allocations: [],
     spends: [],
+    wishlist: [],
   }
+}
+
+export function migrateWishlist(raw: unknown): WishlistItem[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      const row = item as Partial<WishlistItem>
+      const name = typeof row.name === 'string' ? row.name.trim() : ''
+      const amount = typeof row.amount === 'number' && Number.isFinite(row.amount) ? row.amount : NaN
+      if (!name || !(amount >= 0)) return null
+      return {
+        id: typeof row.id === 'string' && row.id ? row.id : `wish-${Math.random().toString(36).slice(2)}`,
+        name,
+        amount: Math.round(amount * 100) / 100,
+        createdAt: typeof row.createdAt === 'string' ? row.createdAt : new Date().toISOString(),
+      } satisfies WishlistItem
+    })
+    .filter((item): item is WishlistItem => item != null)
 }
 
 export function parseAmount(raw: string): number | null {
@@ -289,7 +315,12 @@ export function mergePersonalFoodAndDrink(ledger: FinanceLedger): FinanceLedger 
     return { ...a, lines: mergedLines }
   })
 
-  return { categories, allocations: collapsedAllocations, spends }
+  return {
+    ...ledger,
+    categories,
+    allocations: collapsedAllocations,
+    spends,
+  }
 }
 
 export { startOfWeekMonday }

@@ -1,4 +1,5 @@
 import type { AppState, Project, ProjectId, Task, TimeEntry } from '../types'
+import { EMPTY_AUTOPILOT_COMPLETIONS } from '../types'
 import { emptyFinanceLedger } from '../utils/finance'
 import { parseDateKey, startOfWeekMonday, todayDateKey, todayMonthKey } from '../utils/time'
 
@@ -234,6 +235,7 @@ export function createSeedState(): AppState {
     weeklyGoalsArchive: [],
     weekReflections: {},
     lastSaturdayDumpSunday: null,
+    autopilotCompletions: { ...EMPTY_AUTOPILOT_COMPLETIONS },
     personalFinance: emptyFinanceLedger(personalBillsId),
     companyFinance: emptyFinanceLedger(companyBillsId),
     revolutSync: {

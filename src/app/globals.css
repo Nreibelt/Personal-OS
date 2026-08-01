@@ -357,7 +357,6 @@ select:focus {
   width: 0.22rem;
   height: 0.55rem;
   border-radius: 99px;
-  opacity: 0.55;
 }
 .nav-glyph-vision .nav-glyph-core {
   width: 0;
@@ -6317,6 +6316,14 @@ select:focus {
   position: absolute;
   top: 0.85rem;
   right: 0.85rem;
+}
+
+.autopilot-view .action-tile.locked {
+  opacity: 0.55;
+}
+
+.autopilot-view .action-tile.locked .action-tile-desc {
+  color: var(--accent);
 }
 
 .task-date-assign {

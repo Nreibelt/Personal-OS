@@ -33,6 +33,7 @@ import type {
   SpendEntry,
   SummaryMode,
   AddTaskOptions,
+  AutopilotCompletions,
   Task,
   TimeEntry,
   WeekReflection,
@@ -42,12 +43,13 @@ import type {
 } from '../types'
 import {
   DEEP_WORK_IDS,
+  EMPTY_AUTOPILOT_COMPLETIONS,
   equalDeepWorkSplit,
   normalizeActiveTab,
   isDeepWorkId,
   scaleDeepWorkSplit,
 } from '../types'
-import { mergePersonalFoodAndDrink } from '../utils/finance'
+import { mergePersonalFoodAndDrink, migrateWishlist } from '../utils/finance'
 import {
   addDays,
   parseDateKey,
@@ -151,6 +153,18 @@ function migrateWeeklyGoals(raw: unknown, fallback: WeeklyGoal[]): WeeklyGoal[] 
   const goals = raw.map(migrateWeeklyGoal).filter((g): g is WeeklyGoal => g != null)
   while (goals.length < 3) goals.push(...emptyWeeklyGoals().slice(0, 3 - goals.length))
   return goals.slice(0, 3)
+}
+
+function migrateAutopilotCompletions(raw: unknown): AutopilotCompletions {
+  if (!raw || typeof raw !== 'object') return { ...EMPTY_AUTOPILOT_COMPLETIONS }
+  const c = raw as Partial<AutopilotCompletions>
+  return {
+    eveningWindDownDate:
+      typeof c.eveningWindDownDate === 'string' ? c.eveningWindDownDate : null,
+    sundayAdminDate: typeof c.sundayAdminDate === 'string' ? c.sundayAdminDate : null,
+    sundayCenterWeekStart:
+      typeof c.sundayCenterWeekStart === 'string' ? c.sundayCenterWeekStart : null,
+  }
 }
 
 function migrateWeekReflections(raw: unknown): Record<string, WeekReflection> {
@@ -297,12 +311,14 @@ function migrateLedger(raw: Partial<FinanceLedger> | undefined, fallback: Financ
     categories: hasBills ? categories : [...fallback.categories, ...categories],
     allocations: Array.isArray(raw.allocations) ? raw.allocations : [],
     spends: Array.isArray(raw.spends) ? raw.spends : [],
+    wishlist: migrateWishlist(raw.wishlist),
   }
 }
 
 /** True when the ledger has more than a bare empty Bills preset. */
 function isRichLedger(ledger: FinanceLedger): boolean {
   const cats = ledger.categories || []
+  if ((ledger.wishlist?.length || 0) > 0) return true
   if (cats.length === 0) return false
   if (cats.length > 1) return true
   const only = cats[0]
@@ -448,6 +464,7 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
         : parsed.lastSaturdayDumpSunday === null
           ? null
           : seed.lastSaturdayDumpSunday ?? null,
+    autopilotCompletions: migrateAutopilotCompletions(parsed.autopilotCompletions),
     habits: migrateHabits(parsed.habits ?? seed.habits, today),
     personalFinance: mergePersonalFoodAndDrink(personalFinance),
     companyFinance,
@@ -708,6 +725,34 @@ export function useStore() {
   )
 
   const setWeekIntention = useCallback((weekIntention: string) => update({ weekIntention }), [update])
+
+  const completeAutopilot = useCallback(
+    (
+      kind: 'eveningWindDown' | 'sundayAdmin' | 'sundayCenter',
+      key: string,
+    ) => {
+      update((s) => {
+        const current = s.autopilotCompletions ?? { ...EMPTY_AUTOPILOT_COMPLETIONS }
+        if (kind === 'eveningWindDown') {
+          return {
+            ...s,
+            autopilotCompletions: { ...current, eveningWindDownDate: key },
+          }
+        }
+        if (kind === 'sundayAdmin') {
+          return {
+            ...s,
+            autopilotCompletions: { ...current, sundayAdminDate: key },
+          }
+        }
+        return {
+          ...s,
+          autopilotCompletions: { ...current, sundayCenterWeekStart: key },
+        }
+      })
+    },
+    [update],
+  )
 
   const saveWeekReflection = useCallback((weekStart: string, reflection: WeekReflection) => {
     update((s) => ({
@@ -1380,6 +1425,36 @@ export function useStore() {
     [patchLedger],
   )
 
+  const addWishlistItem = useCallback(
+    (realm: FinanceRealm, input: { name: string; amount: number }) => {
+      const name = input.name.trim()
+      if (!name || !(input.amount >= 0)) return
+      patchLedger(realm, (ledger) => ({
+        ...ledger,
+        wishlist: [
+          {
+            id: uid('wish'),
+            name,
+            amount: Math.round(input.amount * 100) / 100,
+            createdAt: new Date().toISOString(),
+          },
+          ...(ledger.wishlist ?? []),
+        ],
+      }))
+    },
+    [patchLedger],
+  )
+
+  const removeWishlistItem = useCallback(
+    (realm: FinanceRealm, id: string) => {
+      patchLedger(realm, (ledger) => ({
+        ...ledger,
+        wishlist: (ledger.wishlist ?? []).filter((item) => item.id !== id),
+      }))
+    },
+    [patchLedger],
+  )
+
   const setRevolutAccountIds = useCallback(
     (realm: FinanceRealm, accountIds: string[]) => {
       const key = accountIdsKey(realm)
@@ -1499,6 +1574,8 @@ export function useStore() {
         companyDocuments: s.companyDocuments,
         companyIdeas: s.companyIdeas,
         visionGoals: s.visionGoals,
+        autopilotCompletions: s.autopilotCompletions,
+        lastSaturdayDumpSunday: s.lastSaturdayDumpSunday,
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       writeFinanceBackup(next.personalFinance, next.companyFinance)
@@ -1841,6 +1918,7 @@ export function useStore() {
     setActiveTab,
     setIdentity,
     setWeekIntention,
+    completeAutopilot,
     saveWeekReflection,
     reviewWeeklyGoals,
     commitWeeklyPlan,
@@ -1882,6 +1960,8 @@ export function useStore() {
     removeCashAllocation,
     addSpend,
     removeSpend,
+    addWishlistItem,
+    removeWishlistItem,
     setRevolutAccountIds,
     mergeRevolutReviewItems,
     discardRevolutReviewItem,
