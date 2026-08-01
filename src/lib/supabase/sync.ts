@@ -34,7 +34,8 @@ function ledgerScore(ledger: FinanceLedger | undefined): number {
   return (
     (ledger.categories?.length || 0) * 3 +
     (ledger.allocations?.length || 0) * 5 +
-    (ledger.spends?.length || 0) * 4
+    (ledger.spends?.length || 0) * 4 +
+    (ledger.wishlist?.length || 0) * 2
   )
 }
 

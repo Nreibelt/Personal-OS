@@ -29,7 +29,7 @@ const PERSONAL_TABS: { id: AppTab; label: string; sub: string; enabled?: boolean
   { id: 'calendar', label: 'Calendar', sub: 'Schedule' },
   { id: 'tasks', label: 'Tasks', sub: 'Projects' },
   { id: 'personalFinances', label: 'Personal Finances', sub: 'Personal Finances' },
-  { id: 'mentor', label: 'Mentor', sub: 'Synthesis', enabled: false },
+  { id: 'mentor', label: 'Mentor', sub: 'Synthesis' },
 ]
 
 const BUSINESS_TABS: {

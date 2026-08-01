@@ -228,6 +228,7 @@ export function SundayCenter({
     }
     if (isLast) {
       persistPlan()
+      store.completeAutopilot('sundayCenter', nextWeekStart)
       setFinished(true)
       return
     }
@@ -235,10 +236,7 @@ export function SundayCenter({
   }
 
   const back = () => {
-    if (finished) {
-      setFinished(false)
-      return
-    }
+    if (finished) return
     setStepIndex((i) => Math.max(i - 1, 0))
   }
 

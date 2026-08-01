@@ -218,6 +218,22 @@ export interface VisionGoal {
   updatedAt: string
 }
 
+/** When each Autopilot ritual was completed — used to lock until the next period */
+export interface AutopilotCompletions {
+  /** YYYY-MM-DD evening wind down completed */
+  eveningWindDownDate: string | null
+  /** Sunday YYYY-MM-DD Sunday Admin session completed */
+  sundayAdminDate: string | null
+  /** Monday YYYY-MM-DD of the week Sunday Center planned for */
+  sundayCenterWeekStart: string | null
+}
+
+export const EMPTY_AUTOPILOT_COMPLETIONS: AutopilotCompletions = {
+  eveningWindDownDate: null,
+  sundayAdminDate: null,
+  sundayCenterWeekStart: null,
+}
+
 /** Map persisted / legacy tab ids onto current AppTab values. */
 export function normalizeActiveTab(tab: unknown): AppTab {
   if (tab === 'deepWork') return 'calendar'
@@ -303,10 +319,21 @@ export interface SpendEntry {
   revolutId?: string
 }
 
+/** Want-to-buy item on the personal spendings wishlist */
+export interface WishlistItem {
+  id: string
+  name: string
+  /** Rough price estimate */
+  amount: number
+  createdAt: string
+}
+
 export interface FinanceLedger {
   categories: ExpenseCategory[]
   allocations: CashAllocation[]
   spends: SpendEntry[]
+  /** Personal spendings wishlist (item + rough price) */
+  wishlist: WishlistItem[]
 }
 
 /** Pending Revolut row awaiting categorize / discard in a finance realm. */
@@ -383,6 +410,8 @@ export interface AppState {
   weekReflections: Record<string, WeekReflection>
   /** Sunday date last prepared by Saturday Dump (avoids double-defer on re-edit) */
   lastSaturdayDumpSunday?: string | null
+  /** Autopilot ritual completion locks (date / week keys) */
+  autopilotCompletions: AutopilotCompletions
   personalFinance: FinanceLedger
   companyFinance: FinanceLedger
   revolutSync: RevolutSyncState
