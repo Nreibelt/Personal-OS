@@ -330,8 +330,17 @@ select:focus {
 
 .nav-glyph-dashboard .nav-glyph-core,
 .nav-glyph-todos .nav-glyph-core { border-radius: 50%; }
-.nav-glyph-deepWork .nav-glyph-core,
+.nav-glyph-calendar .nav-glyph-core,
 .nav-glyph-finance .nav-glyph-core { transform: rotate(45deg); }
+.nav-glyph-tasks .nav-glyph-core {
+  width: 0.5rem;
+  height: 0.18rem;
+  border-radius: 99px;
+  box-shadow: 0 0.28rem 0 0 var(--text-dim);
+}
+.rail-item.active .nav-glyph-tasks .nav-glyph-core {
+  box-shadow: 0 0.28rem 0 0 #04140c;
+}
 .nav-glyph-personalFinances .nav-glyph-core,
 .nav-glyph-documents .nav-glyph-core { width: 0.55rem; height: 0.28rem; border-radius: 99px; }
 .nav-glyph-ideas .nav-glyph-core { width: 0.35rem; height: 0.55rem; border-radius: 99px 99px 4px 4px; }
@@ -1133,6 +1142,17 @@ select:focus {
 
 .project-card .check-list {
   flex: 1;
+}
+
+.calendar-stage,
+.tasks-stage {
+  gap: var(--space-3);
+}
+
+.deep-focus-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
 
 .tasks-toolbar {

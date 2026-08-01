@@ -74,7 +74,14 @@ function sameDays(a: number[], b: number[]) {
   return a.length === b.length && b.every((d) => a.includes(d))
 }
 
-export function ScheduleCalendar({ store }: { store: Store }) {
+export function ScheduleCalendar({
+  store,
+  bodyHeight = BODY_HEIGHT,
+}: {
+  store: Store
+  /** Visible scroll viewport height for the day grid (px). */
+  bodyHeight?: number
+}) {
   const center = store.state.selectedDate
   const today = todayDateKey()
   const [span, setSpan] = useState<Span>(3)
@@ -547,7 +554,7 @@ export function ScheduleCalendar({ store }: { store: Store }) {
         <div
           className="sched-body"
           ref={scrollRef}
-          style={{ height: Math.min(BODY_HEIGHT, HEIGHT), gridTemplateColumns: gridColumns }}
+          style={{ height: Math.min(bodyHeight, HEIGHT), gridTemplateColumns: gridColumns }}
         >
           <div className="time-gutter" style={{ height: HEIGHT }}>
             {hours.map((m) =>
