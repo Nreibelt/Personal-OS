@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import type { Store } from '../../hooks/useStore'
-import type { ExpenseFrequency, FinanceRealm } from '../../types'
+import type { ExpenseCategory, ExpenseFrequency, FinanceRealm } from '../../types'
 import {
   categoryEffectiveAmount,
   childCategories,
@@ -11,6 +11,98 @@ import {
   totalMonthlyExpenses,
 } from '../../utils/finance'
 import { HudPanel } from '../HudPanel'
+
+function AmountField({
+  value,
+  ariaLabel,
+  onCommit,
+}: {
+  value: number
+  ariaLabel: string
+  onCommit: (amount: number) => void
+}) {
+  const [draft, setDraft] = useState(String(value))
+
+  useEffect(() => {
+    setDraft(String(value))
+  }, [value])
+
+  const commit = () => {
+    const parsed = parseAmount(draft)
+    if (parsed === null) {
+      setDraft(String(value))
+      return
+    }
+    if (parsed !== value) onCommit(parsed)
+    else setDraft(String(value))
+  }
+
+  return (
+    <input
+      className="finance-expense-amount-input"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          ;(e.target as HTMLInputElement).blur()
+        }
+        if (e.key === 'Escape') {
+          setDraft(String(value))
+          ;(e.target as HTMLInputElement).blur()
+        }
+      }}
+      inputMode="decimal"
+      aria-label={ariaLabel}
+    />
+  )
+}
+
+function NameField({
+  value,
+  ariaLabel,
+  onCommit,
+}: {
+  value: string
+  ariaLabel: string
+  onCommit: (name: string) => void
+}) {
+  const [draft, setDraft] = useState(value)
+
+  useEffect(() => {
+    setDraft(value)
+  }, [value])
+
+  const commit = () => {
+    const next = draft.trim()
+    if (!next) {
+      setDraft(value)
+      return
+    }
+    if (next !== value) onCommit(next)
+  }
+
+  return (
+    <input
+      className="finance-expense-name-input"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          ;(e.target as HTMLInputElement).blur()
+        }
+        if (e.key === 'Escape') {
+          setDraft(value)
+          ;(e.target as HTMLInputElement).blur()
+        }
+      }}
+      aria-label={ariaLabel}
+    />
+  )
+}
 
 export function SetExpensesPanel({
   store,
@@ -31,6 +123,10 @@ export function SetExpensesPanel({
   const [microParentId, setMicroParentId] = useState<string | null>(null)
   const [microName, setMicroName] = useState('')
   const [microAmount, setMicroAmount] = useState('')
+
+  const patch = (id: string, next: Partial<Pick<ExpenseCategory, 'name' | 'frequency' | 'amount'>>) => {
+    store.updateExpenseCategory(realm, id, next)
+  }
 
   const submitCategory = (e: FormEvent) => {
     e.preventDefault()
@@ -61,25 +157,64 @@ export function SetExpensesPanel({
   return (
     <HudPanel label="SET EXPENSES" embedded={embedded}>
       <p className="finance-hint">
-        Recurring budgets by category. Bills is preset — add micro expenses under it (YouTube,
-        subscriptions, etc.).
+        Recurring budgets by category. Click any amount (or title) to edit. Bills is preset — add
+        micro expenses under it (YouTube, subscriptions, etc.).
       </p>
 
       <ul className="finance-list">
         {tops.map((cat) => {
           const kids = childCategories(ledger, cat.id)
           const effective = categoryEffectiveAmount(cat, ledger.categories)
+          const hasKids = kids.length > 0
           return (
             <li key={cat.id} className="finance-expense">
               <div className="finance-expense-row">
                 <div className="finance-expense-main">
-                  <span className="finance-expense-name">{cat.name}</span>
-                  <span className="finance-expense-meta">
-                    {cat.frequency}
-                    {kids.length > 0 ? ' · micro roll-up' : ''}
-                  </span>
+                  {cat.isPreset ? (
+                    <span className="finance-expense-name">{cat.name}</span>
+                  ) : (
+                    <NameField
+                      value={cat.name}
+                      ariaLabel={`Edit ${cat.name} title`}
+                      onCommit={(next) => patch(cat.id, { name: next })}
+                    />
+                  )}
+                  <div className="finance-expense-meta-row">
+                    {cat.isPreset ? (
+                      <span className="finance-expense-meta">{cat.frequency}</span>
+                    ) : (
+                      <select
+                        className="finance-expense-freq"
+                        value={cat.frequency}
+                        aria-label={`${cat.name} frequency`}
+                        onChange={(e) =>
+                          patch(cat.id, { frequency: e.target.value as ExpenseFrequency })
+                        }
+                      >
+                        {FREQUENCIES.map((f) => (
+                          <option key={f} value={f}>
+                            {f}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {hasKids && <span className="finance-expense-meta">· micro roll-up</span>}
+                  </div>
                 </div>
-                <span className="finance-expense-amount">{formatMoney(effective)}</span>
+                {hasKids ? (
+                  <span
+                    className="finance-expense-amount"
+                    title="Sum of micro expenses — edit the lines below"
+                  >
+                    {formatMoney(effective)}
+                  </span>
+                ) : (
+                  <AmountField
+                    value={cat.amount}
+                    ariaLabel={`Edit ${cat.name} amount`}
+                    onCommit={(next) => patch(cat.id, { amount: next })}
+                  />
+                )}
                 {!cat.isPreset && (
                   <button
                     type="button"
@@ -96,8 +231,16 @@ export function SetExpensesPanel({
                 <ul className="finance-micro-list">
                   {kids.map((kid) => (
                     <li key={kid.id} className="finance-micro-row">
-                      <span>{kid.name}</span>
-                      <span className="finance-expense-amount">{formatMoney(kid.amount)}</span>
+                      <NameField
+                        value={kid.name}
+                        ariaLabel={`Edit ${kid.name} title`}
+                        onCommit={(next) => patch(kid.id, { name: next })}
+                      />
+                      <AmountField
+                        value={kid.amount}
+                        ariaLabel={`Edit ${kid.name} amount`}
+                        onCommit={(next) => patch(kid.id, { amount: next })}
+                      />
                       <button
                         type="button"
                         className="x-btn visible"
