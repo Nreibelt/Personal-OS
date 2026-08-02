@@ -7,7 +7,7 @@ export const PROJECTS: Project[] = [
   { id: 'chase', name: 'Chase Build', color: '#5aa889' },
   { id: 'myProject', name: 'My Project', color: '#3dfa8e' },
   { id: 'rav', name: 'Rav Work', color: '#c4a574' },
-  { id: 'personal', name: 'Personal Time', color: '#7f8f86' },
+  { id: 'personal', name: 'Personal', color: '#7f8f86' },
   { id: 'sundayAdmin', name: 'Sunday Admin', color: '#8a9bb5' },
 ]
 
@@ -127,16 +127,17 @@ export function createSeedState(): AppState {
         task('Invoice follow-up batch', false),
         task('Scope next deliverable', false),
       ],
-      personal: [],
+      personal: [
+        task('Mumma Bday Card', true),
+        task('Apartment Deposit + Finances', false),
+        task('Move Attention OS To Vercel', false),
+        task('Fuck You List', false),
+      ],
       sundayAdmin: [
         task('Clear inbox to zero', false),
         task('Pay bills / review subscriptions', false),
         task('House admin sweep', false),
         task('Deep Reflection', true),
-        task('Fuck You List', false),
-        task('Move Attention OS To Vercel', false),
-        task('Mumma Bday Card', true),
-        task('Apartment Deposit + Finances', false),
       ],
     },
     timeEntries: [

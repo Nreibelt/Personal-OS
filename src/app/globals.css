@@ -1151,6 +1151,14 @@ select:focus {
   font-weight: 500;
 }
 
+.project-task-hint {
+  margin: -0.25rem 0 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  line-height: 1.35;
+}
+
 .project-time {
   font-family: var(--font-mono);
   font-size: 1.5rem;

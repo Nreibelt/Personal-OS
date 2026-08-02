@@ -63,7 +63,7 @@ export function TimeSummary({ store }: { store: Store }) {
       {personal > 0 && (
         <div className="breakdown-row" style={{ marginTop: '0.75rem', opacity: 0.85 }}>
           <span className="dot" style={{ background: '#7a7a86', color: '#7a7a86' }} />
-          <span style={{ minWidth: '7rem' }}>Personal Time</span>
+          <span style={{ minWidth: '7rem' }}>Personal</span>
           <div className="bar">
             <i
               style={{

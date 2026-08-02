@@ -29,19 +29,19 @@ const ROUTINES: {
     id: 'saturday-dump',
     kicker: 'Saturday',
     name: 'Saturday Dump',
-    desc: 'Notebook → Sunday Admin pile. Allocate tomorrow. Two skips = delete.',
+    desc: 'Notebook → Sunday-only admin pile. Allocate tomorrow. Two skips = delete.',
   },
   {
     id: 'sunday-admin',
     kicker: 'Sunday',
     name: 'Sunday Admin',
-    desc: 'Reply to all → one allocated task at a time. Full focus. Personal Time on.',
+    desc: 'Reply to all → one allocated Sunday task at a time. Full focus. Personal timer on.',
   },
   {
     id: 'sunday-center',
     kicker: 'Sunday',
     name: 'Sunday Center',
-    desc: 'Reflect the week, re-check money, set 3 goals + focus, load tasks, journal.',
+    desc: 'Reflect the week, re-check money, set 3 goals + focus, load personal & project tasks, journal.',
   },
 ]
 

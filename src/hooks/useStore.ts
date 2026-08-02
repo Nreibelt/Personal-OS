@@ -229,16 +229,9 @@ function migrateTasks(tasks: AppState['tasks']): AppState['tasks'] {
     next[project.id] = list.map((t) => normalizeTask(t, today))
   }
 
-  // Personal Time tasks live under Sunday Admin — migrate any leftovers.
-  const personalLeft = next.personal ?? []
-  if (personalLeft.length > 0) {
-    const existingIds = new Set((next.sundayAdmin ?? []).map((t) => t.id))
-    const moved = personalLeft.filter((t) => !existingIds.has(t.id))
-    next.sundayAdmin = [...(next.sundayAdmin ?? []), ...moved]
-    next.personal = []
-  } else if (!Array.isArray(next.personal)) {
-    next.personal = []
-  }
+  // Personal = weekday-critical todos; Sunday Admin = Sunday-only admin pile.
+  if (!Array.isArray(next.personal)) next.personal = []
+  if (!Array.isArray(next.sundayAdmin)) next.sundayAdmin = []
 
   return next
 }
@@ -1054,8 +1047,6 @@ export function useStore() {
     (projectId: ProjectId, text: string, opts: boolean | AddTaskOptions = true) => {
       const trimmed = text.trim()
       if (!trimmed) return
-      // Personal Time is timer-only — task capture goes to Sunday Admin.
-      const targetId: ProjectId = projectId === 'personal' ? 'sundayAdmin' : projectId
       const today = todayDateKey()
       const options: AddTaskOptions = typeof opts === 'boolean' ? { forToday: opts } : opts
       const plannedDate =
@@ -1069,8 +1060,8 @@ export function useStore() {
         ...s,
         tasks: {
           ...s.tasks,
-          [targetId]: [
-            ...(s.tasks[targetId] ?? []),
+          [projectId]: [
+            ...(s.tasks[projectId] ?? []),
             {
               id: uid('task'),
               text: trimmed,
