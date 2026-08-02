@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import { JetBrains_Mono, Manrope, Space_Grotesk } from 'next/font/google'
 import './globals.css'
@@ -27,6 +27,22 @@ export const metadata: Metadata = {
   icons: {
     icon: '/favicon.svg',
   },
+  appleWebApp: {
+    capable: true,
+    title: 'Batcave',
+    statusBarStyle: 'black-translucent',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#0b0f0d',
+  colorScheme: 'dark',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
