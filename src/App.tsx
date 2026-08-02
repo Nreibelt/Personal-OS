@@ -22,28 +22,40 @@ import { formatLongDate, formatMinutes, todayDateKey } from './utils/time'
 const LAYER_KEY = 'batcave-app-layer-v1'
 const BUSINESS_TAB_KEY = 'batcave-business-tab-v1'
 
-const PERSONAL_TABS: { id: AppTab; label: string; sub: string; enabled?: boolean }[] = [
-  { id: 'dashboard', label: 'Dashboard', sub: 'Command Center' },
-  { id: 'vision', label: 'Vision', sub: 'Horizon' },
-  { id: 'autopilot', label: 'Autopilot', sub: 'Set paths' },
-  { id: 'calendar', label: 'Calendar', sub: 'Schedule' },
-  { id: 'tasks', label: 'Tasks', sub: 'Projects' },
-  { id: 'personalFinances', label: 'Personal Finances', sub: 'Personal Finances' },
-  { id: 'mentor', label: 'Mentor', sub: 'Synthesis' },
+const PERSONAL_TABS: {
+  id: AppTab
+  label: string
+  shortLabel: string
+  sub: string
+  enabled?: boolean
+}[] = [
+  { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', sub: 'Command Center' },
+  { id: 'vision', label: 'Vision', shortLabel: 'Vision', sub: 'Horizon' },
+  { id: 'autopilot', label: 'Autopilot', shortLabel: 'Auto', sub: 'Set paths' },
+  { id: 'calendar', label: 'Calendar', shortLabel: 'Cal', sub: 'Schedule' },
+  { id: 'tasks', label: 'Tasks', shortLabel: 'Tasks', sub: 'Projects' },
+  {
+    id: 'personalFinances',
+    label: 'Personal Finances',
+    shortLabel: 'Money',
+    sub: 'Personal Finances',
+  },
+  { id: 'mentor', label: 'Mentor', shortLabel: 'Mentor', sub: 'Synthesis' },
 ]
 
 const BUSINESS_TABS: {
   id: BusinessTab
   label: string
+  shortLabel: string
   enabled: boolean
 }[] = [
-  { id: 'todos', label: 'To-Dos', enabled: true },
-  { id: 'finance', label: 'Finance', enabled: true },
-  { id: 'documents', label: 'Documents', enabled: true },
-  { id: 'ideas', label: 'Ideas', enabled: true },
-  { id: 'metaAds', label: 'Meta Ads', enabled: false },
-  { id: 'coldEmail', label: 'Cold Email', enabled: false },
-  { id: 'agents', label: 'Agents', enabled: false },
+  { id: 'todos', label: 'To-Dos', shortLabel: 'To-Dos', enabled: true },
+  { id: 'finance', label: 'Finance', shortLabel: 'Finance', enabled: true },
+  { id: 'documents', label: 'Documents', shortLabel: 'Docs', enabled: true },
+  { id: 'ideas', label: 'Ideas', shortLabel: 'Ideas', enabled: true },
+  { id: 'metaAds', label: 'Meta Ads', shortLabel: 'Ads', enabled: false },
+  { id: 'coldEmail', label: 'Cold Email', shortLabel: 'Email', enabled: false },
+  { id: 'agents', label: 'Agents', shortLabel: 'Agents', enabled: false },
 ]
 
 function readLayer(): AppLayer {
@@ -258,7 +270,10 @@ export default function App() {
                   }}
                 >
                   <NavGlyph kind={t.id} />
-                  <span className="rail-item-label">{t.label}</span>
+                  <span className="rail-item-label rail-item-label-full">{t.label}</span>
+                  <span className="rail-item-label rail-item-label-compact" aria-hidden="true">
+                    {t.shortLabel}
+                  </span>
                   {!t.enabled && <span className="tab-soon">Soon</span>}
                 </button>
               ))
@@ -277,7 +292,10 @@ export default function App() {
                     }}
                   >
                     <NavGlyph kind={t.id} />
-                    <span className="rail-item-label">{t.label}</span>
+                    <span className="rail-item-label rail-item-label-full">{t.label}</span>
+                    <span className="rail-item-label rail-item-label-compact" aria-hidden="true">
+                      {t.shortLabel}
+                    </span>
                     {!enabled && <span className="tab-soon">Soon</span>}
                   </button>
                 )
@@ -287,7 +305,10 @@ export default function App() {
         <div className="rail-foot">
           <button type="button" className="rail-switch" onClick={switchLayerToGate}>
             <span className="rail-switch-kicker">Layer</span>
-            <span className="rail-switch-label">Switch layer</span>
+            <span className="rail-switch-label rail-switch-label-full">Switch layer</span>
+            <span className="rail-switch-label rail-switch-label-compact" aria-hidden="true">
+              Layers
+            </span>
           </button>
         </div>
       </aside>
