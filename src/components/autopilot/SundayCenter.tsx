@@ -609,9 +609,13 @@ export function SundayCenter({
                           value={dumpProject}
                           onChange={(e) => setDumpProject(e.target.value as ProjectId)}
                         >
-                          {PROJECTS.filter((p) => p.id !== 'personal').map((p) => (
+                          {PROJECTS.map((p) => (
                             <option key={p.id} value={p.id}>
-                              {p.name}
+                              {p.id === 'personal'
+                                ? 'Personal (week-critical)'
+                                : p.id === 'sundayAdmin'
+                                  ? 'Sunday Admin (Sunday only)'
+                                  : p.name}
                             </option>
                           ))}
                         </select>
