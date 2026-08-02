@@ -55,18 +55,17 @@ export function VisionView({ store }: { store: Store }) {
             alt="Dream home vision board: mansion with wife's SUV, Ferrari, McLaren and Kawasaki Ninja, gym, boxing ring, pilates studio, outdoor area and man cave"
             className="vision-hero-img"
           />
-          <span className="vision-hero-scrim" aria-hidden />
-          <span className="vision-hero-copy">
-            <span className="vision-hero-kicker">The Horizon</span>
-            <span className="vision-hero-title">Dream Home</span>
-            <span className="vision-hero-sub">
-              The house I&apos;m building. Every deep work session is a brick.
-            </span>
-          </span>
           <span className="vision-hero-expand" aria-hidden>
             Expand
           </span>
         </button>
+        <div className="vision-hero-copy">
+          <span className="vision-hero-kicker">The Horizon</span>
+          <span className="vision-hero-title">Dream Home</span>
+          <span className="vision-hero-sub">
+            The house I&apos;m building. Every deep work session is a brick.
+          </span>
+        </div>
       </section>
 
       <section className="action-board">

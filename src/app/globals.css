@@ -4613,6 +4613,9 @@ a.btn-secondary.compact {
 /* Vision hero — dream home board */
 .vision-hero {
   margin: -0.35rem 0 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
 
 .vision-hero-frame {
@@ -4651,24 +4654,11 @@ a.btn-secondary.compact {
   object-fit: cover;
 }
 
-.vision-hero-scrim {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(5, 8, 7, 0.42) 0%, transparent 26%),
-    linear-gradient(0deg, rgba(5, 8, 7, 0.88) 0%, rgba(5, 8, 7, 0.35) 22%, transparent 46%);
-}
-
 .vision-hero-copy {
-  position: absolute;
-  left: clamp(1rem, 3vw, 2.4rem);
-  bottom: clamp(0.9rem, 2.6vw, 2rem);
-  right: clamp(1rem, 3vw, 2.4rem);
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  pointer-events: none;
+  padding: 0 0.15rem;
   text-align: left;
 }
 
@@ -4679,7 +4669,6 @@ a.btn-secondary.compact {
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--accent);
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.8);
 }
 
 .vision-hero-title {
@@ -4688,15 +4677,13 @@ a.btn-secondary.compact {
   font-weight: 600;
   letter-spacing: -0.035em;
   line-height: 1;
-  color: #fff;
-  text-shadow: 0 2px 28px rgba(0, 0, 0, 0.85);
+  color: var(--text);
 }
 
 .vision-hero-sub {
   font-size: clamp(0.75rem, 1.2vw, 0.9375rem);
-  color: rgba(238, 245, 240, 0.82);
+  color: var(--text-muted);
   max-width: 46ch;
-  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.85);
 }
 
 .vision-hero-expand {
