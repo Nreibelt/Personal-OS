@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { PROJECTS } from '../../data/seed'
 import type { Store } from '../../hooks/useStore'
 import { addDays, formatLongDate, todayDateKey } from '../../utils/time'
+import { BodyEnergyLog, isBodyLogReady } from '../BodyEnergyLog'
 import { CashTrackerPanel } from '../finance/CashTrackerPanel'
+import { JournalCapture } from '../JournalCapture'
 import { RevolutSyncPanel } from '../finance/RevolutSyncPanel'
 import { ScheduleCalendar } from '../ScheduleCalendar'
 import { TaskRow } from '../TaskRow'
@@ -18,22 +20,28 @@ const STEPS = [
     copy: 'Sync Revolut and log today’s cash. Clear the money loop before you shut down.',
   },
   {
+    id: 'body',
+    title: 'Body & energy',
+    kicker: 'Step 2',
+    copy: 'Sleep, energy, train. Mentor needs the body signal to decode weapon days.',
+  },
+  {
     id: 'calendar',
     title: 'Tomorrow’s calendar',
-    kicker: 'Step 2',
+    kicker: 'Step 3',
     copy: 'Map tomorrow once. Put the day on rails so morning-you doesn’t decide.',
   },
   {
     id: 'tasks',
     title: 'Assign tomorrow’s tasks',
-    kicker: 'Step 3',
+    kicker: 'Step 4',
     copy: 'Walk the list. Park work on tomorrow’s date — or leave it in Later.',
   },
   {
     id: 'journal',
     title: 'Journal',
-    kicker: 'Step 4',
-    copy: 'One honest page. Empty the residual charge, then close the day.',
+    kicker: 'Step 5',
+    copy: 'Write on paper, then upload the page. OCR feeds the Mentor — no checkbox theater.',
   },
 ] as const
 
@@ -47,7 +55,7 @@ export function EveningWindDown({
   onClose: () => void
 }) {
   const [stepIndex, setStepIndex] = useState(0)
-  const [journalDone, setJournalDone] = useState(false)
+  const [journalExtracted, setJournalExtracted] = useState(0)
   const [finished, setFinished] = useState(false)
 
   const today = todayDateKey()
@@ -72,9 +80,12 @@ export function EveningWindDown({
   useEffect(() => {
     if (open) return
     setStepIndex(0)
-    setJournalDone(false)
+    setJournalExtracted(0)
     setFinished(false)
   }, [open])
+
+  const bodyReady = isBodyLogReady(store, today)
+  const journalDone = journalExtracted > 0
 
   const openTasks = useMemo(() => {
     return PROJECTS.flatMap((project) =>
@@ -155,6 +166,12 @@ export function EveningWindDown({
                   </div>
                 )}
 
+                {step.id === 'body' && (
+                  <div className="wind-down-panel">
+                    <BodyEnergyLog store={store} date={today} />
+                  </div>
+                )}
+
                 {step.id === 'calendar' && (
                   <div className="wind-down-panel">
                     <div className="wind-down-panel-meta">
@@ -216,21 +233,21 @@ export function EveningWindDown({
                   <div className="wind-down-panel wind-down-journal">
                     <div className="wind-down-journal-card">
                       <p className="wind-down-journal-prompt">
-                        Write for five minutes. No performance. Capture what happened, what
-                        mattered, and what you want tomorrow-you to remember.
+                        Write for five minutes on paper. Then photograph the page — OCR closes
+                        the loop into Mentor.
                       </p>
-                      <p className="wind-down-journal-hint">
-                        Notebook, notes app, or paper — wherever the friction is lowest. The
-                        ritual is the writing, not the tool.
-                      </p>
-                      <label className="wind-down-check">
-                        <input
-                          type="checkbox"
-                          checked={journalDone}
-                          onChange={(e) => setJournalDone(e.target.checked)}
-                        />
-                        <span>Journal complete</span>
-                      </label>
+                      <JournalCapture
+                        store={store}
+                        defaultDate={today}
+                        preferPageDate
+                        compact
+                        onExtractedCountChange={setJournalExtracted}
+                      />
+                      {journalDone && (
+                        <p className="body-energy-ready ok">
+                          {journalExtracted} page{journalExtracted === 1 ? '' : 's'} in the mentor loop.
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -252,7 +269,10 @@ export function EveningWindDown({
                 type="button"
                 className="btn-primary"
                 onClick={advance}
-                disabled={step.id === 'journal' && !journalDone}
+                disabled={
+                  (step.id === 'journal' && !journalDone) ||
+                  (step.id === 'body' && !bodyReady)
+                }
               >
                 {isLast ? 'Complete wind down' : 'Complete · next'}
               </button>

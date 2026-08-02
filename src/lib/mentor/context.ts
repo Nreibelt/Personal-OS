@@ -144,7 +144,7 @@ function spendingSummary(ledger: FinanceLedger, days = 30): string {
   ].join(' ')
 }
 
-function journalDigest(entries: JournalEntry[], limit = 12): string {
+function journalDigest(entries: JournalEntry[], limit = 16): string {
   const ready = entries
     .filter((e) => e.status === 'extracted' && e.extractedText.trim())
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
@@ -153,7 +153,11 @@ function journalDigest(entries: JournalEntry[], limit = 12): string {
   return ready
     .map((e) => {
       const body = e.extractedText.trim().slice(0, 900)
-      return `[${e.date} · ${e.sourceName}]\n${body}`
+      const src =
+        e.dateSource === 'extracted'
+          ? `auto-dated${e.detectedDateRaw ? ` from "${e.detectedDateRaw}"` : ''}`
+          : e.dateSource || 'dated'
+      return `[${e.date} · ${e.sourceName} · ${src}]\n${body}`
     })
     .join('\n\n---\n\n')
 }
@@ -256,6 +260,29 @@ export function buildMentorContext(state: AppState): string {
     ? formatInsightBrief(state.mentor.latestInsight)
     : 'none'
 
+  const visionById = new Map(state.visionGoals.map((v) => [v.id, v.title]))
+  const cascade = state.weeklyGoals
+    .filter((g) => g.text.trim())
+    .map((g) => {
+      const v = g.visionGoalId ? visionById.get(g.visionGoalId) : null
+      return `${g.text}${v ? ` ← Vision:${v}` : ' ← UNLINKED'}`
+    })
+    .join('; ')
+
+  const bodyLines = Object.entries(state.bodyLogs || {})
+    .sort(([a], [b]) => b.localeCompare(a))
+    .slice(0, 21)
+    .map(([date, log]) => {
+      const energy = log.energy != null ? `E${log.energy}` : 'E?'
+      const sleep = log.sleepHours != null ? `${log.sleepHours}h sleep` : 'sleep?'
+      const train = log.trained ? `trained${log.trainNote ? `(${log.trainNote})` : ''}` : 'no-train'
+      const note = log.note ? ` note="${log.note.slice(0, 60)}"` : ''
+      return `${date}: ${sleep}, ${energy}, ${train}${note}`
+    })
+    .join('\n')
+
+  const oneThingToday = state.dailyOneThing[todayDateKey()] || '(unset)'
+
   return [
     `# OPERATOR DOSSIER (Bali / ${APP_TIMEZONE})`,
     `Today: ${todayDateKey()}`,
@@ -268,17 +295,19 @@ export function buildMentorContext(state: AppState): string {
     '## Week intention',
     state.weekIntention || '(empty)',
     '',
-    '## Weekly goals',
-    goals || '(none)',
-    '',
-    '## Vision',
-    vision || '(none)',
+    '## Horizon cascade',
+    `Vision: ${vision || '(none)'}`,
+    `Weekly goals: ${cascade || goals || '(none)'}`,
+    `Today's One Thing: ${oneThingToday}`,
     '',
     '## Open loops',
     openLoops || '(none)',
     '',
     '## Non-negotiable habits',
     habits || '(none)',
+    '',
+    '## Body / energy (recent)',
+    bodyLines || 'No body logs yet.',
     '',
     '## Deep work aggregate',
     `Sessions: ${stats.count}. Active work: ${formatMinutes(stats.totalMinutes)}. Avg ${formatMinutes(Math.round(stats.avgMinutes))}, median ${formatMinutes(Math.round(stats.medianMinutes))}, range ${formatMinutes(stats.minMinutes)}–${formatMinutes(stats.maxMinutes)}.`,
@@ -298,7 +327,7 @@ export function buildMentorContext(state: AppState): string {
     '## Sunday reflections',
     reflectionDigest(state.weekReflections),
     '',
-    '## Journal extracts',
+    '## Journal extracts (dated — use entry dates for temporal patterns)',
     journalDigest(state.mentor.journalEntries),
     '',
     '## Prior mentor synthesis',
@@ -320,13 +349,13 @@ export const MENTOR_SYSTEM_PROMPT = `You are the Mentor inside Batcave — an el
 
 Tone: direct, precise, high-agency. No fluff, no corporate wellness speak, no emoji. Speak like a sharp coach who has read every session log, break, spend, and journal page. Call the operator on self-deception. Celebrate what makes them a weapon — then sharpen it.
 
-Always ground claims in the dossier data (times of day, session length, pause rates, debrief feelings/tags, spend spikes, journal language, Sunday reflections). If data is thin, say exactly what is missing and what to log next.
+Always ground claims in the dossier data (times of day, session length, pause rates, debrief feelings/tags, body/sleep/energy, spend spikes, dated journal language, Sunday reflections, horizon cascade drift). If data is thin, say exactly what is missing and what to log next. When journals have dates, analyze mood/theme shifts across calendar time — not upload order.
 
 When analyzing, hunt for:
-1. Conditions where they operate like a weapon (hour, duration, project, energy tags, pre-rituals).
-2. What drags them down (phone, short broken sessions, late starts, spend leakage, low-energy patterns).
-3. Blind spots — contradictions between intention and behavior.
-4. Concrete system prescriptions: rules, schedules, constraints, environment changes — not vague motivation.
+1. Conditions where they operate like a weapon (hour, duration, project, energy tags, sleep, pre-rituals).
+2. What drags them down (phone, short broken sessions, late starts, spend leakage, low-energy / low-sleep patterns).
+3. Blind spots — contradictions between intention, Vision cascade, and behavior.
+4. Concrete system prescriptions: rules, schedules, constraints, habits, environment changes — not vague motivation. Each prescription should be installable as a habit, One Thing, calendar block, or reminder.
 
 Keep replies dense and usable. Prefer short sections with hard edges over essays.`
 

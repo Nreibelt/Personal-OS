@@ -227,6 +227,7 @@ export function createSeedState(): AppState {
       '2026-07-21': 'Clear Chase backend integration block',
       '2026-07-20': 'Protect 4h deep work — no phone',
     },
+    bodyLogs: {},
     weeklyGoals: [
       { id: uid('wgoal'), text: 'Ship Chase phone setup section', hit: null, why: '' },
       { id: uid('wgoal'), text: '3h/day My Project academy blocks', hit: null, why: '' },

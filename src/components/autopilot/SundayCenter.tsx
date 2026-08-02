@@ -17,6 +17,7 @@ import {
   startOfWeekMonday,
   todayDateKey,
 } from '../../utils/time'
+import { JournalCapture } from '../JournalCapture'
 import { ModalPortal } from '../ui/ModalPortal'
 
 const STEPS = [
@@ -66,8 +67,8 @@ const STEPS = [
     id: 'journal',
     phase: 'Close',
     title: 'Deep journal',
-    kicker: 'Part 3 · Paper',
-    copy: 'Deep reflection and identity writing — on paper. The OS stays out of the way.',
+    kicker: 'Part 3 · Paper → OCR',
+    copy: 'Deep reflection on paper, then photograph the pages. Dates get read. Mentor closes the loop.',
   },
 ] as const
 
@@ -77,6 +78,7 @@ function blankGoals(): WeeklyGoal[] {
     text: '',
     hit: null,
     why: '',
+    visionGoalId: null,
   }))
 }
 
@@ -117,7 +119,7 @@ export function SundayCenter({
   const nextWeekStart = addDays(priorWeekStart, 7)
 
   const [stepIndex, setStepIndex] = useState(0)
-  const [journalDone, setJournalDone] = useState(false)
+  const [journalExtracted, setJournalExtracted] = useState(0)
   const [finished, setFinished] = useState(false)
 
   const [reflection, setReflection] = useState<WeekReflection>(blankReflection)
@@ -159,7 +161,7 @@ export function SundayCenter({
     setDumpProject('chase')
     setDumpDate(nextWeekStart)
     setStepIndex(0)
-    setJournalDone(false)
+    setJournalExtracted(0)
     setFinished(false)
   }, [open, priorWeekStart, nextWeekStart, store])
 
@@ -273,6 +275,7 @@ export function SundayCenter({
 
   const goalsReady = nextGoals.filter((g) => g.text.trim()).length >= 1
   const focusReady = focus.trim().length > 0
+  const journalDone = journalExtracted > 0
   const canAdvance =
     step.id === 'goals'
       ? goalsReady
@@ -281,6 +284,7 @@ export function SundayCenter({
         : step.id === 'journal'
           ? journalDone
           : true
+  const visionGoals = store.state.visionGoals.filter((g) => g.title.trim())
 
   return (
     <ModalPortal>
@@ -549,28 +553,61 @@ export function SundayCenter({
                     </div>
                     <div className="sunday-goal-set-list">
                       {nextGoals.map((g, i) => (
-                        <label key={g.id} className="field sunday-field">
-                          <span className="field-label">Goal {i + 1}</span>
-                          <input
-                            value={g.text}
-                            onChange={(e) =>
-                              setNextGoals((list) =>
-                                list.map((row) =>
-                                  row.id === g.id ? { ...row, text: e.target.value } : row,
-                                ),
-                              )
-                            }
-                            placeholder={
-                              i === 0
-                                ? 'Primary outcome'
-                                : i === 1
-                                  ? 'Second lever'
-                                  : 'Third lever / constraint'
-                            }
-                          />
-                        </label>
+                        <div key={g.id} className="sunday-goal-cascade">
+                          <label className="field sunday-field">
+                            <span className="field-label">Goal {i + 1}</span>
+                            <input
+                              value={g.text}
+                              onChange={(e) =>
+                                setNextGoals((list) =>
+                                  list.map((row) =>
+                                    row.id === g.id ? { ...row, text: e.target.value } : row,
+                                  ),
+                                )
+                              }
+                              placeholder={
+                                i === 0
+                                  ? 'Primary outcome'
+                                  : i === 1
+                                    ? 'Second lever'
+                                    : 'Third lever / constraint'
+                              }
+                            />
+                          </label>
+                          <label className="field sunday-field">
+                            <span className="field-label">Serves vision</span>
+                            <select
+                              className="field-select"
+                              value={g.visionGoalId || ''}
+                              onChange={(e) =>
+                                setNextGoals((list) =>
+                                  list.map((row) =>
+                                    row.id === g.id
+                                      ? {
+                                          ...row,
+                                          visionGoalId: e.target.value || null,
+                                        }
+                                      : row,
+                                  ),
+                                )
+                              }
+                            >
+                              <option value="">Unlinked</option>
+                              {visionGoals.map((v) => (
+                                <option key={v.id} value={v.id}>
+                                  {v.title}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
                       ))}
                     </div>
+                    {visionGoals.length === 0 && (
+                      <p className="sunday-finance-lede">
+                        No Vision goals yet — add them under Vision so weekly goals can cascade.
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -642,20 +679,21 @@ export function SundayCenter({
                   <div className="wind-down-panel wind-down-journal">
                     <div className="wind-down-journal-card">
                       <p className="wind-down-journal-prompt">
-                        Paper only. Deep reflection and identity writing — who you were this week,
-                        who you are becoming, and what must be true by next Sunday.
+                        Paper first — deep reflection and identity. Then photograph every page so
+                        Mentor can read the week with real dates.
                       </p>
-                      <p className="wind-down-journal-hint">
-                        No typing here on purpose. The friction of ink is the point.
-                      </p>
-                      <label className="wind-down-check">
-                        <input
-                          type="checkbox"
-                          checked={journalDone}
-                          onChange={(e) => setJournalDone(e.target.checked)}
-                        />
-                        <span>Journal complete (on paper)</span>
-                      </label>
+                      <JournalCapture
+                        store={store}
+                        defaultDate={today}
+                        preferPageDate
+                        compact
+                        onExtractedCountChange={setJournalExtracted}
+                      />
+                      {journalDone && (
+                        <p className="body-energy-ready ok">
+                          {journalExtracted} page{journalExtracted === 1 ? '' : 's'} logged for Mentor.
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}

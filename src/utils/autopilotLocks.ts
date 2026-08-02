@@ -6,6 +6,7 @@ export type AutopilotRoutineId =
   | 'saturday-dump'
   | 'sunday-admin'
   | 'sunday-center'
+  | 'miss-repair'
 
 export function isAutopilotLocked(state: AppState, routine: AutopilotRoutineId): boolean {
   const today = todayDateKey()
@@ -21,6 +22,9 @@ export function isAutopilotLocked(state: AppState, routine: AutopilotRoutineId):
   if (routine === 'sunday-admin') {
     return completions?.sundayAdminDate === sunday
   }
+  if (routine === 'miss-repair') {
+    return completions?.missRepairDate === today
+  }
   // Sunday Center locks for the week it planned
   const nextWeekStart = addDays(startOfWeekMonday(today), 7)
   return completions?.sundayCenterWeekStart === nextWeekStart
@@ -30,5 +34,6 @@ export function autopilotLockLabel(routine: AutopilotRoutineId): string {
   if (routine === 'evening') return 'Done today'
   if (routine === 'saturday-dump') return 'Locked · Sunday loaded'
   if (routine === 'sunday-admin') return 'Done this Sunday'
+  if (routine === 'miss-repair') return 'Repaired today'
   return 'Done this week'
 }

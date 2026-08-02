@@ -46,6 +46,8 @@ export interface WeeklyGoal {
   /** Reviewed the following Sunday — null = not reviewed yet */
   hit: boolean | null
   why: string
+  /** Optional link up to a Vision goal — horizon cascade */
+  visionGoalId?: string | null
 }
 
 /** Reflection answers for a closed week (keyed by that week’s Monday) */
@@ -166,6 +168,10 @@ export interface JournalEntry {
   status: 'pending' | 'extracted' | 'failed'
   error?: string
   createdAt: string
+  /** How the date was chosen */
+  dateSource?: 'manual' | 'extracted' | 'fallback'
+  /** Raw date string detected on the page (e.g. "July 19th") */
+  detectedDateRaw?: string
 }
 
 export interface MentorInsight {
@@ -176,6 +182,18 @@ export interface MentorInsight {
   drags: string[]
   blindSpots: string[]
   prescriptions: string[]
+  /** Prescription texts the operator installed into the OS */
+  installed?: string[]
+}
+
+/** End-of-day body / energy signal for Mentor correlation */
+export interface DailyBodyLog {
+  sleepHours: number | null
+  /** Subjective energy 1–5 */
+  energy: 1 | 2 | 3 | 4 | 5 | null
+  trained: boolean
+  trainNote?: string
+  note?: string
 }
 
 export interface MentorState {
@@ -324,12 +342,15 @@ export interface AutopilotCompletions {
   sundayAdminDate: string | null
   /** Monday YYYY-MM-DD of the week Sunday Center planned for */
   sundayCenterWeekStart: string | null
+  /** YYYY-MM-DD miss-day repair completed */
+  missRepairDate: string | null
 }
 
 export const EMPTY_AUTOPILOT_COMPLETIONS: AutopilotCompletions = {
   eveningWindDownDate: null,
   sundayAdminDate: null,
   sundayCenterWeekStart: null,
+  missRepairDate: null,
 }
 
 /** Map persisted / legacy tab ids onto current AppTab values. */
@@ -498,6 +519,8 @@ export interface AppState {
   showAllTasks: boolean
   /** Date → most important outcome for that day */
   dailyOneThing: DailyOneThing
+  /** Date → body / energy log (sleep, energy, training) */
+  bodyLogs: Record<string, DailyBodyLog>
   /** Active weekly goals from Sunday Center (visible all week) */
   weeklyGoals: WeeklyGoal[]
   /** Monday YYYY-MM-DD the active weeklyGoals were set for */
