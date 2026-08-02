@@ -39,7 +39,7 @@ See [AUTH_SETUP.md](./AUTH_SETUP.md) for Clerk + Supabase env vars and dashboard
 
 Claude Pro on claude.ai does **not** unlock the API. Create an API key at [console.anthropic.com](https://console.anthropic.com/), enable billing, and set `ANTHROPIC_API_KEY` in Vercel (and locally in `.env.local`).
 
-After each deep-work session, a debrief prompt captures feeling + tags. Journal photos can be bulk-uploaded with dates; Claude Vision extracts text into the mentor loop. Use **Run full synthesis** for weapons / drags / blind spots / prescriptions.
+After each deep-work session, a debrief prompt captures feeling + tags. Journal photos can be bulk-uploaded; Claude Vision extracts text **and page dates** (e.g. “July 19th”) for backfill. Evening / Sunday journal steps require OCR. Body/energy logs, miss-day repair, horizon cascade (Vision → weekly goals → One Thing), debrief analytics, and one-click **Install** on mentor prescriptions (habit / One Thing / calendar / reminder) close the loop from insight → system.
 
 ## Deploy (Vercel) — if you see “No Next.js version detected”
 
