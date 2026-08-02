@@ -19,7 +19,7 @@ Open [http://localhost:3000](http://localhost:3000).
 - **Daily deep work target** — set hours/day, see hit/miss, streak, and week hit rate
 - **Today's One Thing** — single outcome to protect
 - **Project tasks** — brain-dump backlog; default view shows only today's tasks; toggle **Show all tasks** to promote/demote with Today/Later
-- Focus timers with session notes
+- Focus timers — deep work requires a five-word session note (what you're building) before the clock starts
 - Identity, week intention, mental RAM, reminders, non-negotiables
 - Time summary + attention allocation
 - 3-day calendar (click-drag blocks) + monthly grid

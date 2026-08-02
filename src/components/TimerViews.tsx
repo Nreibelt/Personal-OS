@@ -77,6 +77,9 @@ export function TimerOverlay({
               <span className="dot" style={{ background: project.color, color: project.color }} />
               {project.name.toUpperCase()}
             </div>
+            {timer.focusNote && (
+              <p className="timer-focus-note">{timer.focusNote}</p>
+            )}
             <div className={`timer-digits${paused ? ' frozen' : ''}`}>{formatTimer(store.liveTimerSeconds)}</div>
             <div className="timer-today">TODAY TOTAL · {formatMinutes(displayToday)}</div>
             {hasPauses && (

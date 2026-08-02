@@ -3,14 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PROJECT_MAP } from '../data/seed'
 import type { Store } from '../hooks/useStore'
-import { DEEP_WORK_IDS, type DeepWorkId, type ProjectId } from '../types'
+import { DEEP_WORK_IDS, isDeepWorkId, type DeepWorkId, type ProjectId } from '../types'
+import { isValidFocusNote } from '../utils/focusNote'
 import { formatMinutes, todayDateKey } from '../utils/time'
 import { QuickAddTask } from './QuickAddTask'
+import { SessionFocusNoteModal } from './SessionFocusNoteModal'
 import { TimerOverlay } from './TimerViews'
 
 /**
  * Platform-wide deep work launcher + timer chrome.
  * Mini dock while browsing; fullscreen only when the user expands (or just started).
+ * Deep work starts require a five-word session note before the clock runs.
  */
 export function DeepWorkTimerHost({
   store,
@@ -31,6 +34,11 @@ export function DeepWorkTimerHost({
 }) {
   const [timerMinimized, setTimerMinimized] = useState(true)
   const [dockOpen, setDockOpen] = useState(false)
+  const [focusPrompt, setFocusPrompt] = useState<{
+    projectId: ProjectId
+    minimized: boolean
+    seedNote: string
+  } | null>(null)
   const hadTimer = useRef(false)
   const skipBrowseMinimize = useRef(false)
   const startMinimizedRef = useRef(false)
@@ -41,6 +49,33 @@ export function DeepWorkTimerHost({
   const clearPending = useCallback(() => {
     onPendingSessionHandled?.()
   }, [onPendingSessionHandled])
+
+  const beginTimer = useCallback(
+    (projectId: ProjectId, focusNote: string, minimized: boolean) => {
+      startMinimizedRef.current = minimized
+      startTimer(projectId, focusNote)
+    },
+    [startTimer],
+  )
+
+  /** Deep work always prompts for a note; other projects start with whatever note was passed. */
+  const requestStart = useCallback(
+    (projectId: ProjectId, focusNote = '', minimized = false) => {
+      if (activeTimer?.projectId === projectId) {
+        setTimerMinimized(false)
+        return
+      }
+      if (activeTimer) return
+
+      if (isDeepWorkId(projectId) && !isValidFocusNote(focusNote)) {
+        setFocusPrompt({ projectId, minimized, seedNote: focusNote.trim() })
+        return
+      }
+
+      beginTimer(projectId, focusNote.trim(), minimized)
+    },
+    [activeTimer, beginTimer],
+  )
 
   // Fresh start → enter focus (fullscreen) unless caller asked for minimized.
   useEffect(() => {
@@ -82,15 +117,26 @@ export function DeepWorkTimerHost({
       clearPending()
       return
     }
-    startMinimizedRef.current = pendingSessionMinimized
-    startTimer(pendingSession, pendingFocusNote)
+
+    // Deep work without a valid note → open the gate; keep pending cleared so we don't re-fire
+    if (isDeepWorkId(pendingSession) && !isValidFocusNote(pendingFocusNote)) {
+      setFocusPrompt({
+        projectId: pendingSession,
+        minimized: pendingSessionMinimized,
+        seedNote: pendingFocusNote.trim(),
+      })
+      clearPending()
+      return
+    }
+
+    beginTimer(pendingSession, pendingFocusNote.trim(), pendingSessionMinimized)
     clearPending()
   }, [
     pendingSession,
     pendingSessionMinimized,
     pendingFocusNote,
     activeTimer,
-    startTimer,
+    beginTimer,
     clearPending,
   ])
 
@@ -98,13 +144,10 @@ export function DeepWorkTimerHost({
 
   const startProject = (id: DeepWorkId) => {
     setDockOpen(false)
-    if (activeTimer?.projectId === id) {
-      setTimerMinimized(false)
-      return
-    }
-    if (activeTimer) return
-    startTimer(id, '')
+    requestStart(id, '', false)
   }
+
+  const focusProject = focusPrompt ? PROJECT_MAP[focusPrompt.projectId] : null
 
   return (
     <>
@@ -124,7 +167,7 @@ export function DeepWorkTimerHost({
               </button>
               {dockOpen && (
                 <div className="deep-dock-panel" role="menu">
-                  <p className="deep-dock-hint">Start a focus session</p>
+                  <p className="deep-dock-hint">Name the build, then start</p>
                   {DEEP_WORK_IDS.map((id) => {
                     const project = PROJECT_MAP[id]
                     const logged = store.minutesFor(id, 'day', todayDateKey())
@@ -151,6 +194,20 @@ export function DeepWorkTimerHost({
           )}
         </div>
       </div>
+
+      <SessionFocusNoteModal
+        open={!!focusPrompt && !!focusProject}
+        projectName={focusProject?.name ?? ''}
+        projectColor={focusProject?.color ?? '#888'}
+        initialNote={focusPrompt?.seedNote ?? ''}
+        onCancel={() => setFocusPrompt(null)}
+        onConfirm={(focusNote) => {
+          if (!focusPrompt) return
+          const { projectId, minimized } = focusPrompt
+          setFocusPrompt(null)
+          beginTimer(projectId, focusNote, minimized)
+        }}
+      />
 
       {store.state.activeTimer && (
         <TimerOverlay

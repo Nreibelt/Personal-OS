@@ -87,6 +87,7 @@ import {
   recentSessions,
 } from '../utils/sessionAnalytics'
 import { revolutCredentialsChangedEvent } from '../utils/revolutApi'
+import { isValidFocusNote } from '../utils/focusNote'
 import { repairJournalEntryDate } from '../utils/journalDate'
 
 const STORAGE_KEY = 'batcave-deep-work-os-v2'
@@ -1358,6 +1359,9 @@ export function useStore() {
   const setCalendarMonth = useCallback((calendarMonth: string) => update({ calendarMonth }), [update])
 
   const startTimer = useCallback((projectId: ProjectId, focusNote: string) => {
+    const cleaned = focusNote.trim().replace(/\s+/g, ' ')
+    // Deep work clocks never start without a concrete build intention (5+ words).
+    if (isDeepWorkId(projectId) && !isValidFocusNote(cleaned)) return
     const now = Date.now()
     update((s) => ({
       ...s,
@@ -1365,7 +1369,7 @@ export function useStore() {
         projectId,
         startedAt: now,
         sessionStartedAt: now,
-        focusNote,
+        focusNote: cleaned,
         elapsedBefore: 0,
         pausedBefore: 0,
         pauseCount: 0,
