@@ -15,6 +15,7 @@ import { MentorView } from './components/MentorView'
 import { TasksView } from './components/TasksView'
 import { VisionView } from './components/VisionView'
 import { ConfirmDialog } from './components/ui/ConfirmDialog'
+import { ModalPortal } from './components/ui/ModalPortal'
 import { useStore } from './hooks/useStore'
 import type { AppLayer, AppTab, BusinessTab, DeepWorkId, ProjectId } from './types'
 import { formatLongDate, formatMinutes, todayDateKey } from './utils/time'
@@ -26,37 +27,46 @@ const PERSONAL_TABS: {
   id: AppTab
   label: string
   shortLabel: string
+  mark: string
   sub: string
   enabled?: boolean
 }[] = [
-  { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', sub: 'Command Center' },
-  { id: 'vision', label: 'Vision', shortLabel: 'Vision', sub: 'Horizon' },
-  { id: 'autopilot', label: 'Autopilot', shortLabel: 'Auto', sub: 'Set paths' },
-  { id: 'calendar', label: 'Calendar', shortLabel: 'Cal', sub: 'Schedule' },
-  { id: 'tasks', label: 'Tasks', shortLabel: 'Tasks', sub: 'Projects' },
+  { id: 'dashboard', label: 'Dashboard', shortLabel: 'Home', mark: 'H', sub: 'Command Center' },
+  { id: 'vision', label: 'Vision', shortLabel: 'Vision', mark: 'V', sub: 'Horizon' },
+  { id: 'autopilot', label: 'Autopilot', shortLabel: 'Auto', mark: 'A', sub: 'Set paths' },
+  { id: 'calendar', label: 'Calendar', shortLabel: 'Cal', mark: 'C', sub: 'Schedule' },
+  { id: 'tasks', label: 'Tasks', shortLabel: 'Tasks', mark: 'T', sub: 'Projects' },
   {
     id: 'personalFinances',
     label: 'Personal Finances',
     shortLabel: 'Money',
+    mark: '$',
     sub: 'Personal Finances',
   },
-  { id: 'mentor', label: 'Mentor', shortLabel: 'Mentor', sub: 'Synthesis' },
+  { id: 'mentor', label: 'Mentor', shortLabel: 'Mentor', mark: 'M', sub: 'Synthesis' },
 ]
+
+/** Phone bottom bar — everything else lives in More. */
+const PERSONAL_PRIMARY: AppTab[] = ['dashboard', 'tasks', 'autopilot', 'mentor']
+const PERSONAL_MORE: AppTab[] = ['vision', 'calendar', 'personalFinances']
 
 const BUSINESS_TABS: {
   id: BusinessTab
   label: string
   shortLabel: string
+  mark: string
   enabled: boolean
 }[] = [
-  { id: 'todos', label: 'To-Dos', shortLabel: 'To-Dos', enabled: true },
-  { id: 'finance', label: 'Finance', shortLabel: 'Finance', enabled: true },
-  { id: 'documents', label: 'Documents', shortLabel: 'Docs', enabled: true },
-  { id: 'ideas', label: 'Ideas', shortLabel: 'Ideas', enabled: true },
-  { id: 'metaAds', label: 'Meta Ads', shortLabel: 'Ads', enabled: false },
-  { id: 'coldEmail', label: 'Cold Email', shortLabel: 'Email', enabled: false },
-  { id: 'agents', label: 'Agents', shortLabel: 'Agents', enabled: false },
+  { id: 'todos', label: 'To-Dos', shortLabel: 'To-Dos', mark: 'T', enabled: true },
+  { id: 'finance', label: 'Finance', shortLabel: 'Finance', mark: '$', enabled: true },
+  { id: 'documents', label: 'Documents', shortLabel: 'Docs', mark: 'D', enabled: true },
+  { id: 'ideas', label: 'Ideas', shortLabel: 'Ideas', mark: 'I', enabled: true },
+  { id: 'metaAds', label: 'Meta Ads', shortLabel: 'Ads', mark: 'A', enabled: false },
+  { id: 'coldEmail', label: 'Cold Email', shortLabel: 'Email', mark: 'E', enabled: false },
+  { id: 'agents', label: 'Agents', shortLabel: 'Agents', mark: 'G', enabled: false },
 ]
+
+const BUSINESS_PRIMARY: BusinessTab[] = ['todos', 'finance', 'documents', 'ideas']
 
 function readLayer(): AppLayer {
   try {
@@ -102,10 +112,11 @@ function requestDocsLeave(proceed: () => void) {
   )
 }
 
-function NavGlyph({ kind }: { kind: string }) {
+function NavGlyph({ kind, mark }: { kind: string; mark: string }) {
   return (
     <span className={`nav-glyph nav-glyph-${kind}`} aria-hidden="true">
       <span className="nav-glyph-core" />
+      <span className="nav-glyph-mark">{mark}</span>
     </span>
   )
 }
@@ -120,6 +131,7 @@ export default function App() {
   const [hydrated, setHydrated] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
   const [docsDirty, setDocsDirty] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   useEffect(() => {
     setLayer(readLayer())
@@ -143,9 +155,25 @@ export default function App() {
     }
   }, [layer, store])
 
+  useEffect(() => {
+    if (!moreOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMoreOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [moreOpen])
+
   const tab = store.state.activeTab === 'companyFinances' ? 'personalFinances' : store.state.activeTab
   const activePersonal = PERSONAL_TABS.find((t) => t.id === tab) ?? PERSONAL_TABS[0]
   const activeBusiness = BUSINESS_TABS.find((t) => t.id === businessTab) ?? BUSINESS_TABS[0]
+  const personalMoreActive = PERSONAL_MORE.includes(tab)
+  const businessSoon = BUSINESS_TABS.filter((t) => !t.enabled)
 
   const deepToday = store.deepWorkMinutesForDate(store.state.selectedDate)
   const targetHit = store.hitTarget(store.state.selectedDate)
@@ -203,6 +231,7 @@ export default function App() {
   const switchLayerToGate = () => {
     leaveDocumentsIfNeeded(() => {
       setDocsDirty(false)
+      setMoreOpen(false)
       setLayer('gate')
     })
   }
@@ -212,6 +241,7 @@ export default function App() {
     leaveDocumentsIfNeeded(() => {
       setDocsDirty(false)
       setBusinessTab(next)
+      setMoreOpen(false)
     })
   }
 
@@ -238,6 +268,10 @@ export default function App() {
   const pageTitle = isBusiness ? activeBusiness.label : activePersonal.label
   const pageSub = isBusiness ? 'Company OS' : activePersonal.sub
 
+  const personalPrimaryTabs = PERSONAL_TABS.filter((t) => PERSONAL_PRIMARY.includes(t.id))
+  const personalMoreTabs = PERSONAL_TABS.filter((t) => PERSONAL_MORE.includes(t.id))
+  const businessPrimaryTabs = BUSINESS_TABS.filter((t) => BUSINESS_PRIMARY.includes(t.id))
+
   return (
     <div className={`app-shell app-shell-rail${isBusiness ? ' layer-business' : ' layer-personal'}`}>
       <aside className="app-rail" aria-label={isBusiness ? 'Batcave navigation' : 'Command Center navigation'}>
@@ -251,8 +285,9 @@ export default function App() {
           </div>
         </div>
 
+        {/* Desktop: full vertical list */}
         <nav
-          className="rail-nav"
+          className="rail-nav rail-nav-desktop"
           role="tablist"
           aria-label={isBusiness ? 'Batcave sections' : 'Command Center sections'}
         >
@@ -269,11 +304,8 @@ export default function App() {
                     if (t.enabled) switchBusinessTab(t.id)
                   }}
                 >
-                  <NavGlyph kind={t.id} />
-                  <span className="rail-item-label rail-item-label-full">{t.label}</span>
-                  <span className="rail-item-label rail-item-label-compact" aria-hidden="true">
-                    {t.shortLabel}
-                  </span>
+                  <NavGlyph kind={t.id} mark={t.mark} />
+                  <span className="rail-item-label">{t.label}</span>
                   {!t.enabled && <span className="tab-soon">Soon</span>}
                 </button>
               ))
@@ -291,24 +323,66 @@ export default function App() {
                       if (enabled) store.setActiveTab(t.id)
                     }}
                   >
-                    <NavGlyph kind={t.id} />
-                    <span className="rail-item-label rail-item-label-full">{t.label}</span>
-                    <span className="rail-item-label rail-item-label-compact" aria-hidden="true">
-                      {t.shortLabel}
-                    </span>
+                    <NavGlyph kind={t.id} mark={t.mark} />
+                    <span className="rail-item-label">{t.label}</span>
                     {!enabled && <span className="tab-soon">Soon</span>}
                   </button>
                 )
               })}
         </nav>
 
-        <div className="rail-foot">
+        {/* Phone: 4 primary + More */}
+        <nav
+          className="rail-nav rail-nav-mobile"
+          role="tablist"
+          aria-label={isBusiness ? 'Batcave sections' : 'Command Center sections'}
+        >
+          {isBusiness
+            ? businessPrimaryTabs.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={businessTab === t.id}
+                  className={`rail-item${businessTab === t.id ? ' active' : ''}`}
+                  onClick={() => switchBusinessTab(t.id)}
+                >
+                  <NavGlyph kind={t.id} mark={t.mark} />
+                  <span className="rail-item-label">{t.shortLabel}</span>
+                </button>
+              ))
+            : personalPrimaryTabs.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t.id}
+                  className={`rail-item${tab === t.id ? ' active' : ''}`}
+                  onClick={() => {
+                    setMoreOpen(false)
+                    store.setActiveTab(t.id)
+                  }}
+                >
+                  <NavGlyph kind={t.id} mark={t.mark} />
+                  <span className="rail-item-label">{t.shortLabel}</span>
+                </button>
+              ))}
+          <button
+            type="button"
+            className={`rail-item rail-item-more${moreOpen || (!isBusiness && personalMoreActive) ? ' active' : ''}`}
+            aria-expanded={moreOpen}
+            aria-controls="mobile-more-sheet"
+            onClick={() => setMoreOpen((v) => !v)}
+          >
+            <NavGlyph kind="more" mark="+" />
+            <span className="rail-item-label">More</span>
+          </button>
+        </nav>
+
+        <div className="rail-foot rail-foot-desktop">
           <button type="button" className="rail-switch" onClick={switchLayerToGate}>
             <span className="rail-switch-kicker">Layer</span>
-            <span className="rail-switch-label rail-switch-label-full">Switch layer</span>
-            <span className="rail-switch-label rail-switch-label-compact" aria-hidden="true">
-              Layers
-            </span>
+            <span className="rail-switch-label">Switch layer</span>
           </button>
         </div>
       </aside>
@@ -317,23 +391,25 @@ export default function App() {
         <header className="command-bar">
           <div className="brand-lockup stage-title">
             <span className="brand-name">{pageTitle}</span>
-            <span className="brand-sub">{pageSub}</span>
+            <span className="brand-sub desktop-only">{pageSub}</span>
           </div>
           <div className="status-pills">
             {isBusiness ? (
               <>
                 <button
                   type="button"
-                  className="ghost-btn"
+                  className="ghost-btn desktop-only"
                   title="Force-upload personal OS browser state to Supabase"
                   onClick={() => void store.pushBrowserToCloud()}
                   disabled={store.cloudSync === 'loading'}
                 >
                   Upload → cloud
                 </button>
-                {store.cloudSync === 'ready' && <span className="status-pill hit">CLOUD</span>}
+                {store.cloudSync === 'ready' && (
+                  <span className="status-pill hit desktop-only">CLOUD</span>
+                )}
                 {store.cloudSync === 'error' && (
-                  <span className="status-pill miss" title={store.cloudError || 'Cloud sync error'}>
+                  <span className="status-pill miss desktop-only" title={store.cloudError || 'Cloud sync error'}>
                     SYNC ERR
                   </span>
                 )}
@@ -341,31 +417,31 @@ export default function App() {
               </>
             ) : (
               <>
-                <span className="status-pill">{formatLongDate(store.state.selectedDate)}</span>
+                <span className="status-pill status-pill-date">{formatLongDate(store.state.selectedDate)}</span>
                 {(tab === 'calendar' || tab === 'tasks') && (
                   <>
-                    <span className={`status-pill ${targetHit ? 'hit' : 'miss'}`}>
+                    <span className={`status-pill desktop-only ${targetHit ? 'hit' : 'miss'}`}>
                       DEEP <strong>{formatMinutes(deepToday)}</strong>
                       <span style={{ opacity: 0.7 }}>
                         {' '}
                         / {formatMinutes(store.state.dailyDeepWorkTargetMinutes)}
                       </span>
                     </span>
-                    <span className="status-pill">
+                    <span className="status-pill desktop-only">
                       STREAK <strong>{store.targetStreak}</strong>
                     </span>
-                    <span className="status-pill">
+                    <span className="status-pill desktop-only">
                       TOTAL <strong>{formatMinutes(allTime)}</strong>
                     </span>
                     {store.state.activeTimer && (
-                      <span className={`status-pill${store.isTimerPaused ? ' paused' : ' live'}`}>
+                      <span className={`status-pill desktop-only${store.isTimerPaused ? ' paused' : ' live'}`}>
                         {store.isTimerPaused ? '⏸ PAUSED' : '● LIVE'}
                       </span>
                     )}
                   </>
                 )}
                 <button
-                  className="ghost-btn"
+                  className="ghost-btn desktop-only"
                   type="button"
                   title="Resets deep-work data only — finances are kept"
                   onClick={() => setResetOpen(true)}
@@ -373,7 +449,7 @@ export default function App() {
                   Reset work
                 </button>
                 <button
-                  className="ghost-btn"
+                  className="ghost-btn desktop-only"
                   type="button"
                   title="Force-upload everything in this browser to Supabase under your account"
                   onClick={() => void store.pushBrowserToCloud()}
@@ -382,17 +458,17 @@ export default function App() {
                   Upload → cloud
                 </button>
                 {store.cloudSync === 'loading' && (
-                  <span className="status-pill" title="Loading cloud state">
+                  <span className="status-pill desktop-only" title="Loading cloud state">
                     SYNC…
                   </span>
                 )}
                 {store.cloudSync === 'ready' && (
-                  <span className="status-pill hit" title="Saved to Supabase">
+                  <span className="status-pill hit desktop-only" title="Saved to Supabase">
                     CLOUD
                   </span>
                 )}
                 {store.cloudSync === 'error' && (
-                  <span className="status-pill miss" title={store.cloudError || 'Cloud sync error'}>
+                  <span className="status-pill miss desktop-only" title={store.cloudError || 'Cloud sync error'}>
                     SYNC ERR
                   </span>
                 )}
@@ -427,6 +503,97 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {moreOpen && (
+        <ModalPortal>
+          <div className="mobile-more-root" id="mobile-more-sheet">
+            <button
+              type="button"
+              className="mobile-more-backdrop"
+              aria-label="Close menu"
+              onClick={() => setMoreOpen(false)}
+            />
+            <div className="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="More">
+              <div className="mobile-more-handle" aria-hidden="true" />
+              <p className="mobile-more-title">More</p>
+              <div className="mobile-more-list">
+                {!isBusiness &&
+                  personalMoreTabs.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className={`mobile-more-item${tab === t.id ? ' active' : ''}`}
+                      onClick={() => {
+                        store.setActiveTab(t.id)
+                        setMoreOpen(false)
+                      }}
+                    >
+                      <NavGlyph kind={t.id} mark={t.mark} />
+                      <span>
+                        <strong>{t.label}</strong>
+                        <em>{t.sub}</em>
+                      </span>
+                    </button>
+                  ))}
+                {isBusiness &&
+                  businessSoon.map((t) => (
+                    <button key={t.id} type="button" className="mobile-more-item disabled" disabled>
+                      <NavGlyph kind={t.id} mark={t.mark} />
+                      <span>
+                        <strong>{t.label}</strong>
+                        <em>Coming soon</em>
+                      </span>
+                    </button>
+                  ))}
+                <button type="button" className="mobile-more-item" onClick={switchLayerToGate}>
+                  <NavGlyph kind="layers" mark="L" />
+                  <span>
+                    <strong>Switch layer</strong>
+                    <em>Personal ↔ Business</em>
+                  </span>
+                </button>
+                {!isBusiness && (
+                  <button
+                    type="button"
+                    className="mobile-more-item"
+                    onClick={() => {
+                      setMoreOpen(false)
+                      setResetOpen(true)
+                    }}
+                  >
+                    <NavGlyph kind="reset" mark="R" />
+                    <span>
+                      <strong>Reset work</strong>
+                      <em>Deep-work data only</em>
+                    </span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="mobile-more-item"
+                  disabled={store.cloudSync === 'loading'}
+                  onClick={() => {
+                    void store.pushBrowserToCloud()
+                    setMoreOpen(false)
+                  }}
+                >
+                  <NavGlyph kind="cloud" mark="↑" />
+                  <span>
+                    <strong>Upload → cloud</strong>
+                    <em>
+                      {store.cloudSync === 'ready'
+                        ? 'Synced'
+                        : store.cloudSync === 'error'
+                          ? store.cloudError || 'Sync error'
+                          : 'Force push to Supabase'}
+                    </em>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
 
       <DeepWorkTimerHost
         store={store}
