@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 
-export const MENTOR_MODEL = 'claude-sonnet-4-20250514'
+export const MENTOR_MODEL = 'claude-sonnet-4-6'
 
 export function getAnthropicClient(): Anthropic | null {
   const key = process.env.ANTHROPIC_API_KEY?.trim()
