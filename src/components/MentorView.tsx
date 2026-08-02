@@ -286,52 +286,75 @@ export function MentorView({ store }: { store: Store }) {
                 onInstall={(text, kind) => installPrescription(insight.id, text, kind)}
               />
             ) : (
-              <p className="mentor-empty">
-                No synthesis yet. Finish sessions with debriefs, log body, upload journals, then
-                run full synthesis.
-              </p>
+              <div className="mentor-empty-state">
+                <span className="mentor-empty-mark" aria-hidden />
+                <p className="mentor-empty-title">No synthesis yet</p>
+                <p className="mentor-empty">
+                  Log debriefs, body, and journals — then run full synthesis.
+                </p>
+              </div>
             )}
           </section>
 
           <section className="mentor-journal" aria-label="Journal photo upload">
             <header className="mentor-panel-head">
-              <span className="field-label">Journal backfill</span>
-              <span className="status-pill">DATE OCR</span>
+              <div className="mentor-panel-titles">
+                <span className="field-label">Journal backfill</span>
+                <p className="mentor-panel-sub">
+                  Pages dated from the header. Mentor reads the real day.
+                </p>
+              </div>
+              <span className="status-pill mentor-pill-soft">DATE OCR</span>
             </header>
             <div className="mentor-journal-body">
               <JournalCapture store={store} defaultDate={todayDateKey()} preferPageDate />
               {mentor.journalEntries.length > 0 && (
-                <ul className="mentor-journal-list">
-                  {mentor.journalEntries.slice(0, 10).map((entry) => (
-                    <li key={entry.id} className="mentor-journal-item">
-                      <div className="mentor-journal-item-head">
-                        <strong>{entry.date}</strong>
-                        <span>
-                          {entry.sourceName}
-                          {entry.detectedDateRaw ? ` · page: ${entry.detectedDateRaw}` : ''}
-                          {entry.dateSource === 'extracted' ? ' · auto-dated' : ''}
-                        </span>
-                        <button
-                          type="button"
-                          className="ghost-btn"
-                          onClick={() => store.removeJournalEntry(entry.id)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                      <p>
-                        {entry.status === 'failed'
-                          ? entry.error || 'Failed'
-                          : entry.status === 'pending'
-                            ? 'Extracting…'
-                            : entry.extractedText.slice(0, 220) || '(empty)'}
-                        {entry.status === 'extracted' && entry.extractedText.length > 220
-                          ? '…'
-                          : ''}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
+                <div className="mentor-journal-archive">
+                  <div className="mentor-journal-archive-head">
+                    <span className="field-label">In the loop</span>
+                    <span className="mentor-journal-archive-count">
+                      {mentor.journalEntries.length}
+                    </span>
+                  </div>
+                  <ul className="mentor-journal-list">
+                    {mentor.journalEntries.slice(0, 10).map((entry) => (
+                      <li key={entry.id} className="mentor-journal-item">
+                        <div className="mentor-journal-item-head">
+                          <div className="mentor-journal-item-meta">
+                            <strong>{entry.date}</strong>
+                            {entry.dateSource === 'extracted' && (
+                              <span className="mentor-journal-chip">auto-dated</span>
+                            )}
+                            {entry.detectedDateRaw && (
+                              <span className="mentor-journal-chip muted">
+                                {entry.detectedDateRaw}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            className="journal-page-remove subtle"
+                            aria-label={`Remove ${entry.sourceName}`}
+                            onClick={() => store.removeJournalEntry(entry.id)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <span className="mentor-journal-source">{entry.sourceName}</span>
+                        <p>
+                          {entry.status === 'failed'
+                            ? entry.error || 'Failed'
+                            : entry.status === 'pending'
+                              ? 'Extracting…'
+                              : entry.extractedText.slice(0, 200) || '(empty)'}
+                          {entry.status === 'extracted' && entry.extractedText.length > 200
+                            ? '…'
+                            : ''}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           </section>
