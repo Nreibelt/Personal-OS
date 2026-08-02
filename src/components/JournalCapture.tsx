@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { Store } from '../hooks/useStore'
-import { extractJournalPhoto } from '../lib/mentor/journalUpload'
+import { extractJournalPhoto, isJournalImageFile } from '../lib/mentor/journalUpload'
 import { todayDateKey } from '../utils/time'
 
 type UploadDraft = {
@@ -137,7 +137,7 @@ export function JournalCapture({
     if (!files?.length) return
     const next: UploadDraft[] = []
     for (const file of Array.from(files)) {
-      if (!file.type.startsWith('image/')) continue
+      if (!isJournalImageFile(file)) continue
       next.push({
         id: mid('upload'),
         file,
@@ -181,7 +181,7 @@ export function JournalCapture({
       <input
         ref={fileRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.heic,.heif"
         multiple
         className="mentor-file-input"
         onChange={(e) => {
@@ -196,7 +196,7 @@ export function JournalCapture({
         onClick={() => fileRef.current?.click()}
       >
         <span className="mentor-upload-title">Choose journal photos</span>
-        <span className="mentor-upload-meta">Bulk upload OK — JPG, PNG, WEBP</span>
+        <span className="mentor-upload-meta">Bulk upload OK — JPG, PNG, WEBP, HEIC</span>
       </button>
 
       {queuedCount > 0 && (

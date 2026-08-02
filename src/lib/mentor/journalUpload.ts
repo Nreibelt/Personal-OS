@@ -1,19 +1,6 @@
-/** Shared helpers for journal photo → OCR upload */
+import { isJournalImageFile, prepareJournalImage } from './journalImage'
 
-export async function fileToBase64(file: File): Promise<{ base64: string; mediaType: string }> {
-  const buffer = await file.arrayBuffer()
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
-  const chunk = 0x8000
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
-  }
-  const mediaType =
-    file.type === 'image/png' || file.type === 'image/webp' || file.type === 'image/gif'
-      ? file.type
-      : 'image/jpeg'
-  return { base64: btoa(binary), mediaType }
-}
+export { isJournalImageFile }
 
 export type JournalOcrResult = {
   text: string
@@ -26,13 +13,21 @@ export async function extractJournalPhoto(opts: {
   fallbackDate: string
   sourceName?: string
 }): Promise<JournalOcrResult> {
-  const { base64, mediaType } = await fileToBase64(opts.file)
+  let prepared: Awaited<ReturnType<typeof prepareJournalImage>>
+  try {
+    prepared = await prepareJournalImage(opts.file)
+  } catch {
+    throw new Error(
+      'Could not convert this photo (HEIC/HEIF). Try again, or export as JPG from Photos.',
+    )
+  }
+
   const res = await fetch('/api/mentor/journal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      imageBase64: base64,
-      mediaType,
+      imageBase64: prepared.base64,
+      mediaType: prepared.mediaType,
       date: opts.fallbackDate,
       sourceName: opts.sourceName || opts.file.name,
     }),
