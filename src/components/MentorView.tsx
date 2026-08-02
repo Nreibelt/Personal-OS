@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import type { Store } from '../hooks/useStore'
 import { buildMentorContext } from '../lib/mentor/context'
+import { isJournalImageFile, prepareJournalImage } from '../lib/mentor/journalImage'
 import type { MentorInsight } from '../types'
 import { todayDateKey } from '../utils/time'
 
@@ -17,21 +18,6 @@ type UploadDraft = {
 
 function mid(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
-}
-
-async function fileToBase64(file: File): Promise<{ base64: string; mediaType: string }> {
-  const buffer = await file.arrayBuffer()
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
-  const chunk = 0x8000
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
-  }
-  const mediaType =
-    file.type === 'image/png' || file.type === 'image/webp' || file.type === 'image/gif'
-      ? file.type
-      : 'image/jpeg'
-  return { base64: btoa(binary), mediaType }
 }
 
 function formatInsightTime(iso: string) {
@@ -98,13 +84,20 @@ export function MentorView({ store }: { store: Store }) {
       })
 
       try {
-        const { base64, mediaType } = await fileToBase64(item.file)
+        let prepared: Awaited<ReturnType<typeof prepareJournalImage>>
+        try {
+          prepared = await prepareJournalImage(item.file)
+        } catch {
+          throw new Error(
+            'Could not convert this photo (HEIC/HEIF). Try again, or export as JPG from Photos.',
+          )
+        }
         const res = await fetch('/api/mentor/journal', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            imageBase64: base64,
-            mediaType,
+            imageBase64: prepared.base64,
+            mediaType: prepared.mediaType,
             date,
             sourceName: item.file.name,
           }),
@@ -238,7 +231,7 @@ export function MentorView({ store }: { store: Store }) {
     if (!files?.length) return
     const next: UploadDraft[] = []
     for (const file of Array.from(files)) {
-      if (!file.type.startsWith('image/')) continue
+      if (!isJournalImageFile(file)) continue
       next.push({
         id: mid('upload'),
         file,
@@ -398,7 +391,7 @@ export function MentorView({ store }: { store: Store }) {
             <input
               ref={fileRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.heic,.heif"
               multiple
               className="mentor-file-input"
               onChange={(e) => {
@@ -413,7 +406,7 @@ export function MentorView({ store }: { store: Store }) {
               onClick={() => fileRef.current?.click()}
             >
               <span className="mentor-upload-title">Drop or choose photos</span>
-              <span className="mentor-upload-meta">JPG, PNG, WEBP — multiple pages ok</span>
+              <span className="mentor-upload-meta">JPG, PNG, WEBP, HEIC — multiple pages ok</span>
             </button>
 
             {queuedCount > 0 && (
