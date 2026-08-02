@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { Store } from '../hooks/useStore'
 import type { VisionGoal } from '../types'
 import { ConfirmDialog } from './ui/ConfirmDialog'
+import { Modal } from './ui/Modal'
 
 export function VisionView({ store }: { store: Store }) {
   const goals = store.state.visionGoals ?? []
@@ -13,6 +14,7 @@ export function VisionView({ store }: { store: Store }) {
   const [editTitle, setEditTitle] = useState('')
   const [editBody, setEditBody] = useState('')
   const [pendingDelete, setPendingDelete] = useState<VisionGoal | null>(null)
+  const [heroOpen, setHeroOpen] = useState(false)
 
   const canCapture = Boolean(draftTitle.trim() || draftBody.trim())
 
@@ -41,6 +43,32 @@ export function VisionView({ store }: { store: Store }) {
 
   return (
     <div className="layout-stack vision-view">
+      <section className="vision-hero" aria-label="Dream home">
+        <button
+          type="button"
+          className="vision-hero-frame"
+          onClick={() => setHeroOpen(true)}
+          aria-label="Open dream home board full screen"
+        >
+          <img
+            src="/dream-home.webp"
+            alt="Dream home vision board: mansion with wife's SUV, Ferrari, McLaren and Kawasaki Ninja, gym, boxing ring, pilates studio, outdoor area and man cave"
+            className="vision-hero-img"
+          />
+          <span className="vision-hero-scrim" aria-hidden />
+          <span className="vision-hero-copy">
+            <span className="vision-hero-kicker">The Horizon</span>
+            <span className="vision-hero-title">Dream Home</span>
+            <span className="vision-hero-sub">
+              The house I&apos;m building. Every deep work session is a brick.
+            </span>
+          </span>
+          <span className="vision-hero-expand" aria-hidden>
+            Expand
+          </span>
+        </button>
+      </section>
+
       <section className="action-board">
         <header className="action-board-head">
           <h2 className="action-board-title">Vision</h2>
@@ -126,6 +154,20 @@ export function VisionView({ store }: { store: Store }) {
           ))}
         </ul>
       )}
+
+      <Modal
+        open={heroOpen}
+        onClose={() => setHeroOpen(false)}
+        title="Dream Home"
+        size="xl"
+        className="vision-hero-modal"
+      >
+        <img
+          src="/dream-home.webp"
+          alt="Dream home vision board, full size"
+          className="vision-hero-full"
+        />
+      </Modal>
 
       <ConfirmDialog
         open={pendingDelete !== null}
