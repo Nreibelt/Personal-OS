@@ -4,14 +4,19 @@ import {
   MENTOR_MODEL,
   mentorNotConfiguredResponse,
 } from '@/lib/mentor/anthropic'
-import { extractDateFromJournalText, parseFlexibleJournalDate } from '@/utils/journalDate'
+import {
+  coerceJournalDateYear,
+  extractDateFromJournalText,
+  parseFlexibleJournalDate,
+} from '@/utils/journalDate'
+import { zonedParts } from '@/utils/time'
 
 export const runtime = 'nodejs'
 export const maxDuration = 90
 
 const MAX_IMAGE_BYTES = 4_500_000
 
-function parseModelPayload(raw: string): {
+function parseModelPayload(raw: string, now: Date): {
   text: string
   detectedDate: string | null
   detectedDateRaw: string | null
@@ -38,26 +43,30 @@ function parseModelPayload(raw: string): {
       typeof parsed.detectedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.detectedDate)
         ? parsed.detectedDate
         : null
-    if (!detectedDate && rawDate) detectedDate = parseFlexibleJournalDate(rawDate)
+    if (!detectedDate && rawDate) detectedDate = parseFlexibleJournalDate(rawDate, now)
     if (text) {
       if (!detectedDate) {
-        const fromText = extractDateFromJournalText(text)
+        const fromText = extractDateFromJournalText(text, now)
         return {
           text,
-          detectedDate: fromText.date,
+          detectedDate: coerceJournalDateYear(fromText.date, rawDate || fromText.raw, now),
           detectedDateRaw: rawDate || fromText.raw,
         }
       }
-      return { text, detectedDate, detectedDateRaw: rawDate }
+      return {
+        text,
+        detectedDate: coerceJournalDateYear(detectedDate, rawDate, now),
+        detectedDateRaw: rawDate,
+      }
     }
   } catch {
     // fall through to plain-text handling
   }
 
-  const fromText = extractDateFromJournalText(trimmed)
+  const fromText = extractDateFromJournalText(trimmed, now)
   return {
     text: trimmed,
-    detectedDate: fromText.date,
+    detectedDate: coerceJournalDateYear(fromText.date, fromText.raw, now),
     detectedDateRaw: fromText.raw,
   }
 }
@@ -72,6 +81,7 @@ export async function POST(req: NextRequest) {
       mediaType?: string
       date?: string
       sourceName?: string
+      currentYear?: number
     }
 
     const imageBase64 = typeof body.imageBase64 === 'string' ? body.imageBase64 : ''
@@ -99,6 +109,12 @@ export async function POST(req: NextRequest) {
         ? body.sourceName.trim().slice(0, 120)
         : 'journal page'
 
+    const now = new Date()
+    const currentYear =
+      typeof body.currentYear === 'number' && body.currentYear >= 2000 && body.currentYear <= 2100
+        ? body.currentYear
+        : zonedParts(now).year
+
     const response = await client.messages.create({
       model: MENTOR_MODEL,
       max_tokens: 2800,
@@ -106,7 +122,9 @@ export async function POST(req: NextRequest) {
 
 Transcribe faithfully. Preserve line breaks for lists. Do not invent content you cannot read — mark illegible spots as [illegible].
 
-CRITICAL — dates: These journals almost always have a date written at the top (e.g. "July 19th", "19 July", "Jul 19 2026"). Read that header carefully and convert it to ISO YYYY-MM-DD. If the year is missing, infer from context or leave year null in raw form and still return best ISO guess for the current year context.
+CRITICAL — dates: These journals almost always have a date at the top WITHOUT a year (e.g. "July 19th", "August 1", "19 July"). 
+When the year is missing, you MUST use ${currentYear} — never invent a previous year like ${currentYear - 1}.
+Only use a different year if the page explicitly writes 20xx.
 
 Return ONLY valid JSON (no markdown fences):
 {
@@ -130,6 +148,7 @@ Return ONLY valid JSON (no markdown fences):
               type: 'text',
               text: [
                 `Extract this journal page (${sourceName}).`,
+                `Current year is ${currentYear}. Yearless headers → ${currentYear}.`,
                 'Prioritize the date written at the top of the page.',
                 dateHint
                   ? `Operator fallback date if none is readable: ${dateHint}. Prefer the page header over this fallback.`
@@ -151,7 +170,7 @@ Return ONLY valid JSON (no markdown fences):
       return NextResponse.json({ error: 'No text extracted' }, { status: 502 })
     }
 
-    const parsed = parseModelPayload(raw)
+    const parsed = parseModelPayload(raw, now)
     if (!parsed.text) {
       return NextResponse.json({ error: 'No text extracted' }, { status: 502 })
     }

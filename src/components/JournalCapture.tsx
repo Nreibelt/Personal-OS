@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Store } from '../hooks/useStore'
 import { prepareJournalImage } from '../lib/mentor/journalImage'
 import { extractJournalPhoto, isJournalImageFile } from '../lib/mentor/journalUpload'
+import { coerceJournalDateYear } from '../utils/journalDate'
 import { todayDateKey } from '../utils/time'
 
 type UploadDraft = {
@@ -112,9 +113,10 @@ export function JournalCapture({
           sourceName: item.file.name,
         })
 
-        const usePage = preferPage && result.detectedDate
-        const finalDate = usePage ? result.detectedDate! : fallbackDate
-        const dateSource = usePage ? 'extracted' : result.detectedDate ? 'manual' : 'fallback'
+        const pageDate = coerceJournalDateYear(result.detectedDate, result.detectedDateRaw)
+        const usePage = preferPage && pageDate
+        const finalDate = usePage ? pageDate : fallbackDate
+        const dateSource = usePage ? 'extracted' : pageDate ? 'manual' : 'fallback'
 
         store.updateJournalEntry(pendingId, {
           date: finalDate,

@@ -40,25 +40,41 @@ function toKey(year: number, month: number, day: number): string | null {
   return `${year}-${pad2(month)}-${pad2(day)}`
 }
 
+/** True when the written header explicitly includes a 20xx year. */
+export function rawDateHasExplicitYear(raw: string | null | undefined): boolean {
+  if (!raw) return false
+  return /\b20\d{2}\b/.test(raw)
+}
+
+/**
+ * Journal pages almost never write the year. Always pin to the current Bali year
+ * unless the raw header explicitly includes 20xx.
+ */
+export function coerceJournalDateYear(
+  date: string | null | undefined,
+  raw: string | null | undefined,
+  now: Date = new Date(),
+): string | null {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null
+  if (rawDateHasExplicitYear(raw)) return date
+  const currentYear = zonedParts(now).year
+  const [, month, day] = date.split('-')
+  return `${currentYear}-${month}-${day}`
+}
+
 function resolveYear(month: number, day: number, yearHint: number | null, now: Date): number {
+  const currentYear = zonedParts(now).year
+  // Only honor an explicit year from the page header.
   if (yearHint != null && yearHint >= 2000 && yearHint <= 2100) return yearHint
-  const parts = zonedParts(now)
-  const candidate = toKey(parts.year, month, day)
-  if (!candidate) return parts.year
-  // If the date is more than ~3 weeks in the future, it was likely last year
-  const today = todayDateKey(now)
-  if (candidate > today) {
-    const [ty, tm, td] = today.split('-').map(Number)
-    const todayIdx = ty * 372 + tm * 31 + td
-    const candIdx = parts.year * 372 + month * 31 + day
-    if (candIdx - todayIdx > 40) return parts.year - 1
-  }
-  return parts.year
+  void month
+  void day
+  return currentYear
 }
 
 /**
  * Parse human journal headers like "July 19th", "19 July 2026", "Jul 19", "2026-07-19".
  * Returns YYYY-MM-DD or null.
+ * Yearless headers always resolve to the current year.
  */
 export function parseFlexibleJournalDate(
   raw: string,
@@ -69,7 +85,10 @@ export function parseFlexibleJournalDate(
   if (!text) return null
 
   const iso = text.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/)
-  if (iso) return toKey(Number(iso[1]), Number(iso[2]), Number(iso[3]))
+  if (iso) {
+    const parsed = toKey(Number(iso[1]), Number(iso[2]), Number(iso[3]))
+    return coerceJournalDateYear(parsed, text, now)
+  }
 
   const numeric = text.match(/\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](20\d{2})\b/)
   if (numeric) {
@@ -77,9 +96,9 @@ export function parseFlexibleJournalDate(
     const b = Number(numeric[2])
     const y = Number(numeric[3])
     // Prefer D/M/Y when first > 12; else assume D/M/Y (operator is not US-default)
-    if (a > 12) return toKey(y, b, a)
-    if (b > 12) return toKey(y, a, b)
-    return toKey(y, b, a)
+    const parsed =
+      a > 12 ? toKey(y, b, a) : b > 12 ? toKey(y, a, b) : toKey(y, b, a)
+    return coerceJournalDateYear(parsed, text, now)
   }
 
   // Prefer day-first ("19 July 2026") before month-first so years aren't eaten as days.
@@ -134,4 +153,14 @@ export function extractDateFromJournalText(text: string, now: Date = new Date())
   const date = parseFlexibleJournalDate(text.slice(0, 400), now)
   if (date) return { date, raw: text.slice(0, 80) }
   return { date: null, raw: null }
+}
+
+/** One-shot repair for stored entries Claude dated into the wrong year. */
+export function repairJournalEntryDate(
+  date: string,
+  detectedDateRaw: string | undefined,
+  now: Date = new Date(),
+): string {
+  const coerced = coerceJournalDateYear(date, detectedDateRaw, now)
+  return coerced || date
 }
