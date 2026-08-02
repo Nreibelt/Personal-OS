@@ -82,6 +82,7 @@ import {
   recentSessions,
 } from '../utils/sessionAnalytics'
 import { revolutCredentialsChangedEvent } from '../utils/revolutApi'
+import { repairJournalEntryDate } from '../utils/journalDate'
 
 const STORAGE_KEY = 'batcave-deep-work-os-v2'
 const FINANCE_BACKUP_KEY = 'batcave-finance-backup-v1'
@@ -209,6 +210,8 @@ function migrateMentorState(raw: unknown): MentorState {
           if (typeof j.detectedDateRaw === 'string' && j.detectedDateRaw) {
             entry.detectedDateRaw = j.detectedDateRaw
           }
+          // Yearless page headers must stay on the current year (fix Claude/backfill 2025 drift).
+          entry.date = repairJournalEntryDate(entry.date, entry.detectedDateRaw)
           return entry
         })
         .filter((x): x is JournalEntry => x != null)

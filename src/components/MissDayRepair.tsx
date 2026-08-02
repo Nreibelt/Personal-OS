@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Store } from '../hooks/useStore'
 import { habitDisplayStreak, isHabitDoneOn } from '../hooks/useStore'
 import { isDeepWorkId } from '../types'
@@ -45,9 +45,16 @@ export function MissDayRepair({
   const [broke, setBroke] = useState('')
   const [oneThing, setOneThing] = useState(store.state.dailyOneThing[today] || '')
   const [finished, setFinished] = useState(false)
+  const wasOpen = useRef(false)
 
+  // Reset form only when the overlay opens — not when store updates mid-save.
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      wasOpen.current = false
+      return
+    }
+    if (wasOpen.current) return
+    wasOpen.current = true
     setBroke('')
     setOneThing(store.state.dailyOneThing[today] || '')
     setFinished(false)
@@ -138,7 +145,11 @@ export function MissDayRepair({
                     value={broke}
                     onChange={(e) => setBroke(e.target.value)}
                     placeholder="Phone? Late start? Sleep? Avoidance? Name it."
+                    required
                   />
+                  {broke.trim().length > 0 && broke.trim().length <= 2 && (
+                    <span className="miss-repair-hint">Name it in a few words.</span>
+                  )}
                 </label>
 
                 <label className="field">

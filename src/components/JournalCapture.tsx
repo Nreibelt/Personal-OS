@@ -2,13 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { Store } from '../hooks/useStore'
+import { prepareJournalImage } from '../lib/mentor/journalImage'
 import { extractJournalPhoto, isJournalImageFile } from '../lib/mentor/journalUpload'
+import { coerceJournalDateYear } from '../utils/journalDate'
 import { todayDateKey } from '../utils/time'
 
 type UploadDraft = {
   id: string
   file: File
   previewUrl: string
+  previewReady: boolean
   date: string
   status: 'queued' | 'extracting' | 'done' | 'failed'
   error?: string
@@ -17,6 +20,31 @@ type UploadDraft = {
 
 function mid(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+function isHeicName(file: File) {
+  return /\.hei[cf]$/i.test(file.name) || /image\/hei[cf]/i.test(file.type)
+}
+
+async function buildPreviewUrl(file: File): Promise<string> {
+  // Browsers often can't render HEIC — convert to JPEG for the thumbnail.
+  if (isHeicName(file)) {
+    const prepared = await prepareJournalImage(file)
+    const binary = atob(prepared.base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    const blob = new Blob([bytes], { type: prepared.mediaType })
+    return URL.createObjectURL(blob)
+  }
+  return URL.createObjectURL(file)
+}
+
+function formatStatus(photo: UploadDraft) {
+  if (photo.status === 'queued') return 'Ready'
+  if (photo.status === 'extracting') return 'Reading…'
+  if (photo.status === 'failed') return photo.error || 'Failed'
+  if (photo.detectedDateRaw) return `Logged · ${photo.detectedDateRaw}`
+  return `Logged · ${photo.date}`
 }
 
 export function JournalCapture({
@@ -39,6 +67,7 @@ export function JournalCapture({
   const [bulkDate, setBulkDate] = useState(defaultDate)
   const [preferPage, setPreferPage] = useState(preferPageDate)
   const [error, setError] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const queueRef = useRef<Promise<void>>(Promise.resolve())
   const uploadsRef = useRef(uploads)
@@ -57,6 +86,7 @@ export function JournalCapture({
 
   const queuedCount = uploads.filter((u) => u.status === 'queued').length
   const extracting = uploads.some((u) => u.status === 'extracting')
+  const doneCount = uploads.filter((u) => u.status === 'done').length
 
   const extractUpload = (id: string) => {
     queueRef.current = queueRef.current.then(async () => {
@@ -83,9 +113,10 @@ export function JournalCapture({
           sourceName: item.file.name,
         })
 
-        const usePage = preferPage && result.detectedDate
-        const finalDate = usePage ? result.detectedDate! : fallbackDate
-        const dateSource = usePage ? 'extracted' : result.detectedDate ? 'manual' : 'fallback'
+        const pageDate = coerceJournalDateYear(result.detectedDate, result.detectedDateRaw)
+        const usePage = preferPage && pageDate
+        const finalDate = usePage ? pageDate : fallbackDate
+        const dateSource = usePage ? 'extracted' : pageDate ? 'manual' : 'fallback'
 
         store.updateJournalEntry(pendingId, {
           date: finalDate,
@@ -135,32 +166,52 @@ export function JournalCapture({
 
   const onFiles = (files: FileList | null) => {
     if (!files?.length) return
-    const next: UploadDraft[] = []
-    for (const file of Array.from(files)) {
-      if (!isJournalImageFile(file)) continue
-      next.push({
-        id: mid('upload'),
-        file,
-        previewUrl: URL.createObjectURL(file),
-        date: bulkDate,
-        status: 'queued',
-      })
-    }
-    if (next.length === 0) return
+    const accepted = Array.from(files).filter(isJournalImageFile)
+    if (accepted.length === 0) return
+
+    const next: UploadDraft[] = accepted.map((file) => ({
+      id: mid('upload'),
+      file,
+      previewUrl: '',
+      previewReady: false,
+      date: bulkDate,
+      status: 'queued' as const,
+    }))
+
     setUploads((list) => [...list, ...next])
     setError(null)
+
+    for (const draft of next) {
+      void buildPreviewUrl(draft.file)
+        .then((url) => {
+          setUploads((list) =>
+            list.map((u) =>
+              u.id === draft.id ? { ...u, previewUrl: url, previewReady: true } : u,
+            ),
+          )
+        })
+        .catch(() => {
+          setUploads((list) =>
+            list.map((u) => (u.id === draft.id ? { ...u, previewReady: true } : u)),
+          )
+        })
+    }
+  }
+
+  const removeUpload = (id: string) => {
+    setUploads((list) => {
+      const target = list.find((u) => u.id === id)
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl)
+      return list.filter((u) => u.id !== id)
+    })
   }
 
   return (
     <div className={`journal-capture${compact ? ' compact' : ''}`}>
       {heading && <p className="journal-capture-heading">{heading}</p>}
-      <p className="journal-capture-copy">
-        Photos of paper pages. Dates at the top (e.g. July 19th) are read automatically for
-        backfill — Mentor analyzes by the real entry day.
-      </p>
 
-      <div className="journal-capture-controls">
-        <label className="mentor-bulk-date">
+      <div className="journal-capture-toolbar">
+        <label className="journal-capture-date">
           <span className="field-label">Fallback date</span>
           <input
             type="date"
@@ -168,14 +219,22 @@ export function JournalCapture({
             onChange={(e) => setBulkDate(e.target.value || todayDateKey())}
           />
         </label>
-        <label className="journal-capture-toggle">
-          <input
-            type="checkbox"
-            checked={preferPage}
-            onChange={(e) => setPreferPage(e.target.checked)}
-          />
-          <span>Prefer date written on page</span>
-        </label>
+
+        <button
+          type="button"
+          className={`journal-capture-switch${preferPage ? ' on' : ''}`}
+          role="switch"
+          aria-checked={preferPage}
+          onClick={() => setPreferPage((v) => !v)}
+        >
+          <span className="journal-capture-switch-track" aria-hidden>
+            <span className="journal-capture-switch-thumb" />
+          </span>
+          <span className="journal-capture-switch-copy">
+            <strong>Read page date</strong>
+            <small>Use header like “July 19th” when found</small>
+          </span>
+        </button>
       </div>
 
       <input
@@ -192,19 +251,44 @@ export function JournalCapture({
 
       <button
         type="button"
-        className="mentor-upload-zone"
+        className={`journal-dropzone${dragging ? ' dragging' : ''}`}
         onClick={() => fileRef.current?.click()}
+        onDragEnter={(e) => {
+          e.preventDefault()
+          setDragging(true)
+        }}
+        onDragOver={(e) => {
+          e.preventDefault()
+          setDragging(true)
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault()
+          setDragging(false)
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDragging(false)
+          onFiles(e.dataTransfer.files)
+        }}
       >
-        <span className="mentor-upload-title">Choose journal photos</span>
-        <span className="mentor-upload-meta">Bulk upload OK — JPG, PNG, WEBP, HEIC</span>
+        <span className="journal-dropzone-icon" aria-hidden>
+          <span />
+          <span />
+        </span>
+        <span className="journal-dropzone-title">Add journal pages</span>
+        <span className="journal-dropzone-meta">Drop photos or click · JPG · PNG · HEIC</span>
       </button>
 
-      {queuedCount > 0 && (
-        <div className="mentor-extract-bar">
+      {(queuedCount > 0 || extracting) && (
+        <div className="journal-capture-actions">
+          <div className="journal-capture-queue-meta">
+            <span>{queuedCount} ready</span>
+            {doneCount > 0 && <span>{doneCount} logged</span>}
+          </div>
           <button
             type="button"
             className="btn-primary"
-            disabled={extracting}
+            disabled={extracting || queuedCount === 0}
             onClick={extractQueued}
           >
             {extracting
@@ -221,49 +305,50 @@ export function JournalCapture({
       )}
 
       {uploads.length > 0 && (
-        <ul className="mentor-photo-grid">
+        <ul className="journal-page-list">
           {uploads.map((photo) => (
-            <li key={photo.id} className="mentor-photo">
-              <img src={photo.previewUrl} alt={photo.file.name} />
-              <div className="mentor-photo-meta">
-                <span className="mentor-photo-name">{photo.file.name}</span>
-                <input
-                  type="date"
-                  value={photo.date}
-                  disabled={photo.status !== 'queued'}
-                  onChange={(e) =>
-                    setUploads((list) =>
-                      list.map((u) =>
-                        u.id === photo.id
-                          ? { ...u, date: e.target.value || bulkDate }
-                          : u,
-                      ),
-                    )
-                  }
-                  aria-label={`Date for ${photo.file.name}`}
-                />
-                <span className={`mentor-photo-status status-${photo.status}`}>
-                  {photo.status === 'queued' && 'Queued'}
-                  {photo.status === 'extracting' && 'Extracting…'}
-                  {photo.status === 'done' &&
-                    (photo.detectedDateRaw
-                      ? `Logged · ${photo.date} (${photo.detectedDateRaw})`
-                      : `Logged · ${photo.date}`)}
-                  {photo.status === 'failed' && (photo.error || 'Failed')}
-                </span>
+            <li key={photo.id} className={`journal-page-card status-${photo.status}`}>
+              <div className="journal-page-thumb">
+                {photo.previewUrl ? (
+                  <img src={photo.previewUrl} alt="" />
+                ) : (
+                  <span className="journal-page-thumb-fallback" aria-hidden>
+                    {isHeicName(photo.file) ? 'HEIC' : 'IMG'}
+                  </span>
+                )}
+              </div>
+              <div className="journal-page-body">
+                <div className="journal-page-top">
+                  <span className="journal-page-name" title={photo.file.name}>
+                    {photo.file.name}
+                  </span>
+                  <span className={`journal-page-badge status-${photo.status}`}>
+                    {formatStatus(photo)}
+                  </span>
+                </div>
+                <label className="journal-page-date">
+                  <span className="field-label">Date</span>
+                  <input
+                    type="date"
+                    value={photo.date}
+                    disabled={photo.status !== 'queued'}
+                    onChange={(e) =>
+                      setUploads((list) =>
+                        list.map((u) =>
+                          u.id === photo.id ? { ...u, date: e.target.value || bulkDate } : u,
+                        ),
+                      )
+                    }
+                    aria-label={`Date for ${photo.file.name}`}
+                  />
+                </label>
               </div>
               {photo.status === 'queued' && (
                 <button
                   type="button"
-                  className="x-btn visible"
+                  className="journal-page-remove"
                   aria-label={`Remove ${photo.file.name}`}
-                  onClick={() =>
-                    setUploads((list) => {
-                      const target = list.find((u) => u.id === photo.id)
-                      if (target) URL.revokeObjectURL(target.previewUrl)
-                      return list.filter((u) => u.id !== photo.id)
-                    })
-                  }
+                  onClick={() => removeUpload(photo.id)}
                 >
                   ×
                 </button>

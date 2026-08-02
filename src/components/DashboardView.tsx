@@ -5,6 +5,7 @@ import { DEEP_WORK_IDS, type DeepWorkId } from '../types'
 import { isAutopilotLocked } from '../utils/autopilotLocks'
 import { formatMinutes, todayDateKey } from '../utils/time'
 import { AttentionAllocation } from './AttentionAllocation'
+import { EveningWindDown } from './autopilot/EveningWindDown'
 import { BodyEnergyLog } from './BodyEnergyLog'
 import { DailyNotes } from './DailyNotes'
 import { IdentityPanel } from './IdentityPanel'
@@ -17,17 +18,33 @@ import { WeekIntention } from './WeekIntention'
 import { WeeklyGoalsPanel } from './WeeklyGoalsPanel'
 import { Modal } from './ui/Modal'
 
-type RitualId = 'morning' | 'evening' | 'week'
+type RitualId = 'morning' | 'week'
 type CommandModal = 'identity' | 'mental' | 'habits' | 'analytics' | 'body' | null
 
 const RITUAL_CARDS: {
-  id: RitualId
+  id: RitualId | 'evening'
   title: string
   name: string
+  desc: string
 }[] = [
-  { id: 'morning', title: 'Morning', name: 'Morning rituals' },
-  { id: 'evening', title: 'Evening', name: 'Evening rituals' },
-  { id: 'week', title: 'Week', name: 'Week rituals' },
+  {
+    id: 'morning',
+    title: 'Morning',
+    name: 'Morning rituals',
+    desc: 'Open when you need the checklist — otherwise stay clear',
+  },
+  {
+    id: 'evening',
+    title: 'Evening',
+    name: 'Evening Wind Down',
+    desc: 'Finance → body → tomorrow → tasks → journal photo into Mentor',
+  },
+  {
+    id: 'week',
+    title: 'Week',
+    name: 'Week rituals',
+    desc: 'Open when you need the checklist — otherwise stay clear',
+  },
 ]
 
 export function DashboardView({
@@ -40,10 +57,12 @@ export function DashboardView({
   const today = todayDateKey()
   const busy = !!store.state.activeTimer
   const [ritualOpen, setRitualOpen] = useState<RitualId | null>(null)
+  const [windDownOpen, setWindDownOpen] = useState(false)
   const [commandModal, setCommandModal] = useState<CommandModal>(null)
   const [repairOpen, setRepairOpen] = useState(false)
   const activeRitual = RITUAL_CARDS.find((card) => card.id === ritualOpen)
   const repairNeeded = useMemo(() => needsMissDayRepair(store), [store.state])
+  const eveningLocked = isAutopilotLocked(store.state, 'evening')
 
   return (
     <div className="dashboard dashboard-clean">
@@ -133,20 +152,31 @@ export function DashboardView({
 
       <section className="action-board compact">
         <div className="action-board-stack">
-          {RITUAL_CARDS.map((card) => (
-            <button
-              key={card.id}
-              type="button"
-              className="action-tile compact wide"
-              onClick={() => setRitualOpen(card.id)}
-            >
-              <span className="action-tile-kicker">Operating cadence</span>
-              <span className="action-tile-name">{card.name}</span>
-              <span className="action-tile-desc">
-                Open when you need the checklist — otherwise stay clear
-              </span>
-            </button>
-          ))}
+          {RITUAL_CARDS.map((card) => {
+            const locked = card.id === 'evening' && eveningLocked
+            return (
+              <button
+                key={card.id}
+                type="button"
+                className={`action-tile compact wide${locked ? ' disabled locked' : ''}${card.id === 'evening' && !locked ? ' accent' : ''}`}
+                disabled={locked}
+                onClick={() => {
+                  if (card.id === 'evening') {
+                    if (!locked) setWindDownOpen(true)
+                    return
+                  }
+                  setRitualOpen(card.id)
+                }}
+              >
+                <span className="action-tile-kicker">Operating cadence</span>
+                <span className="action-tile-name">{card.name}</span>
+                <span className="action-tile-desc">
+                  {locked ? 'Done today · locked' : card.desc}
+                </span>
+                {locked && <span className="tab-soon">Locked</span>}
+              </button>
+            )
+          })}
         </div>
       </section>
 
@@ -163,13 +193,6 @@ export function DashboardView({
             <li>Water &amp; Salt</li>
             <li>Write identity statement and set intentions</li>
             <li>Straight into deep work</li>
-          </ol>
-        )}
-        {ritualOpen === 'evening' && (
-          <ol className="dashboard-list">
-            <li>Plan Tomorrow</li>
-            <li>Log Finances</li>
-            <li>Write</li>
           </ol>
         )}
         {ritualOpen === 'week' && (
@@ -189,6 +212,12 @@ export function DashboardView({
           </div>
         )}
       </Modal>
+
+      <EveningWindDown
+        store={store}
+        open={windDownOpen}
+        onClose={() => setWindDownOpen(false)}
+      />
 
       <Modal open={commandModal === 'identity'} onClose={() => setCommandModal(null)} title="90-day identity" size="lg">
         <IdentityPanel store={store} />
