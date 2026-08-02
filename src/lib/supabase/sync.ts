@@ -67,7 +67,11 @@ export function stateRichnessScore(state: Partial<AppState> | null | undefined):
     credentials +
     (state.weekIntention && state.weekIntention.length > 40 ? 2 : 0) +
     (state.companyDocuments?.length || 0) * 5 +
-    (state.companyIdeas?.length || 0) * 3
+    (state.companyIdeas?.length || 0) * 3 +
+    (state.mentor?.journalEntries?.length || 0) * 4 +
+    (state.mentor?.messages?.length || 0) +
+    (state.mentor?.latestInsight ? 6 : 0) +
+    (state.timeEntries?.filter((e) => e.debrief).length || 0) * 3
   )
 }
 

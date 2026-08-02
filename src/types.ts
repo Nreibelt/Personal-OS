@@ -85,6 +85,48 @@ export interface PauseSegment {
   durationMs: number
 }
 
+/** How a finished deep-work session felt — captured at session end */
+export type SessionFeeling = 'weapon' | 'solid' | 'meh' | 'dragged'
+
+/** Tags selected in the post-session debrief */
+export type SessionTag =
+  | 'flow'
+  | 'productive'
+  | 'distracted'
+  | 'phone'
+  | 'low-energy'
+  | 'high-energy'
+  | 'scattered'
+  | 'clear'
+  | 'rushed'
+  | 'deep'
+
+export const SESSION_FEELINGS: { id: SessionFeeling; label: string; hint: string }[] = [
+  { id: 'weapon', label: 'Weapon', hint: 'Locked in. Operated at full capacity.' },
+  { id: 'solid', label: 'Solid', hint: 'Good work. Not transcendent, not wasted.' },
+  { id: 'meh', label: 'Meh', hint: 'Half there. Output without fire.' },
+  { id: 'dragged', label: 'Dragged', hint: 'Fought myself the whole way.' },
+]
+
+export const SESSION_TAGS: { id: SessionTag; label: string }[] = [
+  { id: 'flow', label: 'Flow' },
+  { id: 'productive', label: 'Productive' },
+  { id: 'deep', label: 'Deep focus' },
+  { id: 'clear', label: 'Clear mind' },
+  { id: 'high-energy', label: 'High energy' },
+  { id: 'low-energy', label: 'Low energy' },
+  { id: 'distracted', label: 'Distracted' },
+  { id: 'phone', label: 'Phone pulled' },
+  { id: 'scattered', label: 'Scattered' },
+  { id: 'rushed', label: 'Rushed' },
+]
+
+export interface SessionDebrief {
+  feeling: SessionFeeling
+  tags: SessionTag[]
+  note?: string
+}
+
 export interface TimeEntry {
   id: string
   projectId: ProjectId
@@ -101,6 +143,62 @@ export interface TimeEntry {
   pauseCount?: number
   /** Individual pause segments for time-of-day pause trends */
   pauses?: PauseSegment[]
+  /** Post-session feeling check — how the block actually went */
+  debrief?: SessionDebrief
+}
+
+export type MentorChatRole = 'user' | 'mentor' | 'system'
+
+export interface MentorMessage {
+  id: string
+  role: MentorChatRole
+  text: string
+  createdAt: string
+}
+
+export interface JournalEntry {
+  id: string
+  /** Entry date the page belongs to (YYYY-MM-DD) */
+  date: string
+  sourceName: string
+  /** OCR / vision-extracted text from the photo */
+  extractedText: string
+  status: 'pending' | 'extracted' | 'failed'
+  error?: string
+  createdAt: string
+}
+
+export interface MentorInsight {
+  id: string
+  createdAt: string
+  summary: string
+  weapons: string[]
+  drags: string[]
+  blindSpots: string[]
+  prescriptions: string[]
+}
+
+export interface MentorState {
+  messages: MentorMessage[]
+  journalEntries: JournalEntry[]
+  latestInsight: MentorInsight | null
+  insightHistory: MentorInsight[]
+}
+
+export function emptyMentorState(): MentorState {
+  return {
+    messages: [
+      {
+        id: 'welcome',
+        role: 'system',
+        text: 'Mentor online. I read your deep work, breaks, spend, journals, and Sunday logs — then call the patterns you miss. Ask anything, or run a full synthesis.',
+        createdAt: new Date(0).toISOString(),
+      },
+    ],
+    journalEntries: [],
+    latestInsight: null,
+    insightHistory: [],
+  }
 }
 
 /** Recurrence rule for a calendar block. */
@@ -423,6 +521,8 @@ export interface AppState {
   companyDocuments: CompanyDocument[]
   /** Batcave idea dump */
   companyIdeas: CompanyIdea[]
+  /** AI mentor — chat, journal OCR text, pattern insights */
+  mentor: MentorState
 }
 
 export interface CompanyDocument {

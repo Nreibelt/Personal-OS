@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { PROJECT_MAP } from '../data/seed'
 import type { Store } from '../hooks/useStore'
+import type { SessionDebrief } from '../types'
 import { formatMinutes, formatTimer, todayDateKey } from '../utils/time'
+import { SessionDebriefModal } from './SessionDebriefModal'
 import { TaskRow } from './TaskRow'
 import { ModalPortal } from './ui/ModalPortal'
 
@@ -18,6 +20,7 @@ export function TimerOverlay({
 }) {
   const timer = store.state.activeTimer
   const [taskText, setTaskText] = useState('')
+  const [debriefOpen, setDebriefOpen] = useState(false)
 
   if (!timer) return null
 
@@ -31,8 +34,14 @@ export function TimerOverlay({
     return typeof t.plannedDate === 'string' ? t.plannedDate === today : t.forToday
   })
   const openCount = todayTasks.filter((t) => !t.done).length
+  const minutesLabel = formatMinutes(Math.max(1, Math.round(store.liveTimerSeconds / 60)))
 
-  if (minimized) {
+  const commitFinish = (debrief?: SessionDebrief) => {
+    setDebriefOpen(false)
+    store.finishTimer(debrief)
+  }
+
+  if (minimized && !debriefOpen) {
     return (
       <ModalPortal>
         <button
@@ -55,93 +64,107 @@ export function TimerOverlay({
 
   return (
     <ModalPortal>
-      <div className={`timer-overlay${paused ? ' timer-paused' : ''}`}>
-        <div className="timer-stage">
-          {paused && (
-            <div className="timer-paused-banner">
-              <span className="timer-paused-dot" />
-              PAUSED · {formatTimer(store.livePauseSeconds)} on break
+      {!debriefOpen && (
+        <div className={`timer-overlay${paused ? ' timer-paused' : ''}`}>
+          <div className="timer-stage">
+            {paused && (
+              <div className="timer-paused-banner">
+                <span className="timer-paused-dot" />
+                PAUSED · {formatTimer(store.livePauseSeconds)} on break
+              </div>
+            )}
+            <div className="timer-project">
+              <span className="dot" style={{ background: project.color, color: project.color }} />
+              {project.name.toUpperCase()}
             </div>
-          )}
-          <div className="timer-project">
-            <span className="dot" style={{ background: project.color, color: project.color }} />
-            {project.name.toUpperCase()}
-          </div>
-          <div className={`timer-digits${paused ? ' frozen' : ''}`}>{formatTimer(store.liveTimerSeconds)}</div>
-          <div className="timer-today">TODAY TOTAL · {formatMinutes(displayToday)}</div>
-          {hasPauses && (
-            <div className="timer-pause-stats">
-              {timer.pauseCount} pause{timer.pauseCount === 1 ? '' : 's'} · {formatTimer(store.livePauseSeconds)} total break
-            </div>
-          )}
+            <div className={`timer-digits${paused ? ' frozen' : ''}`}>{formatTimer(store.liveTimerSeconds)}</div>
+            <div className="timer-today">TODAY TOTAL · {formatMinutes(displayToday)}</div>
+            {hasPauses && (
+              <div className="timer-pause-stats">
+                {timer.pauseCount} pause{timer.pauseCount === 1 ? '' : 's'} · {formatTimer(store.livePauseSeconds)} total break
+              </div>
+            )}
 
-          <div className="timer-todos">
-            <div className="todo-header">
-              <span className="todo-label">TODAY&apos;S TASKS</span>
-              <span className="todo-meta">{openCount} open</span>
-            </div>
-            <ul className="check-list">
-              {todayTasks.length === 0 && (
-                <li className="empty-tasks">No tasks for today — add one below</li>
-              )}
-              {todayTasks.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  project={project}
-                  store={store}
-                  showScope={false}
+            <div className="timer-todos">
+              <div className="todo-header">
+                <span className="todo-label">TODAY&apos;S TASKS</span>
+                <span className="todo-meta">{openCount} open</span>
+              </div>
+              <ul className="check-list">
+                {todayTasks.length === 0 && (
+                  <li className="empty-tasks">No tasks for today — add one below</li>
+                )}
+                {todayTasks.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    project={project}
+                    store={store}
+                    showScope={false}
+                  />
+                ))}
+              </ul>
+              <form
+                className="inline-add"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  store.addTask(timer.projectId, taskText, true)
+                  setTaskText('')
+                }}
+              >
+                <input
+                  value={taskText}
+                  onChange={(e) => setTaskText(e.target.value)}
+                  placeholder="+ Add today's task"
+                  aria-label={`Add task to ${project.name}`}
                 />
-              ))}
-            </ul>
-            <form
-              className="inline-add"
-              onSubmit={(e) => {
-                e.preventDefault()
-                store.addTask(timer.projectId, taskText, true)
-                setTaskText('')
-              }}
-            >
-              <input
-                value={taskText}
-                onChange={(e) => setTaskText(e.target.value)}
-                placeholder="+ Add today's task"
-                aria-label={`Add task to ${project.name}`}
-              />
-            </form>
-          </div>
+              </form>
+            </div>
 
-          <div className="timer-actions">
-            {paused ? (
-              <button className="btn-primary" type="button" onClick={() => store.resumeTimer()}>
-                Resume Session
-              </button>
-            ) : (
-              <>
-                <button className="btn-primary" type="button" onClick={() => store.finishTimer()}>
-                  Finish Session
+            <div className="timer-actions">
+              {paused ? (
+                <button className="btn-primary" type="button" onClick={() => store.resumeTimer()}>
+                  Resume Session
                 </button>
-                <button className="btn-secondary btn-pause" type="button" onClick={() => store.pauseTimer()}>
-                  Pause
+              ) : (
+                <>
+                  <button
+                    className="btn-primary"
+                    type="button"
+                    onClick={() => setDebriefOpen(true)}
+                  >
+                    Finish Session
+                  </button>
+                  <button className="btn-secondary btn-pause" type="button" onClick={() => store.pauseTimer()}>
+                    Pause
+                  </button>
+                </>
+              )}
+              {!paused && (
+                <button className="btn-secondary" type="button" onClick={onMinimize}>
+                  Minimize
                 </button>
-              </>
-            )}
-            {!paused && (
-              <button className="btn-secondary" type="button" onClick={onMinimize}>
-                Minimize
+              )}
+              <button
+                className="ghost-btn"
+                type="button"
+                style={{ marginTop: '0.5rem' }}
+                onClick={() => store.discardTimer()}
+              >
+                Discard
               </button>
-            )}
-            <button
-              className="ghost-btn"
-              type="button"
-              style={{ marginTop: '0.5rem' }}
-              onClick={() => store.discardTimer()}
-            >
-              Discard
-            </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      <SessionDebriefModal
+        open={debriefOpen}
+        projectName={project.name}
+        minutesLabel={minutesLabel}
+        onSubmit={(debrief) => commitFinish(debrief)}
+        onSkip={() => commitFinish()}
+      />
     </ModalPortal>
   )
 }
