@@ -4,11 +4,63 @@ import {
   MENTOR_MODEL,
   mentorNotConfiguredResponse,
 } from '@/lib/mentor/anthropic'
+import { extractDateFromJournalText, parseFlexibleJournalDate } from '@/utils/journalDate'
 
 export const runtime = 'nodejs'
 export const maxDuration = 90
 
 const MAX_IMAGE_BYTES = 4_500_000
+
+function parseModelPayload(raw: string): {
+  text: string
+  detectedDate: string | null
+  detectedDateRaw: string | null
+} {
+  const trimmed = raw.trim()
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/)
+  const candidate = fenced ? fenced[1].trim() : trimmed
+
+  try {
+    const parsed = JSON.parse(candidate) as Record<string, unknown>
+    const text =
+      typeof parsed.text === 'string'
+        ? parsed.text.trim()
+        : typeof parsed.transcription === 'string'
+          ? parsed.transcription.trim()
+          : ''
+    const rawDate =
+      typeof parsed.detectedDateRaw === 'string'
+        ? parsed.detectedDateRaw.trim()
+        : typeof parsed.pageDate === 'string'
+          ? parsed.pageDate.trim()
+          : null
+    let detectedDate =
+      typeof parsed.detectedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.detectedDate)
+        ? parsed.detectedDate
+        : null
+    if (!detectedDate && rawDate) detectedDate = parseFlexibleJournalDate(rawDate)
+    if (text) {
+      if (!detectedDate) {
+        const fromText = extractDateFromJournalText(text)
+        return {
+          text,
+          detectedDate: fromText.date,
+          detectedDateRaw: rawDate || fromText.raw,
+        }
+      }
+      return { text, detectedDate, detectedDateRaw: rawDate }
+    }
+  } catch {
+    // fall through to plain-text handling
+  }
+
+  const fromText = extractDateFromJournalText(trimmed)
+  return {
+    text: trimmed,
+    detectedDate: fromText.date,
+    detectedDateRaw: fromText.raw,
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,7 +79,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'imageBase64 required' }, { status: 400 })
     }
 
-    // Rough size check on base64 payload
     if (imageBase64.length > MAX_IMAGE_BYTES * 1.4) {
       return NextResponse.json({ error: 'Image too large (max ~4.5MB)' }, { status: 413 })
     }
@@ -50,9 +101,19 @@ export async function POST(req: NextRequest) {
 
     const response = await client.messages.create({
       model: MENTOR_MODEL,
-      max_tokens: 2500,
-      system:
-        'You extract handwritten or printed journal pages for a high-performance coaching system. Transcribe faithfully. Preserve line breaks for lists. If a date is visible on the page and differs from the provided date, note it. Do not invent content you cannot read — mark illegible spots as [illegible]. Return plain text only.',
+      max_tokens: 2800,
+      system: `You extract handwritten or printed journal pages for a high-performance coaching system.
+
+Transcribe faithfully. Preserve line breaks for lists. Do not invent content you cannot read — mark illegible spots as [illegible].
+
+CRITICAL — dates: These journals almost always have a date written at the top (e.g. "July 19th", "19 July", "Jul 19 2026"). Read that header carefully and convert it to ISO YYYY-MM-DD. If the year is missing, infer from context or leave year null in raw form and still return best ISO guess for the current year context.
+
+Return ONLY valid JSON (no markdown fences):
+{
+  "detectedDate": "YYYY-MM-DD or null",
+  "detectedDateRaw": "exactly what was written, e.g. July 19th",
+  "text": "full transcription of the page"
+}`,
       messages: [
         {
           role: 'user',
@@ -68,11 +129,11 @@ export async function POST(req: NextRequest) {
             {
               type: 'text',
               text: [
-                `Extract all readable text from this journal page (${sourceName}).`,
+                `Extract this journal page (${sourceName}).`,
+                'Prioritize the date written at the top of the page.',
                 dateHint
-                  ? `Operator tagged this page as date ${dateHint}. If the page shows a different date, mention it on the first line as "Page date: …".`
-                  : 'If a date is visible on the page, put it on the first line as "Page date: YYYY-MM-DD" or the written form.',
-                'Then transcribe the full entry.',
+                  ? `Operator fallback date if none is readable: ${dateHint}. Prefer the page header over this fallback.`
+                  : 'If no date is readable, set detectedDate to null.',
               ].join('\n'),
             },
           ],
@@ -80,17 +141,26 @@ export async function POST(req: NextRequest) {
       ],
     })
 
-    const text = response.content
+    const raw = response.content
       .filter((b) => b.type === 'text')
       .map((b) => b.text)
       .join('\n')
       .trim()
 
-    if (!text) {
+    if (!raw) {
       return NextResponse.json({ error: 'No text extracted' }, { status: 502 })
     }
 
-    return NextResponse.json({ text })
+    const parsed = parseModelPayload(raw)
+    if (!parsed.text) {
+      return NextResponse.json({ error: 'No text extracted' }, { status: 502 })
+    }
+
+    return NextResponse.json({
+      text: parsed.text,
+      detectedDate: parsed.detectedDate,
+      detectedDateRaw: parsed.detectedDateRaw,
+    })
   } catch (error) {
     console.error('mentor journal failed', error)
     const message = error instanceof Error ? error.message : 'Journal extraction failed'

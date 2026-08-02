@@ -19,6 +19,7 @@ import type {
   CalendarBlock,
   CashAllocationLine,
   CompanyIdea,
+  DailyBodyLog,
   DailyDeepWorkSplit,
   DeepWorkId,
   ExpenseCategory,
@@ -198,6 +199,16 @@ function migrateMentorState(raw: unknown): MentorState {
               typeof j.createdAt === 'string' ? j.createdAt : new Date().toISOString(),
           }
           if (typeof j.error === 'string' && j.error) entry.error = j.error
+          if (
+            j.dateSource === 'manual' ||
+            j.dateSource === 'extracted' ||
+            j.dateSource === 'fallback'
+          ) {
+            entry.dateSource = j.dateSource
+          }
+          if (typeof j.detectedDateRaw === 'string' && j.detectedDateRaw) {
+            entry.detectedDateRaw = j.detectedDateRaw
+          }
           return entry
         })
         .filter((x): x is JournalEntry => x != null)
@@ -220,6 +231,7 @@ function migrateMentorState(raw: unknown): MentorState {
       drags: list(i.drags),
       blindSpots: list(i.blindSpots),
       prescriptions: list(i.prescriptions),
+      installed: list(i.installed),
     }
   }
 
@@ -247,6 +259,7 @@ function emptyWeeklyGoals(): WeeklyGoal[] {
     text: '',
     hit: null,
     why: '',
+    visionGoalId: null,
   }))
 }
 
@@ -258,6 +271,8 @@ function migrateWeeklyGoal(raw: unknown): WeeklyGoal | null {
     text: typeof g.text === 'string' ? g.text : '',
     hit: g.hit === true || g.hit === false ? g.hit : null,
     why: typeof g.why === 'string' ? g.why : '',
+    visionGoalId:
+      typeof g.visionGoalId === 'string' && g.visionGoalId ? g.visionGoalId : null,
   }
 }
 
@@ -277,7 +292,33 @@ function migrateAutopilotCompletions(raw: unknown): AutopilotCompletions {
     sundayAdminDate: typeof c.sundayAdminDate === 'string' ? c.sundayAdminDate : null,
     sundayCenterWeekStart:
       typeof c.sundayCenterWeekStart === 'string' ? c.sundayCenterWeekStart : null,
+    missRepairDate: typeof c.missRepairDate === 'string' ? c.missRepairDate : null,
   }
+}
+
+function migrateBodyLogs(raw: unknown): Record<string, DailyBodyLog> {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Record<string, DailyBodyLog> = {}
+  for (const [date, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !value || typeof value !== 'object') continue
+    const v = value as Partial<DailyBodyLog>
+    const energy =
+      v.energy === 1 || v.energy === 2 || v.energy === 3 || v.energy === 4 || v.energy === 5
+        ? v.energy
+        : null
+    const sleepHours =
+      typeof v.sleepHours === 'number' && Number.isFinite(v.sleepHours)
+        ? Math.max(0, Math.min(16, v.sleepHours))
+        : null
+    out[date] = {
+      sleepHours,
+      energy,
+      trained: Boolean(v.trained),
+      trainNote: typeof v.trainNote === 'string' ? v.trainNote : undefined,
+      note: typeof v.note === 'string' ? v.note : undefined,
+    }
+  }
+  return out
 }
 
 function migrateWeekReflections(raw: unknown): Record<string, WeekReflection> {
@@ -550,6 +591,7 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
     ),
     showAllTasks: parsed.showAllTasks ?? false,
     dailyOneThing: { ...seed.dailyOneThing, ...(parsed.dailyOneThing || {}) },
+    bodyLogs: migrateBodyLogs(parsed.bodyLogs),
     weeklyGoals: migrateWeeklyGoals(parsed.weeklyGoals, seed.weeklyGoals),
     weeklyGoalsWeekStart:
       typeof parsed.weeklyGoalsWeekStart === 'string' && parsed.weeklyGoalsWeekStart
@@ -835,7 +877,7 @@ export function useStore() {
 
   const completeAutopilot = useCallback(
     (
-      kind: 'eveningWindDown' | 'sundayAdmin' | 'sundayCenter',
+      kind: 'eveningWindDown' | 'sundayAdmin' | 'sundayCenter' | 'missRepair',
       key: string,
     ) => {
       update((s) => {
@@ -852,6 +894,12 @@ export function useStore() {
             autopilotCompletions: { ...current, sundayAdminDate: key },
           }
         }
+        if (kind === 'missRepair') {
+          return {
+            ...s,
+            autopilotCompletions: { ...current, missRepairDate: key },
+          }
+        }
         return {
           ...s,
           autopilotCompletions: { ...current, sundayCenterWeekStart: key },
@@ -860,6 +908,31 @@ export function useStore() {
     },
     [update],
   )
+
+  const setBodyLog = useCallback((date: string, patch: Partial<DailyBodyLog>) => {
+    update((s) => {
+      const prev = s.bodyLogs?.[date] ?? {
+        sleepHours: null,
+        energy: null,
+        trained: false,
+      }
+      return {
+        ...s,
+        bodyLogs: {
+          ...s.bodyLogs,
+          [date]: {
+            sleepHours:
+              patch.sleepHours !== undefined ? patch.sleepHours : prev.sleepHours,
+            energy: patch.energy !== undefined ? patch.energy : prev.energy,
+            trained: patch.trained !== undefined ? patch.trained : prev.trained,
+            trainNote:
+              patch.trainNote !== undefined ? patch.trainNote : prev.trainNote,
+            note: patch.note !== undefined ? patch.note : prev.note,
+          },
+        },
+      }
+    })
+  }, [update])
 
   const saveWeekReflection = useCallback((weekStart: string, reflection: WeekReflection) => {
     update((s) => ({
@@ -1386,6 +1459,7 @@ export function useStore() {
       drags: insight.drags,
       blindSpots: insight.blindSpots,
       prescriptions: insight.prescriptions,
+      installed: insight.installed,
     }
     update((s) => ({
       ...s,
@@ -1396,6 +1470,25 @@ export function useStore() {
       },
     }))
     return next
+  }, [update])
+
+  const markPrescriptionInstalled = useCallback((insightId: string, prescription: string) => {
+    update((s) => {
+      const apply = (insight: MentorInsight | null): MentorInsight | null => {
+        if (!insight || insight.id !== insightId) return insight
+        const installed = [...(insight.installed || [])]
+        if (!installed.includes(prescription)) installed.push(prescription)
+        return { ...insight, installed }
+      }
+      return {
+        ...s,
+        mentor: {
+          ...s.mentor,
+          latestInsight: apply(s.mentor.latestInsight),
+          insightHistory: s.mentor.insightHistory.map((i) => apply(i) ?? i),
+        },
+      }
+    })
   }, [update])
 
   const discardTimer = useCallback(() => {
@@ -2123,6 +2216,7 @@ export function useStore() {
     setIdentity,
     setWeekIntention,
     completeAutopilot,
+    setBodyLog,
     saveWeekReflection,
     reviewWeeklyGoals,
     commitWeeklyPlan,
@@ -2158,6 +2252,7 @@ export function useStore() {
     updateJournalEntry,
     removeJournalEntry,
     saveMentorInsight,
+    markPrescriptionInstalled,
     addCalendarBlock,
     updateCalendarBlock,
     removeCalendarBlock,

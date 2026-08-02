@@ -3,22 +3,9 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import type { Store } from '../hooks/useStore'
 import { buildMentorContext } from '../lib/mentor/context'
-import { isJournalImageFile, prepareJournalImage } from '../lib/mentor/journalImage'
 import type { MentorInsight } from '../types'
-import { todayDateKey } from '../utils/time'
-
-type UploadDraft = {
-  id: string
-  file: File
-  previewUrl: string
-  date: string
-  status: 'queued' | 'extracting' | 'done' | 'failed'
-  error?: string
-}
-
-function mid(prefix: string) {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
-}
+import { addDays, todayDateKey } from '../utils/time'
+import { JournalCapture } from './JournalCapture'
 
 function formatInsightTime(iso: string) {
   try {
@@ -38,101 +25,20 @@ export function MentorView({ store }: { store: Store }) {
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState<'chat' | 'analyze' | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [uploads, setUploads] = useState<UploadDraft[]>([])
-  const [bulkDate, setBulkDate] = useState(todayDateKey())
-  const fileRef = useRef<HTMLInputElement>(null)
+  const [installNote, setInstallNote] = useState<string | null>(null)
   const threadRef = useRef<HTMLDivElement>(null)
-  const queueRef = useRef<Promise<void>>(Promise.resolve())
-  const uploadsRef = useRef(uploads)
-  uploadsRef.current = uploads
 
   const debriefCount = useMemo(
     () => store.state.timeEntries.filter((e) => e.debrief).length,
     [store.state.timeEntries],
   )
   const journalReady = mentor.journalEntries.filter((j) => j.status === 'extracted').length
-  const queuedCount = uploads.filter((u) => u.status === 'queued').length
-  const extracting = uploads.some((u) => u.status === 'extracting')
 
   useEffect(() => {
     const el = threadRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight
   }, [mentor.messages, busy])
-
-  useEffect(() => {
-    return () => {
-      for (const u of uploadsRef.current) URL.revokeObjectURL(u.previewUrl)
-    }
-  }, [])
-
-  const extractUpload = (id: string) => {
-    queueRef.current = queueRef.current.then(async () => {
-      const item = uploadsRef.current.find((u) => u.id === id)
-      if (!item || item.status !== 'queued') return
-
-      const date = item.date
-      setUploads((list) =>
-        list.map((u) => (u.id === id ? { ...u, status: 'extracting', error: undefined } : u)),
-      )
-
-      const pendingId = store.addJournalEntry({
-        date,
-        sourceName: item.file.name,
-        extractedText: '',
-        status: 'pending',
-      })
-
-      try {
-        let prepared: Awaited<ReturnType<typeof prepareJournalImage>>
-        try {
-          prepared = await prepareJournalImage(item.file)
-        } catch {
-          throw new Error(
-            'Could not convert this photo (HEIC/HEIF). Try again, or export as JPG from Photos.',
-          )
-        }
-        const res = await fetch('/api/mentor/journal', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageBase64: prepared.base64,
-            mediaType: prepared.mediaType,
-            date,
-            sourceName: item.file.name,
-          }),
-        })
-        const data = (await res.json()) as { text?: string; error?: string }
-        if (!res.ok) throw new Error(data.error || 'Extraction failed')
-
-        store.updateJournalEntry(pendingId, {
-          extractedText: data.text || '',
-          status: 'extracted',
-          error: undefined,
-        })
-        store.appendMentorMessage({
-          role: 'system',
-          text: `Journal page logged for ${date} (${item.file.name}). Text is in the mentor loop.`,
-        })
-        setUploads((list) => list.map((u) => (u.id === id ? { ...u, status: 'done' } : u)))
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Extraction failed'
-        store.updateJournalEntry(pendingId, {
-          status: 'failed',
-          error: message,
-        })
-        setUploads((list) =>
-          list.map((u) => (u.id === id ? { ...u, status: 'failed', error: message } : u)),
-        )
-        setError(message)
-      }
-    })
-  }
-
-  const extractQueued = () => {
-    const ids = uploadsRef.current.filter((u) => u.status === 'queued').map((u) => u.id)
-    for (const id of ids) extractUpload(id)
-  }
 
   const sendChat = async (e: FormEvent) => {
     e.preventDefault()
@@ -182,7 +88,7 @@ export function MentorView({ store }: { store: Store }) {
     setBusy('analyze')
     store.appendMentorMessage({
       role: 'system',
-      text: 'Running full synthesis across deep work, breaks, debriefs, spend, journals, and Sunday logs…',
+      text: 'Running full synthesis across deep work, breaks, debriefs, body, spend, journals, and Sunday logs…',
     })
 
     try {
@@ -227,33 +133,40 @@ export function MentorView({ store }: { store: Store }) {
     }
   }
 
-  const onFiles = (files: FileList | null) => {
-    if (!files?.length) return
-    const next: UploadDraft[] = []
-    for (const file of Array.from(files)) {
-      if (!isJournalImageFile(file)) continue
-      next.push({
-        id: mid('upload'),
-        file,
-        previewUrl: URL.createObjectURL(file),
-        date: bulkDate,
-        status: 'queued',
+  const installPrescription = (
+    insightId: string,
+    text: string,
+    kind: 'habit' | 'oneThing' | 'calendar' | 'reminder',
+  ) => {
+    const clean = text.trim()
+    if (!clean) return
+    const short = clean.length > 72 ? `${clean.slice(0, 72)}…` : clean
+    const today = todayDateKey()
+    const tomorrow = addDays(today, 1)
+
+    if (kind === 'habit') {
+      store.addHabit(short)
+      setInstallNote(`Installed as non-negotiable: ${short}`)
+    } else if (kind === 'oneThing') {
+      store.setOneThing(today, clean)
+      setInstallNote('Set as today’s One Thing.')
+    } else if (kind === 'calendar') {
+      store.addCalendarBlock({
+        title: short,
+        date: tomorrow,
+        startMinutes: 9 * 60,
+        endMinutes: 10 * 60 + 30,
       })
+      setInstallNote(`Calendar block tomorrow 9:00–10:30: ${short}`)
+    } else {
+      store.addReminder(short)
+      setInstallNote(`Reminder added: ${short}`)
     }
-    if (next.length === 0) return
-    setUploads((list) => [...list, ...next])
-    setError(null)
-  }
 
-  const setUploadDate = (id: string, date: string) => {
-    setUploads((list) => list.map((u) => (u.id === id ? { ...u, date } : u)))
-  }
-
-  const removeUpload = (id: string) => {
-    setUploads((list) => {
-      const target = list.find((u) => u.id === id)
-      if (target) URL.revokeObjectURL(target.previewUrl)
-      return list.filter((u) => u.id !== id)
+    store.markPrescriptionInstalled(insightId, text)
+    store.appendMentorMessage({
+      role: 'system',
+      text: `Installed prescription (${kind}): ${clean}`,
     })
   }
 
@@ -266,8 +179,8 @@ export function MentorView({ store }: { store: Store }) {
           <div>
             <h2 className="action-board-title">Mentor</h2>
             <p className="action-board-copy">
-              Second set of eyes on your OS — sessions, breaks, spend, journals, Sunday logs.
-              Pattern recognition built to expose blind spots and install what lets you dominate.
+              Second set of eyes — sessions, body, breaks, spend, journals, Sunday logs. Spot
+              blind spots. Install constraints. Dominate.
             </p>
           </div>
           <button
@@ -294,16 +207,25 @@ export function MentorView({ store }: { store: Store }) {
             <span className="mentor-signal-label">Journal pages</span>
           </div>
           <div className="mentor-signal">
-            <span className="mentor-signal-value">{store.state.personalFinance.spends.length}</span>
-            <span className="mentor-signal-label">Spends</span>
+            <span className="mentor-signal-value">
+              {Object.keys(store.state.bodyLogs || {}).length}
+            </span>
+            <span className="mentor-signal-label">Body logs</span>
           </div>
         </div>
       </section>
 
-      {error && (
-        <div className="mentor-error" role="alert">
-          {error}
-          <button type="button" className="ghost-btn" onClick={() => setError(null)}>
+      {(error || installNote) && (
+        <div className={error ? 'mentor-error' : 'mentor-install-toast'} role="status">
+          {error || installNote}
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => {
+              setError(null)
+              setInstallNote(null)
+            }}
+          >
             Dismiss
           </button>
         </div>
@@ -359,132 +281,59 @@ export function MentorView({ store }: { store: Store }) {
               )}
             </header>
             {insight ? (
-              <InsightPanel insight={insight} />
+              <InsightPanel
+                insight={insight}
+                onInstall={(text, kind) => installPrescription(insight.id, text, kind)}
+              />
             ) : (
               <p className="mentor-empty">
-                No synthesis yet. Finish sessions with debriefs, upload journals, then run full
-                synthesis.
+                No synthesis yet. Finish sessions with debriefs, log body, upload journals, then
+                run full synthesis.
               </p>
             )}
           </section>
 
           <section className="mentor-journal" aria-label="Journal photo upload">
             <header className="mentor-panel-head">
-              <span className="field-label">Journal photos</span>
-              <span className="status-pill">VISION OCR</span>
+              <span className="field-label">Journal backfill</span>
+              <span className="status-pill">DATE OCR</span>
             </header>
-
-            <p className="mentor-journal-copy">
-              Bulk-upload paper pages. Tag each with a date — text is extracted and fed into every
-              mentor read.
-            </p>
-
-            <label className="mentor-bulk-date">
-              <span className="field-label">Default date for next batch</span>
-              <input
-                type="date"
-                value={bulkDate}
-                onChange={(e) => setBulkDate(e.target.value || todayDateKey())}
-              />
-            </label>
-
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*,.heic,.heif"
-              multiple
-              className="mentor-file-input"
-              onChange={(e) => {
-                onFiles(e.target.files)
-                e.target.value = ''
-              }}
-            />
-
-            <button
-              type="button"
-              className="mentor-upload-zone"
-              onClick={() => fileRef.current?.click()}
-            >
-              <span className="mentor-upload-title">Drop or choose photos</span>
-              <span className="mentor-upload-meta">JPG, PNG, WEBP, HEIC — multiple pages ok</span>
-            </button>
-
-            {queuedCount > 0 && (
-              <div className="mentor-extract-bar">
-                <button
-                  type="button"
-                  className="btn-primary"
-                  disabled={extracting}
-                  onClick={extractQueued}
-                >
-                  {extracting ? 'Extracting…' : `Extract ${queuedCount} page${queuedCount === 1 ? '' : 's'}`}
-                </button>
-              </div>
-            )}
-
-            {uploads.length > 0 && (
-              <ul className="mentor-photo-grid">
-                {uploads.map((photo) => (
-                  <li key={photo.id} className="mentor-photo">
-                    <img src={photo.previewUrl} alt={photo.file.name} />
-                    <div className="mentor-photo-meta">
-                      <span className="mentor-photo-name">{photo.file.name}</span>
-                      <input
-                        type="date"
-                        value={photo.date}
-                        disabled={photo.status !== 'queued'}
-                        onChange={(e) => setUploadDate(photo.id, e.target.value || bulkDate)}
-                        aria-label={`Date for ${photo.file.name}`}
-                      />
-                      <span className={`mentor-photo-status status-${photo.status}`}>
-                        {photo.status === 'queued' && 'Queued'}
-                        {photo.status === 'extracting' && 'Extracting…'}
-                        {photo.status === 'done' && 'Logged'}
-                        {photo.status === 'failed' && (photo.error || 'Failed')}
-                      </span>
-                    </div>
-                    {photo.status === 'queued' && (
-                      <button
-                        type="button"
-                        className="x-btn visible"
-                        aria-label={`Remove ${photo.file.name}`}
-                        onClick={() => removeUpload(photo.id)}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {mentor.journalEntries.length > 0 && (
-              <ul className="mentor-journal-list">
-                {mentor.journalEntries.slice(0, 8).map((entry) => (
-                  <li key={entry.id} className="mentor-journal-item">
-                    <div className="mentor-journal-item-head">
-                      <strong>{entry.date}</strong>
-                      <span>{entry.sourceName}</span>
-                      <button
-                        type="button"
-                        className="ghost-btn"
-                        onClick={() => store.removeJournalEntry(entry.id)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                    <p>
-                      {entry.status === 'failed'
-                        ? entry.error || 'Failed'
-                        : entry.status === 'pending'
-                          ? 'Extracting…'
-                          : entry.extractedText.slice(0, 220) || '(empty)'}
-                      {entry.status === 'extracted' && entry.extractedText.length > 220 ? '…' : ''}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div className="mentor-journal-body">
+              <JournalCapture store={store} defaultDate={todayDateKey()} preferPageDate />
+              {mentor.journalEntries.length > 0 && (
+                <ul className="mentor-journal-list">
+                  {mentor.journalEntries.slice(0, 10).map((entry) => (
+                    <li key={entry.id} className="mentor-journal-item">
+                      <div className="mentor-journal-item-head">
+                        <strong>{entry.date}</strong>
+                        <span>
+                          {entry.sourceName}
+                          {entry.detectedDateRaw ? ` · page: ${entry.detectedDateRaw}` : ''}
+                          {entry.dateSource === 'extracted' ? ' · auto-dated' : ''}
+                        </span>
+                        <button
+                          type="button"
+                          className="ghost-btn"
+                          onClick={() => store.removeJournalEntry(entry.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <p>
+                        {entry.status === 'failed'
+                          ? entry.error || 'Failed'
+                          : entry.status === 'pending'
+                            ? 'Extracting…'
+                            : entry.extractedText.slice(0, 220) || '(empty)'}
+                        {entry.status === 'extracted' && entry.extractedText.length > 220
+                          ? '…'
+                          : ''}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </section>
         </div>
       </div>
@@ -492,14 +341,56 @@ export function MentorView({ store }: { store: Store }) {
   )
 }
 
-function InsightPanel({ insight }: { insight: MentorInsight }) {
+function InsightPanel({
+  insight,
+  onInstall,
+}: {
+  insight: MentorInsight
+  onInstall: (text: string, kind: 'habit' | 'oneThing' | 'calendar' | 'reminder') => void
+}) {
   return (
     <div className="mentor-insight-body">
       <p className="mentor-insight-summary">{insight.summary}</p>
       <InsightList title="Weapon conditions" items={insight.weapons} tone="weapon" />
       <InsightList title="What drags you" items={insight.drags} tone="drag" />
       <InsightList title="Blind spots" items={insight.blindSpots} tone="blind" />
-      <InsightList title="Install next" items={insight.prescriptions} tone="rx" />
+      <div className="mentor-insight-list tone-rx">
+        <span className="field-label">Install next</span>
+        {insight.prescriptions.length === 0 ? (
+          <p className="mentor-empty" style={{ padding: '0.5rem 0' }}>
+            No prescriptions this round.
+          </p>
+        ) : (
+          <ul className="mentor-rx-list">
+            {insight.prescriptions.map((item) => {
+              const installed = insight.installed?.includes(item)
+              return (
+                <li key={item} className={`mentor-rx-item${installed ? ' installed' : ''}`}>
+                  <p>{item}</p>
+                  {installed ? (
+                    <span className="status-pill hit">INSTALLED</span>
+                  ) : (
+                    <div className="mentor-rx-actions">
+                      <button type="button" className="btn-secondary compact" onClick={() => onInstall(item, 'habit')}>
+                        Habit
+                      </button>
+                      <button type="button" className="btn-secondary compact" onClick={() => onInstall(item, 'oneThing')}>
+                        One Thing
+                      </button>
+                      <button type="button" className="btn-secondary compact" onClick={() => onInstall(item, 'calendar')}>
+                        Block
+                      </button>
+                      <button type="button" className="btn-secondary compact" onClick={() => onInstall(item, 'reminder')}>
+                        Reminder
+                      </button>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }

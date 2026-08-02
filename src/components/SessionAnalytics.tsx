@@ -1,7 +1,16 @@
+import { useMemo } from 'react'
 import { PROJECT_MAP } from '../data/seed'
 import type { Store } from '../hooks/useStore'
+import {
+  aggregateFeelingByDuration,
+  aggregateFeelingByHour,
+  computeFeelingCounts,
+  computeTagCounts,
+  entriesWithDebrief,
+} from '../utils/debriefAnalytics'
+import { filterEntriesByScope, hourInAppTz } from '../utils/sessionAnalytics'
 import { formatLongDate, formatMinutes, formatTimer } from '../utils/time'
-import { hourInAppTz } from '../utils/sessionAnalytics'
+import { SESSION_TAGS } from '../types'
 import { HudPanel } from './HudPanel'
 
 function HourChart<T extends { hour: number; label: string }>({
@@ -52,8 +61,25 @@ export function SessionAnalytics({ store }: { store: Store }) {
   const peak = store.peakSession
   const recent = store.recentSessionEntries
 
+  const scoped = useMemo(
+    () =>
+      filterEntriesByScope(
+        store.state.timeEntries,
+        store.state.summaryMode,
+        store.state.selectedDate,
+      ),
+    [store.state.timeEntries, store.state.summaryMode, store.state.selectedDate],
+  )
+  const debriefed = entriesWithDebrief(scoped)
+  const feelingCounts = computeFeelingCounts(scoped)
+  const feelingByHour = aggregateFeelingByHour(scoped)
+  const feelingByDuration = aggregateFeelingByDuration(scoped)
+  const tagCounts = computeTagCounts(scoped)
+  const tagLabel = (id: string) => SESSION_TAGS.find((t) => t.id === id)?.label || id
+
   const maxAvg = Math.max(...byHour.map((b) => b.avgSessionMinutes), 1)
   const maxCount = Math.max(...byHour.map((b) => b.sessionCount), 1)
+  const maxFeelingHour = Math.max(...feelingByHour.map((b) => b.total), 1)
 
   const scopeLabel =
     mode === 'day'
@@ -168,6 +194,88 @@ export function SessionAnalytics({ store }: { store: Store }) {
             </p>
           )}
 
+          <div className="analytics-section">
+            <div className="analytics-section-head">
+              <span>Debrief intelligence</span>
+              <small>
+                {debriefed.length}/{scoped.length} sessions logged
+              </small>
+            </div>
+            {debriefed.length === 0 ? (
+              <p className="analytics-hint">
+                Finish sessions with a debrief to unlock feeling × hour and length patterns.
+              </p>
+            ) : (
+              <>
+                <div className="debrief-feeling-row">
+                  {feelingCounts.map((f) => (
+                    <div key={f.feeling} className={`debrief-feeling-cell feeling-${f.feeling}`}>
+                      <strong>{f.count}</strong>
+                      <span>{f.label}</span>
+                      <small>{f.pct}%</small>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="analytics-section-head" style={{ marginTop: '0.85rem' }}>
+                  <span>Feeling by start hour</span>
+                </div>
+                <div className="hour-chart" aria-label="Debrief feelings by hour">
+                  <div className="hour-chart-bars">
+                    {feelingByHour.map((b) => {
+                      const h = b.total > 0 ? Math.max(4, Math.round((b.total / maxFeelingHour) * 100)) : 0
+                      const tone =
+                        b.dominant === 'weapon'
+                          ? 'var(--accent)'
+                          : b.dominant === 'dragged'
+                            ? 'var(--danger)'
+                            : b.dominant === 'meh'
+                              ? 'var(--warn)'
+                              : 'var(--brass)'
+                      return (
+                        <div
+                          key={b.hour}
+                          className="hour-bar-col"
+                          title={`${b.label}: ${b.total} debriefs · ${b.dominant || '—'}`}
+                        >
+                          <div className="hour-bar-track">
+                            <div
+                              className="hour-bar-fill"
+                              style={{ height: `${h}%`, background: tone, color: tone }}
+                            />
+                          </div>
+                          {b.hour % 3 === 0 && <span className="hour-bar-label">{b.label}</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="debrief-duration-row">
+                  {feelingByDuration.map((b) => (
+                    <div key={b.label} className="debrief-duration-cell">
+                      <span className="field-label">{b.label}</span>
+                      <strong>{b.count} sess</strong>
+                      <span>
+                        {b.dominant || '—'} · weapon {b.weaponPct}% · dragged {b.draggedPct}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {tagCounts.length > 0 && (
+                  <div className="debrief-tag-cloud">
+                    {tagCounts.slice(0, 8).map((t) => (
+                      <span key={t.tag} className="debrief-tag-chip">
+                        {tagLabel(t.tag)} ×{t.count}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
           {recent.length > 0 && (
             <div className="analytics-section">
               <div className="analytics-section-head">
@@ -186,6 +294,11 @@ export function SessionAnalytics({ store }: { store: Store }) {
                       <span className="session-list-project">{project.name}</span>
                       <span className="session-list-time">{startLabel}</span>
                       <span className="session-list-dur">{formatMinutes(entry.minutes)}</span>
+                      {entry.debrief && (
+                        <span className={`session-list-feeling feeling-${entry.debrief.feeling}`}>
+                          {entry.debrief.feeling}
+                        </span>
+                      )}
                       {(entry.pauseCount ?? 0) > 0 && (
                         <span className="session-list-pause">{entry.pauseCount} pause{entry.pauseCount === 1 ? '' : 's'}</span>
                       )}

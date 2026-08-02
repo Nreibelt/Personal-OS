@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { PROJECT_MAP } from '../data/seed'
 import type { Store } from '../hooks/useStore'
 import { DEEP_WORK_IDS, type DeepWorkId } from '../types'
+import { isAutopilotLocked } from '../utils/autopilotLocks'
 import { formatMinutes, todayDateKey } from '../utils/time'
 import { AttentionAllocation } from './AttentionAllocation'
+import { BodyEnergyLog } from './BodyEnergyLog'
 import { DailyNotes } from './DailyNotes'
 import { IdentityPanel } from './IdentityPanel'
 import { MentalRam } from './MentalRam'
+import { MissDayRepair, needsMissDayRepair } from './MissDayRepair'
 import { NonNegotiables } from './NonNegotiables'
 import { PauseAnalytics, SessionAnalytics } from './SessionAnalytics'
 import { TimeSummary } from './TimeSummary'
@@ -15,7 +18,7 @@ import { WeeklyGoalsPanel } from './WeeklyGoalsPanel'
 import { Modal } from './ui/Modal'
 
 type RitualId = 'morning' | 'evening' | 'week'
-type CommandModal = 'identity' | 'mental' | 'habits' | 'analytics' | null
+type CommandModal = 'identity' | 'mental' | 'habits' | 'analytics' | 'body' | null
 
 const RITUAL_CARDS: {
   id: RitualId
@@ -38,13 +41,27 @@ export function DashboardView({
   const busy = !!store.state.activeTimer
   const [ritualOpen, setRitualOpen] = useState<RitualId | null>(null)
   const [commandModal, setCommandModal] = useState<CommandModal>(null)
+  const [repairOpen, setRepairOpen] = useState(false)
   const activeRitual = RITUAL_CARDS.find((card) => card.id === ritualOpen)
+  const repairNeeded = useMemo(() => needsMissDayRepair(store), [store.state])
 
   return (
     <div className="dashboard dashboard-clean">
       <p className="dashboard-lede">Center. Then move.</p>
 
       <WeeklyGoalsPanel store={store} />
+
+      {repairNeeded && !isAutopilotLocked(store.state, 'miss-repair') && (
+        <section className="miss-repair-banner">
+          <div>
+            <span className="field-label">Momentum leak</span>
+            <p>Yesterday slipped. Repair before the day drifts.</p>
+          </div>
+          <button type="button" className="btn-primary" onClick={() => setRepairOpen(true)}>
+            Miss-day repair
+          </button>
+        </section>
+      )}
 
       <section className="dashboard-section dashboard-timers">
         <h2 className="dashboard-heading">Start deep work</h2>
@@ -90,7 +107,7 @@ export function DashboardView({
             Identity, mental RAM, habits, and analytics stay out of the way.
           </p>
         </header>
-        <div className="action-board-grid four">
+        <div className="action-board-grid autopilot-five">
           <button type="button" className="action-tile compact" onClick={() => setCommandModal('identity')}>
             <span className="action-tile-kicker">90-day</span>
             <span className="action-tile-name">Identity</span>
@@ -102,6 +119,10 @@ export function DashboardView({
           <button type="button" className="action-tile compact" onClick={() => setCommandModal('habits')}>
             <span className="action-tile-kicker">Rituals</span>
             <span className="action-tile-name">Non-negotiables</span>
+          </button>
+          <button type="button" className="action-tile compact" onClick={() => setCommandModal('body')}>
+            <span className="action-tile-kicker">Signal</span>
+            <span className="action-tile-name">Body & energy</span>
           </button>
           <button type="button" className="action-tile compact" onClick={() => setCommandModal('analytics')}>
             <span className="action-tile-kicker">Readouts</span>
@@ -186,6 +207,10 @@ export function DashboardView({
         <NonNegotiables store={store} />
       </Modal>
 
+      <Modal open={commandModal === 'body'} onClose={() => setCommandModal(null)} title="Body & energy" size="md">
+        <BodyEnergyLog store={store} date={today} />
+      </Modal>
+
       <Modal open={commandModal === 'analytics'} onClose={() => setCommandModal(null)} title="Time analytics" size="xl">
         <div className="analytics-stack">
           <div className="grid-2">
@@ -198,6 +223,8 @@ export function DashboardView({
           </div>
         </div>
       </Modal>
+
+      <MissDayRepair store={store} open={repairOpen} onClose={() => setRepairOpen(false)} />
     </div>
   )
 }
