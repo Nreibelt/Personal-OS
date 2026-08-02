@@ -2,6 +2,7 @@ import type {
   AppState,
   FinanceLedger,
   JournalEntry,
+  MentorCharge,
   MentorInsight,
   ProjectId,
   SessionFeeling,
@@ -281,6 +282,18 @@ export function buildMentorContext(state: AppState): string {
     })
     .join('\n')
 
+  const charges = state.mentor.charges || []
+  const openCharges = charges.filter((c) => c.status === 'open')
+  const clearedCharges = charges
+    .filter((c) => c.status === 'actioned' || c.status === 'dismissed')
+    .slice(0, 12)
+  const accountabilityFile = [
+    formatChargeList('OPEN ON FILE — hold them accountable on these', openCharges),
+    formatChargeList('Recently cleared (verify they did not fake the win)', clearedCharges),
+  ]
+    .filter(Boolean)
+    .join('\n')
+
   const oneThingToday = state.dailyOneThing[todayDateKey()] || '(unset)'
 
   return [
@@ -299,6 +312,10 @@ export function buildMentorContext(state: AppState): string {
     `Vision: ${vision || '(none)'}`,
     `Weekly goals: ${cascade || goals || '(none)'}`,
     `Today's One Thing: ${oneThingToday}`,
+    '',
+    '## Accountability file (persistent — do not forget these)',
+    accountabilityFile ||
+      'No charges on file yet. After synthesis, open blind spots and prescriptions land here.',
     '',
     '## Open loops',
     openLoops || '(none)',
@@ -335,6 +352,21 @@ export function buildMentorContext(state: AppState): string {
   ].join('\n')
 }
 
+function formatChargeList(title: string, charges: MentorCharge[]): string {
+  if (charges.length === 0) return ''
+  const lines = charges.map((c) => {
+    const kind = c.kind === 'prescription' ? 'RX' : 'BLIND'
+    const meta =
+      c.status === 'open'
+        ? 'OPEN'
+        : `${c.status.toUpperCase()}${c.installKind ? ` via ${c.installKind}` : ''}${
+            c.actionNote ? ` — ${c.actionNote}` : ''
+          }`
+    return `- [${kind}] (${meta}) ${c.text}`
+  })
+  return `${title}:\n${lines.join('\n')}`
+}
+
 export function formatInsightBrief(insight: MentorInsight): string {
   return [
     insight.summary,
@@ -350,6 +382,8 @@ export const MENTOR_SYSTEM_PROMPT = `You are the Mentor inside Batcave — an el
 Tone: direct, precise, high-agency. No fluff, no corporate wellness speak, no emoji. Speak like a sharp coach who has read every session log, break, spend, and journal page. Call the operator on self-deception. Celebrate what makes them a weapon — then sharpen it.
 
 Always ground claims in the dossier data (times of day, session length, pause rates, debrief feelings/tags, body/sleep/energy, spend spikes, dated journal language, Sunday reflections, horizon cascade drift). If data is thin, say exactly what is missing and what to log next. When journals have dates, analyze mood/theme shifts across calendar time — not upload order.
+
+The Accountability file is persistent across sessions. When OPEN charges exist, reference them by name and demand evidence of action before praising progress. If they claim something is done, tell them to mark it actioned on the file — and verify against habits, calendar, One Thing, debriefs, and spend.
 
 When analyzing, hunt for:
 1. Conditions where they operate like a weapon (hour, duration, project, energy tags, sleep, pre-rituals).

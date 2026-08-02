@@ -28,6 +28,10 @@ import type {
   FinanceRealm,
   Habit,
   JournalEntry,
+  MentorCharge,
+  MentorChargeInstall,
+  MentorChargeKind,
+  MentorChargeStatus,
   MentorInsight,
   MentorMessage,
   MentorState,
@@ -54,6 +58,7 @@ import {
   EMPTY_AUTOPILOT_COMPLETIONS,
   equalDeepWorkSplit,
   emptyMentorState,
+  mentorChargeKey,
   normalizeActiveTab,
   isDeepWorkId,
   scaleDeepWorkSplit,
@@ -238,16 +243,86 @@ function migrateMentorState(raw: unknown): MentorState {
     }
   }
 
+  const migrateCharge = (rawCharge: unknown): MentorCharge | null => {
+    if (!rawCharge || typeof rawCharge !== 'object') return null
+    const c = rawCharge as Partial<MentorCharge>
+    if (typeof c.text !== 'string' || !c.text.trim()) return null
+    const kind: MentorChargeKind = c.kind === 'prescription' ? 'prescription' : 'blindSpot'
+    const status: MentorChargeStatus =
+      c.status === 'actioned' || c.status === 'dismissed' ? c.status : 'open'
+    const installKind: MentorChargeInstall | undefined =
+      c.installKind === 'habit' ||
+      c.installKind === 'oneThing' ||
+      c.installKind === 'calendar' ||
+      c.installKind === 'reminder' ||
+      c.installKind === 'manual'
+        ? c.installKind
+        : undefined
+    const createdAt = typeof c.createdAt === 'string' ? c.createdAt : new Date().toISOString()
+    return {
+      id: typeof c.id === 'string' && c.id ? c.id : uid('charge'),
+      kind,
+      text: c.text.trim(),
+      status,
+      sourceInsightId:
+        typeof c.sourceInsightId === 'string' && c.sourceInsightId ? c.sourceInsightId : undefined,
+      createdAt,
+      updatedAt: typeof c.updatedAt === 'string' ? c.updatedAt : createdAt,
+      actionedAt: typeof c.actionedAt === 'string' ? c.actionedAt : undefined,
+      actionNote: typeof c.actionNote === 'string' && c.actionNote.trim() ? c.actionNote.trim() : undefined,
+      installKind,
+    }
+  }
+
   const latestInsight = migrateInsight(m.latestInsight)
   const insightHistory = Array.isArray(m.insightHistory)
     ? m.insightHistory.map(migrateInsight).filter((x): x is MentorInsight => x != null).slice(0, 20)
     : []
+
+  let charges = Array.isArray(m.charges)
+    ? m.charges.map(migrateCharge).filter((x): x is MentorCharge => x != null)
+    : []
+
+  // Backfill file from existing syntheses so prior blind spots / RXs aren't lost.
+  if (charges.length === 0) {
+    const seeded: MentorCharge[] = []
+    const seen = new Set<string>()
+    const pushFrom = (insight: MentorInsight | null) => {
+      if (!insight) return
+      const add = (kind: MentorChargeKind, text: string, actioned: boolean) => {
+        const key = mentorChargeKey(kind, text)
+        if (seen.has(key)) return
+        seen.add(key)
+        const now = insight.createdAt
+        seeded.push({
+          id: uid('charge'),
+          kind,
+          text,
+          status: actioned ? 'actioned' : 'open',
+          sourceInsightId: insight.id,
+          createdAt: now,
+          updatedAt: now,
+          actionedAt: actioned ? now : undefined,
+          installKind: actioned ? 'manual' : undefined,
+        })
+      }
+      for (const text of insight.blindSpots) add('blindSpot', text, false)
+      for (const text of insight.prescriptions) {
+        add('prescription', text, !!(insight.installed || []).includes(text))
+      }
+    }
+    // Oldest first so newest insight wins on dedupe
+    ;[...insightHistory].reverse().forEach(pushFrom)
+    pushFrom(latestInsight)
+    charges = seeded.slice(0, 80)
+  }
 
   return {
     messages: messages.length > 0 ? messages : empty.messages,
     journalEntries,
     latestInsight,
     insightHistory,
+    charges: charges.slice(0, 80),
   }
 }
 
@@ -1464,14 +1539,72 @@ export function useStore() {
       prescriptions: insight.prescriptions,
       installed: insight.installed,
     }
-    update((s) => ({
-      ...s,
-      mentor: {
-        ...s.mentor,
-        latestInsight: next,
-        insightHistory: [next, ...s.mentor.insightHistory].slice(0, 20),
-      },
-    }))
+    update((s) => {
+      const now = next.createdAt
+      const charges = [...(s.mentor.charges || [])]
+      const openKeys = new Set(
+        charges.filter((c) => c.status === 'open').map((c) => mentorChargeKey(c.kind, c.text)),
+      )
+      const upsert = (kind: MentorChargeKind, text: string, actioned: boolean) => {
+        const key = mentorChargeKey(kind, text)
+        const existingOpen = charges.find(
+          (c) => c.status === 'open' && mentorChargeKey(c.kind, c.text) === key,
+        )
+        if (existingOpen) {
+          existingOpen.sourceInsightId = next.id
+          existingOpen.updatedAt = now
+          if (actioned) {
+            existingOpen.status = 'actioned'
+            existingOpen.actionedAt = now
+            existingOpen.installKind = existingOpen.installKind || 'manual'
+            openKeys.delete(key)
+          }
+          return
+        }
+        if (openKeys.has(key)) return
+        // Raised again after they cleared it — reopen. Accountability is the point.
+        const cleared = charges.find(
+          (c) =>
+            mentorChargeKey(c.kind, c.text) === key &&
+            (c.status === 'actioned' || c.status === 'dismissed'),
+        )
+        if (cleared && !actioned) {
+          cleared.status = 'open'
+          cleared.sourceInsightId = next.id
+          cleared.updatedAt = now
+          cleared.actionedAt = undefined
+          cleared.actionNote = undefined
+          cleared.installKind = undefined
+          openKeys.add(key)
+          return
+        }
+        charges.unshift({
+          id: uid('charge'),
+          kind,
+          text: text.trim(),
+          status: actioned ? 'actioned' : 'open',
+          sourceInsightId: next.id,
+          createdAt: now,
+          updatedAt: now,
+          actionedAt: actioned ? now : undefined,
+          installKind: actioned ? 'manual' : undefined,
+        })
+        if (!actioned) openKeys.add(key)
+      }
+      for (const text of next.blindSpots) upsert('blindSpot', text, false)
+      for (const text of next.prescriptions) {
+        upsert('prescription', text, !!(next.installed || []).includes(text))
+      }
+      return {
+        ...s,
+        mentor: {
+          ...s.mentor,
+          latestInsight: next,
+          insightHistory: [next, ...s.mentor.insightHistory].slice(0, 20),
+          charges: charges.slice(0, 80),
+        },
+      }
+    })
     return next
   }, [update])
 
@@ -1483,16 +1616,77 @@ export function useStore() {
         if (!installed.includes(prescription)) installed.push(prescription)
         return { ...insight, installed }
       }
+      const now = new Date().toISOString()
+      const key = mentorChargeKey('prescription', prescription)
+      const charges = (s.mentor.charges || []).map((c) => {
+        if (mentorChargeKey(c.kind, c.text) !== key) return c
+        if (c.status === 'actioned') return c
+        return {
+          ...c,
+          status: 'actioned' as const,
+          updatedAt: now,
+          actionedAt: now,
+          installKind: c.installKind || ('manual' as const),
+        }
+      })
       return {
         ...s,
         mentor: {
           ...s.mentor,
           latestInsight: apply(s.mentor.latestInsight),
           insightHistory: s.mentor.insightHistory.map((i) => apply(i) ?? i),
+          charges,
         },
       }
     })
   }, [update])
+
+  const resolveMentorCharge = useCallback(
+    (
+      chargeId: string,
+      status: 'actioned' | 'dismissed' | 'open',
+      opts?: { note?: string; installKind?: MentorChargeInstall },
+    ) => {
+      update((s) => {
+        const now = new Date().toISOString()
+        return {
+          ...s,
+          mentor: {
+            ...s.mentor,
+            charges: (s.mentor.charges || []).map((c) => {
+              if (c.id !== chargeId) return c
+              if (status === 'open') {
+                return {
+                  ...c,
+                  status: 'open',
+                  updatedAt: now,
+                  actionedAt: undefined,
+                  actionNote: undefined,
+                  installKind: undefined,
+                }
+              }
+              return {
+                ...c,
+                status,
+                updatedAt: now,
+                actionedAt: now,
+                actionNote: opts?.note?.trim() || c.actionNote,
+                installKind: opts?.installKind || c.installKind || (status === 'actioned' ? 'manual' : undefined),
+              }
+            }),
+          },
+        }
+      })
+    },
+    [update],
+  )
+
+  const actionMentorCharge = useCallback(
+    (chargeId: string, installKind: MentorChargeInstall, note?: string) => {
+      resolveMentorCharge(chargeId, 'actioned', { installKind, note })
+    },
+    [resolveMentorCharge],
+  )
 
   const discardTimer = useCallback(() => {
     update({ activeTimer: null })
@@ -2256,6 +2450,8 @@ export function useStore() {
     removeJournalEntry,
     saveMentorInsight,
     markPrescriptionInstalled,
+    resolveMentorCharge,
+    actionMentorCharge,
     addCalendarBlock,
     updateCalendarBlock,
     removeCalendarBlock,

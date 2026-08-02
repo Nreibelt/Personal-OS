@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import type { Store } from '../hooks/useStore'
 import { buildMentorContext } from '../lib/mentor/context'
-import type { MentorInsight } from '../types'
+import type { MentorCharge, MentorChargeInstall, MentorInsight } from '../types'
 import { addDays, todayDateKey } from '../utils/time'
 import { JournalCapture } from './JournalCapture'
 
@@ -26,6 +26,7 @@ export function MentorView({ store }: { store: Store }) {
   const [busy, setBusy] = useState<'chat' | 'analyze' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [installNote, setInstallNote] = useState<string | null>(null)
+  const [showCleared, setShowCleared] = useState(false)
   const threadRef = useRef<HTMLDivElement>(null)
 
   const debriefCount = useMemo(
@@ -33,6 +34,19 @@ export function MentorView({ store }: { store: Store }) {
     [store.state.timeEntries],
   )
   const journalReady = mentor.journalEntries.filter((j) => j.status === 'extracted').length
+  const charges = mentor.charges || []
+  const openCharges = useMemo(
+    () => charges.filter((c) => c.status === 'open'),
+    [charges],
+  )
+  const clearedCharges = useMemo(
+    () =>
+      charges
+        .filter((c) => c.status === 'actioned' || c.status === 'dismissed')
+        .sort((a, b) => (b.actionedAt || b.updatedAt).localeCompare(a.actionedAt || a.updatedAt))
+        .slice(0, 20),
+    [charges],
+  )
 
   useEffect(() => {
     const el = threadRef.current
@@ -110,7 +124,9 @@ export function MentorView({ store }: { store: Store }) {
         raw?: string
       }
       if (!res.ok || !data.insight) {
-        const detail = data.raw?.trim() ? `${data.error || 'Synthesis failed'} (${data.raw.slice(0, 160)}…)` : data.error
+        const detail = data.raw?.trim()
+          ? `${data.error || 'Synthesis failed'} (${data.raw.slice(0, 160)}…)`
+          : data.error
         throw new Error(detail || 'Synthesis failed')
       }
 
@@ -121,10 +137,22 @@ export function MentorView({ store }: { store: Store }) {
         blindSpots: data.insight.blindSpots,
         prescriptions: data.insight.prescriptions,
       })
+      const openCount =
+        data.insight.blindSpots.length + data.insight.prescriptions.length
       store.appendMentorMessage({
         role: 'mentor',
         text: data.insight.chatReply || saved.summary,
       })
+      if (openCount > 0) {
+        store.appendMentorMessage({
+          role: 'system',
+          text: `Filed ${data.insight.blindSpots.length} blind spot${
+            data.insight.blindSpots.length === 1 ? '' : 's'
+          } and ${data.insight.prescriptions.length} prescription${
+            data.insight.prescriptions.length === 1 ? '' : 's'
+          } on the accountability board. Mark them actioned when you actually install them.`,
+        })
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Synthesis failed'
       setError(message)
@@ -137,12 +165,8 @@ export function MentorView({ store }: { store: Store }) {
     }
   }
 
-  const installPrescription = (
-    insightId: string,
-    text: string,
-    kind: 'habit' | 'oneThing' | 'calendar' | 'reminder',
-  ) => {
-    const clean = text.trim()
+  const installCharge = (charge: MentorCharge, kind: MentorChargeInstall) => {
+    const clean = charge.text.trim()
     if (!clean) return
     const short = clean.length > 72 ? `${clean.slice(0, 72)}…` : clean
     const today = todayDateKey()
@@ -159,19 +183,41 @@ export function MentorView({ store }: { store: Store }) {
         title: short,
         date: tomorrow,
         startMinutes: 9 * 60,
-        endMinutes: 10 * 60 + 30,
+        endMinutes: 12 * 60,
       })
-      setInstallNote(`Calendar block tomorrow 9:00–10:30: ${short}`)
-    } else {
+      setInstallNote(`Calendar block tomorrow 9:00–12:00: ${short}`)
+    } else if (kind === 'reminder') {
       store.addReminder(short)
       setInstallNote(`Reminder added: ${short}`)
+    } else {
+      setInstallNote('Marked actioned on file.')
     }
 
-    store.markPrescriptionInstalled(insightId, text)
+    if (charge.sourceInsightId && charge.kind === 'prescription') {
+      store.markPrescriptionInstalled(charge.sourceInsightId, charge.text)
+    }
+    store.actionMentorCharge(charge.id, kind)
+
     store.appendMentorMessage({
       role: 'system',
-      text: `Installed prescription (${kind}): ${clean}`,
+      text:
+        kind === 'manual'
+          ? `Marked actioned on file: ${clean}`
+          : `Installed ${charge.kind === 'blindSpot' ? 'blind-spot fix' : 'prescription'} (${kind}): ${clean}`,
     })
+  }
+
+  const dismissCharge = (charge: MentorCharge) => {
+    store.resolveMentorCharge(charge.id, 'dismissed')
+    store.appendMentorMessage({
+      role: 'system',
+      text: `Dismissed from file: ${charge.text}`,
+    })
+  }
+
+  const reopenCharge = (charge: MentorCharge) => {
+    store.resolveMentorCharge(charge.id, 'open')
+    setShowCleared(false)
   }
 
   const insight = mentor.latestInsight
@@ -184,7 +230,7 @@ export function MentorView({ store }: { store: Store }) {
             <h2 className="action-board-title">Mentor</h2>
             <p className="action-board-copy">
               Second set of eyes — sessions, body, breaks, spend, journals, Sunday logs. Spot
-              blind spots. Install constraints. Dominate.
+              blind spots. File them. Install constraints. Dominate.
             </p>
           </div>
           <button
@@ -211,10 +257,8 @@ export function MentorView({ store }: { store: Store }) {
             <span className="mentor-signal-label">Journal pages</span>
           </div>
           <div className="mentor-signal">
-            <span className="mentor-signal-value">
-              {Object.keys(store.state.bodyLogs || {}).length}
-            </span>
-            <span className="mentor-signal-label">Body logs</span>
+            <span className="mentor-signal-value">{openCharges.length}</span>
+            <span className="mentor-signal-label">Open on file</span>
           </div>
         </div>
       </section>
@@ -277,28 +321,86 @@ export function MentorView({ store }: { store: Store }) {
         </section>
 
         <div className="mentor-side">
-          <section className="mentor-insight" aria-label="Latest synthesis">
+          <section className="mentor-insight" aria-label="Accountability file">
             <header className="mentor-panel-head">
-              <span className="field-label">Blind-spot board</span>
-              {insight && (
-                <span className="mentor-insight-when">{formatInsightTime(insight.createdAt)}</span>
-              )}
+              <span className="field-label">On file</span>
+              <span className="mentor-insight-when">
+                {openCharges.length} open
+                {clearedCharges.length > 0 ? ` · ${clearedCharges.length} cleared` : ''}
+              </span>
             </header>
-            {insight ? (
-              <InsightPanel
-                insight={insight}
-                onInstall={(text, kind) => installPrescription(insight.id, text, kind)}
-              />
-            ) : (
+
+            {openCharges.length === 0 ? (
               <div className="mentor-empty-state">
                 <span className="mentor-empty-mark" aria-hidden />
-                <p className="mentor-empty-title">No synthesis yet</p>
+                <p className="mentor-empty-title">File is clear</p>
                 <p className="mentor-empty">
-                  Log debriefs, body, and journals — then run full synthesis.
+                  Run full synthesis — blind spots and prescriptions get filed here and stay until
+                  you action them.
                 </p>
+              </div>
+            ) : (
+              <ul className="mentor-charge-list">
+                {openCharges.map((charge) => (
+                  <ChargeCard
+                    key={charge.id}
+                    charge={charge}
+                    onInstall={(kind) => installCharge(charge, kind)}
+                    onDone={() => installCharge(charge, 'manual')}
+                    onDismiss={() => dismissCharge(charge)}
+                  />
+                ))}
+              </ul>
+            )}
+
+            {clearedCharges.length > 0 && (
+              <div className="mentor-cleared-block">
+                <button
+                  type="button"
+                  className="ghost-btn mentor-cleared-toggle"
+                  onClick={() => setShowCleared((v) => !v)}
+                >
+                  {showCleared ? 'Hide cleared' : `Show cleared (${clearedCharges.length})`}
+                </button>
+                {showCleared && (
+                  <ul className="mentor-charge-list mentor-charge-list-cleared">
+                    {clearedCharges.map((charge) => (
+                      <li key={charge.id} className={`mentor-charge-item cleared kind-${charge.kind}`}>
+                        <div className="mentor-charge-top">
+                          <span className="mentor-charge-kind">
+                            {charge.kind === 'prescription' ? 'RX' : 'BLIND'} · {charge.status}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn-secondary compact"
+                            onClick={() => reopenCharge(charge)}
+                          >
+                            Reopen
+                          </button>
+                        </div>
+                        <p>{charge.text}</p>
+                        {(charge.installKind || charge.actionNote) && (
+                          <span className="mentor-charge-meta">
+                            {[charge.installKind, charge.actionNote].filter(Boolean).join(' — ')}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </section>
+
+          {insight && (
+            <section className="mentor-insight mentor-insight-latest" aria-label="Latest synthesis">
+              <header className="mentor-panel-head">
+                <span className="field-label">Latest synthesis</span>
+                <span className="mentor-insight-when">{formatInsightTime(insight.createdAt)}</span>
+              </header>
+              <InsightPanel insight={insight} />
+            </section>
+          )}
 
           <section className="mentor-journal" aria-label="Journal photo upload">
             <header className="mentor-panel-head">
@@ -368,56 +470,72 @@ export function MentorView({ store }: { store: Store }) {
   )
 }
 
-function InsightPanel({
-  insight,
+function ChargeCard({
+  charge,
   onInstall,
+  onDone,
+  onDismiss,
 }: {
-  insight: MentorInsight
-  onInstall: (text: string, kind: 'habit' | 'oneThing' | 'calendar' | 'reminder') => void
+  charge: MentorCharge
+  onInstall: (kind: MentorChargeInstall) => void
+  onDone: () => void
+  onDismiss: () => void
 }) {
+  return (
+    <li className={`mentor-charge-item kind-${charge.kind}`}>
+      <div className="mentor-charge-top">
+        <span className="mentor-charge-kind">
+          {charge.kind === 'prescription' ? 'Prescription' : 'Blind spot'}
+        </span>
+        <span className="mentor-charge-age">{formatInsightTime(charge.createdAt)}</span>
+      </div>
+      <p>{charge.text}</p>
+      <div className="mentor-rx-actions">
+        {charge.kind === 'prescription' && (
+          <>
+            <button type="button" className="btn-secondary compact" onClick={() => onInstall('habit')}>
+              Habit
+            </button>
+            <button
+              type="button"
+              className="btn-secondary compact"
+              onClick={() => onInstall('oneThing')}
+            >
+              One Thing
+            </button>
+            <button
+              type="button"
+              className="btn-secondary compact"
+              onClick={() => onInstall('calendar')}
+            >
+              Block
+            </button>
+            <button
+              type="button"
+              className="btn-secondary compact"
+              onClick={() => onInstall('reminder')}
+            >
+              Reminder
+            </button>
+          </>
+        )}
+        <button type="button" className="btn-primary compact" onClick={onDone}>
+          Done
+        </button>
+        <button type="button" className="ghost-btn compact" onClick={onDismiss}>
+          Dismiss
+        </button>
+      </div>
+    </li>
+  )
+}
+
+function InsightPanel({ insight }: { insight: MentorInsight }) {
   return (
     <div className="mentor-insight-body">
       <p className="mentor-insight-summary">{insight.summary}</p>
       <InsightList title="Weapon conditions" items={insight.weapons} tone="weapon" />
       <InsightList title="What drags you" items={insight.drags} tone="drag" />
-      <InsightList title="Blind spots" items={insight.blindSpots} tone="blind" />
-      <div className="mentor-insight-list tone-rx">
-        <span className="field-label">Install next</span>
-        {insight.prescriptions.length === 0 ? (
-          <p className="mentor-empty" style={{ padding: '0.5rem 0' }}>
-            No prescriptions this round.
-          </p>
-        ) : (
-          <ul className="mentor-rx-list">
-            {insight.prescriptions.map((item) => {
-              const installed = insight.installed?.includes(item)
-              return (
-                <li key={item} className={`mentor-rx-item${installed ? ' installed' : ''}`}>
-                  <p>{item}</p>
-                  {installed ? (
-                    <span className="status-pill hit">INSTALLED</span>
-                  ) : (
-                    <div className="mentor-rx-actions">
-                      <button type="button" className="btn-secondary compact" onClick={() => onInstall(item, 'habit')}>
-                        Habit
-                      </button>
-                      <button type="button" className="btn-secondary compact" onClick={() => onInstall(item, 'oneThing')}>
-                        One Thing
-                      </button>
-                      <button type="button" className="btn-secondary compact" onClick={() => onInstall(item, 'calendar')}>
-                        Block
-                      </button>
-                      <button type="button" className="btn-secondary compact" onClick={() => onInstall(item, 'reminder')}>
-                        Reminder
-                      </button>
-                    </div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </div>
     </div>
   )
 }
