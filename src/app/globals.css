@@ -2708,6 +2708,19 @@ select:focus {
   text-shadow: 0 0 40px rgba(var(--accent-rgb), 0.12);
 }
 
+.timer-focus-note {
+  margin: 0.35rem 0 0;
+  max-width: 28rem;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 2.4vw, 1.25rem);
+  font-weight: 550;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+  color: var(--text);
+  opacity: 0.88;
+}
+
 .timer-today {
   font-family: var(--font-mono);
   font-size: 0.85rem;
@@ -7945,6 +7958,71 @@ select:focus {
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Pre-start focus note */
+.session-focus-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.session-focus-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--project-color, var(--accent));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--project-color, var(--accent)) 22%, transparent);
+}
+
+.session-focus-copy {
+  margin: 0 0 var(--space-4);
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.session-focus-note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.session-focus-note textarea {
+  width: 100%;
+  min-height: 5.5rem;
+  resize: vertical;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg-input);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.4;
+}
+
+.session-focus-note textarea:focus {
+  outline: none;
+  border-color: rgba(var(--accent-rgb), 0.45);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.session-focus-hint {
+  margin: 0.65rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.session-focus-hint.ready {
+  color: var(--accent);
 }
 
 /* Session debrief */
