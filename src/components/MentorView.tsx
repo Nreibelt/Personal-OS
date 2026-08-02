@@ -84,13 +84,20 @@ export function MentorView({ store }: { store: Store }) {
       })
 
       try {
-        const { base64, mediaType } = await prepareJournalImage(item.file)
+        let prepared: Awaited<ReturnType<typeof prepareJournalImage>>
+        try {
+          prepared = await prepareJournalImage(item.file)
+        } catch {
+          throw new Error(
+            'Could not convert this photo (HEIC/HEIF). Try again, or export as JPG from Photos.',
+          )
+        }
         const res = await fetch('/api/mentor/journal', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            imageBase64: base64,
-            mediaType,
+            imageBase64: prepared.base64,
+            mediaType: prepared.mediaType,
             date,
             sourceName: item.file.name,
           }),
