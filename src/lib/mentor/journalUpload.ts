@@ -1,3 +1,5 @@
+import { coerceJournalDateYear } from '@/utils/journalDate'
+import { zonedParts } from '@/utils/time'
 import { isJournalImageFile, prepareJournalImage } from './journalImage'
 
 export { isJournalImageFile }
@@ -22,6 +24,7 @@ export async function extractJournalPhoto(opts: {
     )
   }
 
+  const currentYear = zonedParts().year
   const res = await fetch('/api/mentor/journal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -30,6 +33,7 @@ export async function extractJournalPhoto(opts: {
       mediaType: prepared.mediaType,
       date: opts.fallbackDate,
       sourceName: opts.sourceName || opts.file.name,
+      currentYear,
     }),
   })
   const data = (await res.json()) as {
@@ -39,15 +43,19 @@ export async function extractJournalPhoto(opts: {
     error?: string
   }
   if (!res.ok) throw new Error(data.error || 'Extraction failed')
+
+  const detectedDateRaw =
+    typeof data.detectedDateRaw === 'string' && data.detectedDateRaw.trim()
+      ? data.detectedDateRaw.trim()
+      : null
+  const detectedDate = coerceJournalDateYear(
+    typeof data.detectedDate === 'string' ? data.detectedDate : null,
+    detectedDateRaw,
+  )
+
   return {
     text: data.text || '',
-    detectedDate:
-      typeof data.detectedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.detectedDate)
-        ? data.detectedDate
-        : null,
-    detectedDateRaw:
-      typeof data.detectedDateRaw === 'string' && data.detectedDateRaw.trim()
-        ? data.detectedDateRaw.trim()
-        : null,
+    detectedDate,
+    detectedDateRaw,
   }
 }

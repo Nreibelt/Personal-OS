@@ -39,9 +39,9 @@ const STEPS = [
   },
   {
     id: 'journal',
-    title: 'Journal',
+    title: 'Journal → Mentor',
     kicker: 'Step 5',
-    copy: 'Write on paper, then upload the page. OCR feeds the Mentor — no checkbox theater.',
+    copy: 'Write on paper, then upload the photo. No ticks — the page has to land in Mentor.',
   },
 ] as const
 
@@ -233,19 +233,25 @@ export function EveningWindDown({
                   <div className="wind-down-panel wind-down-journal">
                     <div className="wind-down-journal-card">
                       <p className="wind-down-journal-prompt">
-                        Write for five minutes on paper. Then photograph the page — OCR closes
-                        the loop into Mentor.
+                        Five honest minutes on paper — then upload the image. Mentor reads the
+                        page (and the date at the top). Checkbox theater is dead.
                       </p>
                       <JournalCapture
                         store={store}
                         defaultDate={today}
                         preferPageDate
                         compact
+                        heading="Upload tonight’s page"
                         onExtractedCountChange={setJournalExtracted}
                       />
-                      {journalDone && (
+                      {journalDone ? (
                         <p className="body-energy-ready ok">
-                          {journalExtracted} page{journalExtracted === 1 ? '' : 's'} in the mentor loop.
+                          {journalExtracted} page{journalExtracted === 1 ? '' : 's'} in Mentor —
+                          wind down can close.
+                        </p>
+                      ) : (
+                        <p className="body-energy-ready">
+                          Extract at least one page to complete Evening Wind Down.
                         </p>
                       )}
                     </div>
