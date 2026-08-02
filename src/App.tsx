@@ -401,7 +401,7 @@ export default function App() {
               {tab === 'calendar' && <CalendarView store={store} />}
               {tab === 'tasks' && <TasksView store={store} onStartSession={startSession} />}
               {tab === 'personalFinances' && <FinancesView store={store} realm="personal" />}
-              {tab === 'mentor' && <MentorView />}
+              {tab === 'mentor' && <MentorView store={store} />}
             </>
           )}
         </main>

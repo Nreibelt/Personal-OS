@@ -26,10 +26,17 @@ import type {
   FinanceLedger,
   FinanceRealm,
   Habit,
+  JournalEntry,
+  MentorInsight,
+  MentorMessage,
+  MentorState,
   OpenLoop,
   ProjectId,
   RevolutReviewItem,
   RevolutSyncState,
+  SessionDebrief,
+  SessionFeeling,
+  SessionTag,
   SpendEntry,
   SummaryMode,
   AddTaskOptions,
@@ -45,9 +52,12 @@ import {
   DEEP_WORK_IDS,
   EMPTY_AUTOPILOT_COMPLETIONS,
   equalDeepWorkSplit,
+  emptyMentorState,
   normalizeActiveTab,
   isDeepWorkId,
   scaleDeepWorkSplit,
+  SESSION_FEELINGS,
+  SESSION_TAGS,
 } from '../types'
 import { mergePersonalFoodAndDrink, migrateWishlist } from '../utils/finance'
 import {
@@ -100,6 +110,23 @@ function migrateActiveTimer(raw: unknown): ActiveTimer | null {
   }
 }
 
+const FEELING_IDS = new Set(SESSION_FEELINGS.map((f) => f.id))
+const TAG_IDS = new Set(SESSION_TAGS.map((t) => t.id))
+
+function migrateSessionDebrief(raw: unknown): SessionDebrief | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const d = raw as Partial<SessionDebrief>
+  if (!d.feeling || !FEELING_IDS.has(d.feeling as SessionFeeling)) return undefined
+  const tags = Array.isArray(d.tags)
+    ? d.tags.filter((t): t is SessionTag => typeof t === 'string' && TAG_IDS.has(t as SessionTag))
+    : []
+  return {
+    feeling: d.feeling as SessionFeeling,
+    tags,
+    note: typeof d.note === 'string' && d.note.trim() ? d.note.trim().slice(0, 200) : undefined,
+  }
+}
+
 function migrateTimeEntry(raw: unknown): TimeEntry | null {
   if (!raw || typeof raw !== 'object') return null
   const e = raw as Partial<TimeEntry>
@@ -109,6 +136,7 @@ function migrateTimeEntry(raw: unknown): TimeEntry | null {
   // wall-clock day of the session so a browse-away doesn’t misfile hours.
   const date =
     startedAt != null ? todayDateKey(new Date(startedAt)) : e.date
+  const debrief = migrateSessionDebrief(e.debrief)
   return {
     id: e.id,
     projectId: e.projectId,
@@ -120,6 +148,91 @@ function migrateTimeEntry(raw: unknown): TimeEntry | null {
     pausedMinutes: typeof e.pausedMinutes === 'number' ? e.pausedMinutes : undefined,
     pauseCount: typeof e.pauseCount === 'number' ? e.pauseCount : undefined,
     pauses: Array.isArray(e.pauses) ? e.pauses : undefined,
+    debrief,
+  }
+}
+
+function migrateMentorState(raw: unknown): MentorState {
+  const empty = emptyMentorState()
+  if (!raw || typeof raw !== 'object') return empty
+  const m = raw as Partial<MentorState>
+
+  const messages: MentorMessage[] = Array.isArray(m.messages)
+    ? m.messages
+        .map((msg) => {
+          if (!msg || typeof msg !== 'object') return null
+          const role = msg.role
+          if (role !== 'user' && role !== 'mentor' && role !== 'system') return null
+          if (typeof msg.text !== 'string' || !msg.text.trim()) return null
+          return {
+            id: typeof msg.id === 'string' && msg.id ? msg.id : uid('msg'),
+            role,
+            text: msg.text,
+            createdAt:
+              typeof msg.createdAt === 'string' ? msg.createdAt : new Date().toISOString(),
+          } satisfies MentorMessage
+        })
+        .filter((x): x is MentorMessage => x != null)
+        .slice(-80)
+    : empty.messages
+
+  const journalEntries: JournalEntry[] = Array.isArray(m.journalEntries)
+    ? m.journalEntries
+        .map((j): JournalEntry | null => {
+          if (!j || typeof j !== 'object') return null
+          if (typeof j.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(j.date)) return null
+          const status =
+            j.status === 'pending' || j.status === 'extracted' || j.status === 'failed'
+              ? j.status
+              : 'extracted'
+          const entry: JournalEntry = {
+            id: typeof j.id === 'string' && j.id ? j.id : uid('journal'),
+            date: j.date,
+            sourceName:
+              typeof j.sourceName === 'string' && j.sourceName.trim()
+                ? j.sourceName.trim()
+                : 'Journal page',
+            extractedText: typeof j.extractedText === 'string' ? j.extractedText : '',
+            status,
+            createdAt:
+              typeof j.createdAt === 'string' ? j.createdAt : new Date().toISOString(),
+          }
+          if (typeof j.error === 'string' && j.error) entry.error = j.error
+          return entry
+        })
+        .filter((x): x is JournalEntry => x != null)
+        .slice(0, 120)
+    : []
+
+  const migrateInsight = (rawInsight: unknown): MentorInsight | null => {
+    if (!rawInsight || typeof rawInsight !== 'object') return null
+    const i = rawInsight as Partial<MentorInsight>
+    if (typeof i.summary !== 'string' || !i.summary.trim()) return null
+    const list = (v: unknown) =>
+      Array.isArray(v)
+        ? v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0).slice(0, 12)
+        : []
+    return {
+      id: typeof i.id === 'string' && i.id ? i.id : uid('insight'),
+      createdAt: typeof i.createdAt === 'string' ? i.createdAt : new Date().toISOString(),
+      summary: i.summary.trim(),
+      weapons: list(i.weapons),
+      drags: list(i.drags),
+      blindSpots: list(i.blindSpots),
+      prescriptions: list(i.prescriptions),
+    }
+  }
+
+  const latestInsight = migrateInsight(m.latestInsight)
+  const insightHistory = Array.isArray(m.insightHistory)
+    ? m.insightHistory.map(migrateInsight).filter((x): x is MentorInsight => x != null).slice(0, 20)
+    : []
+
+  return {
+    messages: messages.length > 0 ? messages : empty.messages,
+    journalEntries,
+    latestInsight,
+    insightHistory,
   }
 }
 
@@ -502,6 +615,7 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
       : seed.companyIdeas,
     timeEntries: migrateTimeEntries(parsed.timeEntries, seed.timeEntries),
     activeTimer: migrateActiveTimer(parsed.activeTimer),
+    mentor: migrateMentorState(parsed.mentor),
   }
 }
 
@@ -1145,7 +1259,7 @@ export function useStore() {
     })
   }, [update])
 
-  const finishTimer = useCallback(() => {
+  const finishTimer = useCallback((debrief?: SessionDebrief) => {
     update((s) => {
       if (!s.activeTimer) return s
       const t = s.activeTimer
@@ -1163,6 +1277,7 @@ export function useStore() {
       const minutes = Math.max(1, Math.round(activeMs / 60000))
       const pausedMinutes = Math.round(pausedBefore / 60000)
       const sessionDate = todayDateKey(new Date(t.sessionStartedAt))
+      const cleanDebrief = migrateSessionDebrief(debrief)
 
       const entry: TimeEntry = {
         id: uid('te'),
@@ -1175,6 +1290,7 @@ export function useStore() {
         pausedMinutes: pausedMinutes > 0 ? pausedMinutes : undefined,
         pauseCount: t.pauseCount > 0 ? t.pauseCount : undefined,
         pauses: pauses.length > 0 ? pauses : undefined,
+        debrief: cleanDebrief,
       }
       return {
         ...s,
@@ -1183,6 +1299,103 @@ export function useStore() {
         timeEntries: [...s.timeEntries, entry],
       }
     })
+  }, [update])
+
+  const appendMentorMessage = useCallback((message: Omit<MentorMessage, 'id' | 'createdAt'> & {
+    id?: string
+    createdAt?: string
+  }) => {
+    update((s) => {
+      const next: MentorMessage = {
+        id: message.id || uid('msg'),
+        role: message.role,
+        text: message.text,
+        createdAt: message.createdAt || new Date().toISOString(),
+      }
+      return {
+        ...s,
+        mentor: {
+          ...s.mentor,
+          messages: [...s.mentor.messages, next].slice(-80),
+        },
+      }
+    })
+  }, [update])
+
+  const setMentorMessages = useCallback((messages: MentorMessage[]) => {
+    update((s) => ({
+      ...s,
+      mentor: { ...s.mentor, messages: messages.slice(-80) },
+    }))
+  }, [update])
+
+  const addJournalEntry = useCallback((entry: Omit<JournalEntry, 'id' | 'createdAt'> & {
+    id?: string
+    createdAt?: string
+  }) => {
+    const next: JournalEntry = {
+      id: entry.id || uid('journal'),
+      date: entry.date,
+      sourceName: entry.sourceName,
+      extractedText: entry.extractedText,
+      status: entry.status,
+      error: entry.error,
+      createdAt: entry.createdAt || new Date().toISOString(),
+    }
+    update((s) => ({
+      ...s,
+      mentor: {
+        ...s.mentor,
+        journalEntries: [next, ...s.mentor.journalEntries].slice(0, 120),
+      },
+    }))
+    return next.id
+  }, [update])
+
+  const updateJournalEntry = useCallback((id: string, patch: Partial<JournalEntry>) => {
+    update((s) => ({
+      ...s,
+      mentor: {
+        ...s.mentor,
+        journalEntries: s.mentor.journalEntries.map((j) =>
+          j.id === id ? { ...j, ...patch, id: j.id } : j,
+        ),
+      },
+    }))
+  }, [update])
+
+  const removeJournalEntry = useCallback((id: string) => {
+    update((s) => ({
+      ...s,
+      mentor: {
+        ...s.mentor,
+        journalEntries: s.mentor.journalEntries.filter((j) => j.id !== id),
+      },
+    }))
+  }, [update])
+
+  const saveMentorInsight = useCallback((insight: Omit<MentorInsight, 'id' | 'createdAt'> & {
+    id?: string
+    createdAt?: string
+  }) => {
+    const next: MentorInsight = {
+      id: insight.id || uid('insight'),
+      createdAt: insight.createdAt || new Date().toISOString(),
+      summary: insight.summary,
+      weapons: insight.weapons,
+      drags: insight.drags,
+      blindSpots: insight.blindSpots,
+      prescriptions: insight.prescriptions,
+    }
+    update((s) => ({
+      ...s,
+      mentor: {
+        ...s.mentor,
+        latestInsight: next,
+        insightHistory: [next, ...s.mentor.insightHistory].slice(0, 20),
+      },
+    }))
+    return next
   }, [update])
 
   const discardTimer = useCallback(() => {
@@ -1939,6 +2152,12 @@ export function useStore() {
     resumeTimer,
     finishTimer,
     discardTimer,
+    appendMentorMessage,
+    setMentorMessages,
+    addJournalEntry,
+    updateJournalEntry,
+    removeJournalEntry,
+    saveMentorInsight,
     addCalendarBlock,
     updateCalendarBlock,
     removeCalendarBlock,
