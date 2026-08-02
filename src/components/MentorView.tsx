@@ -107,8 +107,12 @@ export function MentorView({ store }: { store: Store }) {
           chatReply: string
         }
         error?: string
+        raw?: string
       }
-      if (!res.ok || !data.insight) throw new Error(data.error || 'Synthesis failed')
+      if (!res.ok || !data.insight) {
+        const detail = data.raw?.trim() ? `${data.error || 'Synthesis failed'} (${data.raw.slice(0, 160)}…)` : data.error
+        throw new Error(detail || 'Synthesis failed')
+      }
 
       const saved = store.saveMentorInsight({
         summary: data.insight.summary,
