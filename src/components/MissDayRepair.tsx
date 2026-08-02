@@ -138,7 +138,11 @@ export function MissDayRepair({
                     value={broke}
                     onChange={(e) => setBroke(e.target.value)}
                     placeholder="Phone? Late start? Sleep? Avoidance? Name it."
+                    required
                   />
+                  {broke.trim().length > 0 && broke.trim().length <= 2 && (
+                    <span className="miss-repair-hint">Name it in a few words.</span>
+                  )}
                 </label>
 
                 <label className="field">
