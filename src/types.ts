@@ -186,6 +186,29 @@ export interface MentorInsight {
   installed?: string[]
 }
 
+/** Persistent accountability item from Mentor synthesis — survives new runs. */
+export type MentorChargeKind = 'blindSpot' | 'prescription'
+export type MentorChargeStatus = 'open' | 'actioned' | 'dismissed'
+export type MentorChargeInstall =
+  | 'habit'
+  | 'oneThing'
+  | 'calendar'
+  | 'reminder'
+  | 'manual'
+
+export interface MentorCharge {
+  id: string
+  kind: MentorChargeKind
+  text: string
+  status: MentorChargeStatus
+  sourceInsightId?: string
+  createdAt: string
+  updatedAt: string
+  actionedAt?: string
+  actionNote?: string
+  installKind?: MentorChargeInstall
+}
+
 /** End-of-day body / energy signal for Mentor correlation */
 export interface DailyBodyLog {
   sleepHours: number | null
@@ -201,6 +224,8 @@ export interface MentorState {
   journalEntries: JournalEntry[]
   latestInsight: MentorInsight | null
   insightHistory: MentorInsight[]
+  /** Open + recently cleared blind spots / prescriptions on file */
+  charges: MentorCharge[]
 }
 
 export function emptyMentorState(): MentorState {
@@ -216,7 +241,13 @@ export function emptyMentorState(): MentorState {
     journalEntries: [],
     latestInsight: null,
     insightHistory: [],
+    charges: [],
   }
+}
+
+/** Normalize charge text for dedupe across syntheses. */
+export function mentorChargeKey(kind: MentorChargeKind, text: string): string {
+  return `${kind}:${text.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 140)}`
 }
 
 /** Recurrence rule for a calendar block. */
