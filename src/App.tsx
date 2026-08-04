@@ -68,7 +68,8 @@ const BUSINESS_TABS: {
   { id: 'agents', label: 'Agents', shortLabel: 'Agents', mark: 'N', enabled: false },
 ]
 
-const BUSINESS_PRIMARY: BusinessTab[] = ['todos', 'finance', 'documents', 'ideas', 'decisions']
+const BUSINESS_PRIMARY: BusinessTab[] = ['todos', 'finance', 'documents', 'ideas']
+const BUSINESS_MORE: BusinessTab[] = ['decisions']
 
 function readLayer(): AppLayer {
   try {
@@ -559,7 +560,7 @@ export default function App() {
                       <NavGlyph kind={t.id} mark={t.mark} />
                       <span>
                         <strong>{t.label}</strong>
-                        <em>Brain dump vault</em>
+                        <em>{t.id === 'decisions' ? 'Open loops' : t.shortLabel}</em>
                       </span>
                     </button>
                   ))}
