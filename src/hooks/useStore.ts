@@ -18,6 +18,8 @@ import type {
   AppTab,
   CalendarBlock,
   CashAllocationLine,
+  CompanyDecision,
+  CompanyDecisionOption,
   CompanyIdea,
   DailyBodyLog,
   DailyDeepWorkSplit,
@@ -607,6 +609,52 @@ function migrateRevolutSync(
   }
 }
 
+function migrateCompanyDecisions(
+  raw: unknown,
+  fallback: CompanyDecision[],
+): CompanyDecision[] {
+  if (!Array.isArray(raw)) return fallback
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      const d = item as Partial<CompanyDecision>
+      const title = typeof d.title === 'string' ? d.title.trim() : ''
+      if (!title) return null
+      const options: CompanyDecisionOption[] = Array.isArray(d.options)
+        ? d.options
+            .map((opt) => {
+              if (!opt || typeof opt !== 'object') return null
+              const text = typeof opt.text === 'string' ? opt.text.trim() : ''
+              if (!text) return null
+              return {
+                id: typeof opt.id === 'string' && opt.id ? opt.id : uid('dopt'),
+                text,
+              } satisfies CompanyDecisionOption
+            })
+            .filter((o): o is CompanyDecisionOption => o != null)
+        : []
+      const status: CompanyDecision['status'] = d.status === 'decided' ? 'decided' : 'open'
+      const chosenOptionId =
+        typeof d.chosenOptionId === 'string' && options.some((o) => o.id === d.chosenOptionId)
+          ? d.chosenOptionId
+          : null
+      return {
+        id: typeof d.id === 'string' && d.id ? d.id : uid('decision'),
+        title,
+        why: typeof d.why === 'string' ? d.why : '',
+        decideBy: typeof d.decideBy === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.decideBy)
+          ? d.decideBy
+          : todayDateKey(),
+        options,
+        status: status === 'decided' && !chosenOptionId ? 'open' : status,
+        chosenOptionId: status === 'decided' ? chosenOptionId : null,
+        createdAt: typeof d.createdAt === 'string' ? d.createdAt : new Date().toISOString(),
+        updatedAt: typeof d.updatedAt === 'string' ? d.updatedAt : new Date().toISOString(),
+      } satisfies CompanyDecision
+    })
+    .filter((d): d is CompanyDecision => d != null)
+}
+
 function queueKey(realm: FinanceRealm): 'personalQueue' | 'companyQueue' {
   return realm === 'personal' ? 'personalQueue' : 'companyQueue'
 }
@@ -734,6 +782,7 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
           }
         })
       : seed.companyIdeas,
+    companyDecisions: migrateCompanyDecisions(parsed.companyDecisions, seed.companyDecisions),
     timeEntries: migrateTimeEntries(parsed.timeEntries, seed.timeEntries),
     activeTimer: migrateActiveTimer(parsed.activeTimer),
     mentor: migrateMentorState(parsed.mentor),
@@ -2071,6 +2120,7 @@ export function useStore() {
         revolutSync: s.revolutSync,
         companyDocuments: s.companyDocuments,
         companyIdeas: s.companyIdeas,
+        companyDecisions: s.companyDecisions,
         visionGoals: s.visionGoals,
         autopilotCompletions: s.autopilotCompletions,
         lastSaturdayDumpSunday: s.lastSaturdayDumpSunday,
@@ -2230,6 +2280,178 @@ export function useStore() {
       update((s) => ({
         ...s,
         companyIdeas: s.companyIdeas.filter((idea) => idea.id !== id),
+      }))
+    },
+    [update],
+  )
+
+  const addCompanyDecision = useCallback(
+    (input: { title: string; why?: string; decideBy: string }) => {
+      const title = input.title.trim()
+      if (!title) return
+      const now = new Date().toISOString()
+      const decideBy =
+        typeof input.decideBy === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.decideBy)
+          ? input.decideBy
+          : todayDateKey()
+      update((s) => ({
+        ...s,
+        companyDecisions: [
+          {
+            id: uid('decision'),
+            title,
+            why: (input.why ?? '').trim(),
+            decideBy,
+            options: [],
+            status: 'open',
+            chosenOptionId: null,
+            createdAt: now,
+            updatedAt: now,
+          },
+          ...(s.companyDecisions ?? []),
+        ],
+      }))
+    },
+    [update],
+  )
+
+  const updateCompanyDecision = useCallback(
+    (
+      id: string,
+      patch: Partial<{
+        title: string
+        why: string
+        decideBy: string
+        status: CompanyDecision['status']
+        chosenOptionId: string | null
+      }>,
+    ) => {
+      const now = new Date().toISOString()
+      update((s) => ({
+        ...s,
+        companyDecisions: (s.companyDecisions ?? []).map((decision) => {
+          if (decision.id !== id) return decision
+          const title =
+            patch.title !== undefined ? patch.title.trim() || decision.title : decision.title
+          const why = patch.why !== undefined ? patch.why : decision.why
+          const decideBy =
+            patch.decideBy !== undefined && /^\d{4}-\d{2}-\d{2}$/.test(patch.decideBy)
+              ? patch.decideBy
+              : decision.decideBy
+          let status = patch.status !== undefined ? patch.status : decision.status
+          let chosenOptionId =
+            patch.chosenOptionId !== undefined ? patch.chosenOptionId : decision.chosenOptionId
+          if (status === 'decided') {
+            const valid =
+              chosenOptionId && decision.options.some((o) => o.id === chosenOptionId)
+            if (!valid) {
+              status = 'open'
+              chosenOptionId = null
+            }
+          } else {
+            chosenOptionId = null
+          }
+          return {
+            ...decision,
+            title,
+            why,
+            decideBy,
+            status,
+            chosenOptionId,
+            updatedAt: now,
+          }
+        }),
+      }))
+    },
+    [update],
+  )
+
+  const addCompanyDecisionOption = useCallback(
+    (decisionId: string, text: string) => {
+      const trimmed = text.trim()
+      if (!trimmed) return
+      const now = new Date().toISOString()
+      update((s) => ({
+        ...s,
+        companyDecisions: (s.companyDecisions ?? []).map((decision) => {
+          if (decision.id !== decisionId) return decision
+          return {
+            ...decision,
+            options: [...decision.options, { id: uid('dopt'), text: trimmed }],
+            updatedAt: now,
+          }
+        }),
+      }))
+    },
+    [update],
+  )
+
+  const removeCompanyDecisionOption = useCallback(
+    (decisionId: string, optionId: string) => {
+      const now = new Date().toISOString()
+      update((s) => ({
+        ...s,
+        companyDecisions: (s.companyDecisions ?? []).map((decision) => {
+          if (decision.id !== decisionId) return decision
+          const options = decision.options.filter((o) => o.id !== optionId)
+          const chosenLost = decision.chosenOptionId === optionId
+          return {
+            ...decision,
+            options,
+            chosenOptionId: chosenLost ? null : decision.chosenOptionId,
+            status: chosenLost ? 'open' : decision.status,
+            updatedAt: now,
+          }
+        }),
+      }))
+    },
+    [update],
+  )
+
+  const decideCompanyDecision = useCallback(
+    (decisionId: string, optionId: string) => {
+      const now = new Date().toISOString()
+      update((s) => ({
+        ...s,
+        companyDecisions: (s.companyDecisions ?? []).map((decision) => {
+          if (decision.id !== decisionId) return decision
+          if (!decision.options.some((o) => o.id === optionId)) return decision
+          return {
+            ...decision,
+            status: 'decided',
+            chosenOptionId: optionId,
+            updatedAt: now,
+          }
+        }),
+      }))
+    },
+    [update],
+  )
+
+  const reopenCompanyDecision = useCallback(
+    (decisionId: string) => {
+      const now = new Date().toISOString()
+      update((s) => ({
+        ...s,
+        companyDecisions: (s.companyDecisions ?? []).map((decision) => {
+          if (decision.id !== decisionId) return decision
+          return {
+            ...decision,
+            status: 'open',
+            chosenOptionId: null,
+            updatedAt: now,
+          }
+        }),
+      }))
+    },
+    [update],
+  )
+
+  const removeCompanyDecision = useCallback(
+    (id: string) => {
+      update((s) => ({
+        ...s,
+        companyDecisions: (s.companyDecisions ?? []).filter((d) => d.id !== id),
       }))
     },
     [update],
@@ -2484,6 +2706,13 @@ export function useStore() {
     addCompanyIdea,
     updateCompanyIdea,
     removeCompanyIdea,
+    addCompanyDecision,
+    updateCompanyDecision,
+    addCompanyDecisionOption,
+    removeCompanyDecisionOption,
+    decideCompanyDecision,
+    reopenCompanyDecision,
+    removeCompanyDecision,
     minutesFor,
     resetToSeed,
     parseDateKey,

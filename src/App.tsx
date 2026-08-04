@@ -2,6 +2,7 @@
 
 import { UserButton } from '@clerk/nextjs'
 import { useCallback, useEffect, useState } from 'react'
+import { CompanyDecisionGateView } from './components/business/CompanyDecisionGateView'
 import { CompanyDocumentsView } from './components/business/CompanyDocumentsView'
 import { CompanyIdeasView } from './components/business/CompanyIdeasView'
 import { CompanyTodosView } from './components/business/CompanyTodosView'
@@ -61,12 +62,13 @@ const BUSINESS_TABS: {
   { id: 'finance', label: 'Finance', shortLabel: 'Finance', mark: '$', enabled: true },
   { id: 'documents', label: 'Documents', shortLabel: 'Docs', mark: 'D', enabled: true },
   { id: 'ideas', label: 'Ideas', shortLabel: 'Ideas', mark: 'I', enabled: true },
+  { id: 'decisions', label: 'Decision Gate', shortLabel: 'Decide', mark: 'G', enabled: true },
   { id: 'metaAds', label: 'Meta Ads', shortLabel: 'Ads', mark: 'A', enabled: false },
   { id: 'coldEmail', label: 'Cold Email', shortLabel: 'Email', mark: 'E', enabled: false },
-  { id: 'agents', label: 'Agents', shortLabel: 'Agents', mark: 'G', enabled: false },
+  { id: 'agents', label: 'Agents', shortLabel: 'Agents', mark: 'N', enabled: false },
 ]
 
-const BUSINESS_PRIMARY: BusinessTab[] = ['todos', 'finance', 'documents', 'ideas']
+const BUSINESS_PRIMARY: BusinessTab[] = ['todos', 'finance', 'documents', 'ideas', 'decisions']
 
 function readLayer(): AppLayer {
   try {
@@ -89,7 +91,15 @@ function writeLayer(layer: AppLayer) {
 function readBusinessTab(): BusinessTab {
   try {
     const raw = localStorage.getItem(BUSINESS_TAB_KEY)
-    if (raw === 'todos' || raw === 'finance' || raw === 'documents' || raw === 'ideas') return raw
+    if (
+      raw === 'todos' ||
+      raw === 'finance' ||
+      raw === 'documents' ||
+      raw === 'ideas' ||
+      raw === 'decisions'
+    ) {
+      return raw
+    }
   } catch {
     // ignore
   }
@@ -173,7 +183,9 @@ export default function App() {
   const activePersonal = PERSONAL_TABS.find((t) => t.id === tab) ?? PERSONAL_TABS[0]
   const activeBusiness = BUSINESS_TABS.find((t) => t.id === businessTab) ?? BUSINESS_TABS[0]
   const personalMoreActive = PERSONAL_MORE.includes(tab)
+  const businessMoreActive = BUSINESS_MORE.includes(businessTab)
   const businessSoon = BUSINESS_TABS.filter((t) => !t.enabled)
+  const businessMoreTabs = BUSINESS_TABS.filter((t) => BUSINESS_MORE.includes(t.id) && t.enabled)
 
   const deepToday = store.deepWorkMinutesForDate(store.state.selectedDate)
   const targetHit = store.hitTarget(store.state.selectedDate)
@@ -369,7 +381,7 @@ export default function App() {
               ))}
           <button
             type="button"
-            className={`rail-item rail-item-more${moreOpen || (!isBusiness && personalMoreActive) ? ' active' : ''}`}
+            className={`rail-item rail-item-more${moreOpen || (!isBusiness && personalMoreActive) || (isBusiness && businessMoreActive) ? ' active' : ''}`}
             aria-expanded={moreOpen}
             aria-controls="mobile-more-sheet"
             onClick={() => setMoreOpen((v) => !v)}
@@ -487,6 +499,7 @@ export default function App() {
                 <CompanyDocumentsView store={store} onDirtyChange={setDocsDirty} />
               )}
               {businessTab === 'ideas' && <CompanyIdeasView store={store} />}
+              {businessTab === 'decisions' && <CompanyDecisionGateView store={store} />}
             </>
           ) : (
             <>
@@ -532,6 +545,21 @@ export default function App() {
                       <span>
                         <strong>{t.label}</strong>
                         <em>{t.sub}</em>
+                      </span>
+                    </button>
+                  ))}
+                {isBusiness &&
+                  businessMoreTabs.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className={`mobile-more-item${businessTab === t.id ? ' active' : ''}`}
+                      onClick={() => switchBusinessTab(t.id)}
+                    >
+                      <NavGlyph kind={t.id} mark={t.mark} />
+                      <span>
+                        <strong>{t.label}</strong>
+                        <em>Brain dump vault</em>
                       </span>
                     </button>
                   ))}

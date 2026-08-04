@@ -359,6 +359,12 @@ select:focus {
 .nav-glyph-personalFinances .nav-glyph-core,
 .nav-glyph-documents .nav-glyph-core { width: 0.55rem; height: 0.28rem; border-radius: 99px; }
 .nav-glyph-ideas .nav-glyph-core { width: 0.35rem; height: 0.55rem; border-radius: 99px 99px 4px 4px; }
+.nav-glyph-decisions .nav-glyph-core {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 2px;
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
 .nav-glyph-autopilot .nav-glyph-core {
   width: 0.48rem;
   height: 0.48rem;
@@ -6200,6 +6206,385 @@ a.btn-secondary.compact {
 
 @media (max-width: 900px) {
   .company-ideas-capture {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Company Decision Gate */
+.company-decisions-count {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.company-decisions-capture {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 1.15rem;
+}
+
+.company-decisions-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.company-decisions-meta-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.55rem;
+  align-items: stretch;
+}
+
+.company-decisions-date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-width: 9.5rem;
+}
+
+.company-decisions-date-field span {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.company-decisions-date-field input[type='date'] {
+  min-height: 2.4rem;
+}
+
+.company-decisions-capture textarea,
+.company-decision-edit textarea {
+  resize: vertical;
+  min-height: 3.4rem;
+}
+
+.company-decisions-filters {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.company-decisions-filter {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.7rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    color var(--duration) var(--ease),
+    border-color var(--duration) var(--ease),
+    background var(--duration) var(--ease);
+}
+
+.company-decisions-filter:hover {
+  color: var(--text-muted);
+  border-color: var(--line-strong);
+}
+
+.company-decisions-filter.active {
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.35);
+  background: var(--accent-muted);
+}
+
+.company-decisions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.company-decision {
+  padding: 0.15rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025) 0%, transparent 48%), var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--panel-highlight);
+  overflow: hidden;
+  animation: decision-enter 320ms var(--ease-out) both;
+}
+
+@keyframes decision-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.company-decision.tone-overdue {
+  border-color: rgba(255, 123, 130, 0.28);
+}
+
+.company-decision.tone-soon {
+  border-color: rgba(232, 184, 74, 0.28);
+}
+
+.company-decision.is-decided {
+  opacity: 0.78;
+}
+
+.company-decision-head {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem 0.75rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.company-decision-head-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.company-decision-title {
+  margin: 0 0 0.45rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.company-decision-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.7rem;
+  align-items: center;
+}
+
+.company-decision-deadline,
+.company-decision-opt-count {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.company-decision-deadline.tone-soon {
+  color: var(--warn);
+}
+
+.company-decision-deadline.tone-overdue {
+  color: var(--danger);
+}
+
+.company-decision-deadline.tone-ok {
+  color: var(--text-muted);
+}
+
+.company-decision.is-decided .company-decision-deadline {
+  color: var(--accent);
+}
+
+.company-decision-chevron {
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+  color: var(--text-dim);
+  transition: transform var(--duration) var(--ease);
+  font-size: 0.75rem;
+}
+
+.company-decision-chevron.open {
+  transform: rotate(180deg);
+}
+
+.company-decision-why {
+  margin: 0 1rem 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border-left: 2px solid var(--brass-dim);
+  background: var(--brass-soft);
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.company-decision-why-label {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brass);
+}
+
+.company-decision-chosen {
+  margin: 0 1rem 0.85rem;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.company-decision-chosen span {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-right: 0.45rem;
+}
+
+.company-decision-body {
+  padding: 0 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  animation: decision-body-in 260ms var(--ease-out) both;
+}
+
+@keyframes decision-body-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.company-decision-options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.company-decision-options-empty {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  padding: 0.35rem 0;
+}
+
+.company-decision-option {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.015);
+  min-height: 2.4rem;
+  transition:
+    border-color var(--duration) var(--ease),
+    background var(--duration) var(--ease);
+}
+
+.company-decision-option.chosen {
+  border-color: rgba(var(--accent-rgb), 0.4);
+  background: var(--accent-muted);
+}
+
+.company-decision-option-pick,
+.company-decision-option-static {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.company-decision-option-static {
+  cursor: default;
+}
+
+.company-decision-option-pick:hover {
+  color: var(--accent-hover);
+}
+
+.company-decision-option-radio {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-dim);
+  flex-shrink: 0;
+  transition:
+    border-color var(--duration) var(--ease),
+    background var(--duration) var(--ease),
+    box-shadow var(--duration) var(--ease);
+}
+
+.company-decision-option-pick:hover .company-decision-option-radio,
+.company-decision-option-radio.on {
+  border-color: var(--accent);
+}
+
+.company-decision-option-radio.on {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+.company-decision-option-remove {
+  padding: 0.35rem 0.55rem;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--text-dim);
+}
+
+.company-decision-add-option {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.45rem;
+}
+
+.company-decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding-top: 0.15rem;
+  border-top: 1px solid var(--line-soft);
+}
+
+.company-decision-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.9rem 1rem 1rem;
+}
+
+@media (max-width: 900px) {
+  .company-decisions-capture {
+    grid-template-columns: 1fr;
+  }
+
+  .company-decisions-meta-row {
     grid-template-columns: 1fr;
   }
 }
