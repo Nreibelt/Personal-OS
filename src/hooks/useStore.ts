@@ -2286,7 +2286,7 @@ export function useStore() {
   )
 
   const addCompanyDecision = useCallback(
-    (input: { title: string; why?: string; decideBy: string }) => {
+    (input: { title: string; why?: string; decideBy: string; options?: string[] }) => {
       const title = input.title.trim()
       if (!title) return
       const now = new Date().toISOString()
@@ -2294,6 +2294,10 @@ export function useStore() {
         typeof input.decideBy === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.decideBy)
           ? input.decideBy
           : todayDateKey()
+      const options: CompanyDecisionOption[] = (input.options ?? [])
+        .map((text) => text.trim())
+        .filter(Boolean)
+        .map((text) => ({ id: uid('dopt'), text }))
       update((s) => ({
         ...s,
         companyDecisions: [
@@ -2302,7 +2306,7 @@ export function useStore() {
             title,
             why: (input.why ?? '').trim(),
             decideBy,
-            options: [],
+            options,
             status: 'open',
             chosenOptionId: null,
             createdAt: now,
