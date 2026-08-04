@@ -397,7 +397,15 @@ export function normalizeActiveTab(tab: unknown): AppTab {
 export type AppLayer = 'gate' | 'personal' | 'business'
 
 /** Tabs inside the Batcave (company) layer */
-export type BusinessTab = 'todos' | 'finance' | 'documents' | 'ideas' | 'metaAds' | 'coldEmail' | 'agents'
+export type BusinessTab =
+  | 'todos'
+  | 'finance'
+  | 'documents'
+  | 'ideas'
+  | 'decisions'
+  | 'metaAds'
+  | 'coldEmail'
+  | 'agents'
 
 export type EisenhowerQuadrant = 'do' | 'schedule' | 'delegate' | 'eliminate'
 /** @deprecated use EisenhowerQuadrant — kept as alias during migration */
@@ -575,6 +583,8 @@ export interface AppState {
   companyDocuments: CompanyDocument[]
   /** Batcave idea dump */
   companyIdeas: CompanyIdea[]
+  /** Batcave Decision Gate — open loops & pending choices */
+  companyDecisions: CompanyDecision[]
   /** AI mentor — chat, journal OCR text, pattern insights */
   mentor: MentorState
 }
@@ -594,6 +604,29 @@ export interface CompanyIdea {
   id: string
   title: string
   text: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CompanyDecisionOption {
+  id: string
+  text: string
+}
+
+export type CompanyDecisionStatus = 'open' | 'decided'
+
+/** A pending or resolved choice in the Batcave Decision Gate */
+export interface CompanyDecision {
+  id: string
+  /** The decision / question */
+  title: string
+  /** Why this decision matters */
+  why: string
+  /** YYYY-MM-DD deadline to decide by */
+  decideBy: string
+  options: CompanyDecisionOption[]
+  status: CompanyDecisionStatus
+  chosenOptionId: string | null
   createdAt: string
   updatedAt: string
 }
