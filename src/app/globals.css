@@ -5625,13 +5625,35 @@ a.btn-secondary.compact {
     border-color var(--duration) var(--ease);
 }
 
-.deep-dock-item:last-child {
-  margin-bottom: 0;
-}
-
 .deep-dock-item:hover {
   background: color-mix(in srgb, var(--project-color) 10%, transparent);
   border-color: color-mix(in srgb, var(--project-color) 40%, var(--line));
+}
+
+.deep-dock-backlog {
+  width: 100%;
+  margin-top: 0.2rem;
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  transition:
+    color var(--duration) var(--ease),
+    border-color var(--duration) var(--ease),
+    background var(--duration) var(--ease);
+}
+
+.deep-dock-backlog:hover,
+.deep-dock-backlog.active {
+  color: var(--text);
+  border-color: rgba(var(--accent-rgb), 0.45);
+  background: rgba(var(--accent-rgb), 0.06);
 }
 
 .deep-dock-name {
@@ -8422,6 +8444,39 @@ select:focus {
   margin: 0 0 var(--space-4);
   color: var(--text-muted);
   line-height: 1.45;
+}
+
+.session-focus-minutes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: var(--space-4);
+}
+
+.session-focus-minutes input {
+  width: 100%;
+  max-width: 10rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg-input);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.session-focus-minutes input:focus {
+  outline: none;
+  border-color: rgba(var(--accent-rgb), 0.45);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.session-focus-minutes-hint {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
 }
 
 .session-focus-note {

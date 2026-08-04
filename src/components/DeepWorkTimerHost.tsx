@@ -14,6 +14,7 @@ import { TimerOverlay } from './TimerViews'
  * Platform-wide deep work launcher + timer chrome.
  * Mini dock while browsing; fullscreen only when the user expands (or just started).
  * Deep work starts require a five-word session note before the clock runs.
+ * Backlog mode backdates the start when you forgot to hit start.
  */
 export function DeepWorkTimerHost({
   store,
@@ -34,10 +35,12 @@ export function DeepWorkTimerHost({
 }) {
   const [timerMinimized, setTimerMinimized] = useState(true)
   const [dockOpen, setDockOpen] = useState(false)
+  const [dockMode, setDockMode] = useState<'start' | 'backlog'>('start')
   const [focusPrompt, setFocusPrompt] = useState<{
     projectId: ProjectId
     minimized: boolean
     seedNote: string
+    backlog: boolean
   } | null>(null)
   const hadTimer = useRef(false)
   const skipBrowseMinimize = useRef(false)
@@ -51,24 +54,33 @@ export function DeepWorkTimerHost({
   }, [onPendingSessionHandled])
 
   const beginTimer = useCallback(
-    (projectId: ProjectId, focusNote: string, minimized: boolean) => {
+    (projectId: ProjectId, focusNote: string, minimized: boolean, startedMinutesAgo = 0) => {
       startMinimizedRef.current = minimized
-      startTimer(projectId, focusNote)
+      startTimer(
+        projectId,
+        focusNote,
+        startedMinutesAgo > 0 ? { startedMinutesAgo } : undefined,
+      )
     },
     [startTimer],
   )
 
   /** Deep work always prompts for a note; other projects start with whatever note was passed. */
   const requestStart = useCallback(
-    (projectId: ProjectId, focusNote = '', minimized = false) => {
+    (projectId: ProjectId, focusNote = '', minimized = false, backlog = false) => {
       if (activeTimer?.projectId === projectId) {
         setTimerMinimized(false)
         return
       }
       if (activeTimer) return
 
-      if (isDeepWorkId(projectId) && !isValidFocusNote(focusNote)) {
-        setFocusPrompt({ projectId, minimized, seedNote: focusNote.trim() })
+      if (isDeepWorkId(projectId) && (!isValidFocusNote(focusNote) || backlog)) {
+        setFocusPrompt({
+          projectId,
+          minimized,
+          seedNote: focusNote.trim(),
+          backlog,
+        })
         return
       }
 
@@ -124,6 +136,7 @@ export function DeepWorkTimerHost({
         projectId: pendingSession,
         minimized: pendingSessionMinimized,
         seedNote: pendingFocusNote.trim(),
+        backlog: false,
       })
       clearPending()
       return
@@ -143,8 +156,10 @@ export function DeepWorkTimerHost({
   const busy = !!activeTimer
 
   const startProject = (id: DeepWorkId) => {
+    const backlog = dockMode === 'backlog'
     setDockOpen(false)
-    requestStart(id, '', false)
+    setDockMode('start')
+    requestStart(id, '', false, backlog)
   }
 
   const focusProject = focusPrompt ? PROJECT_MAP[focusPrompt.projectId] : null
@@ -160,14 +175,23 @@ export function DeepWorkTimerHost({
                 type="button"
                 className="deep-dock-toggle"
                 aria-expanded={dockOpen}
-                onClick={() => setDockOpen((v) => !v)}
+                onClick={() => {
+                  setDockOpen((v) => {
+                    if (v) setDockMode('start')
+                    return !v
+                  })
+                }}
               >
                 <span className="deep-dock-pulse" aria-hidden />
                 Deep work
               </button>
               {dockOpen && (
                 <div className="deep-dock-panel" role="menu">
-                  <p className="deep-dock-hint">Name the build, then start</p>
+                  <p className="deep-dock-hint">
+                    {dockMode === 'backlog'
+                      ? 'Pick project — then enter how long ago'
+                      : 'Name the build, then start'}
+                  </p>
                   {DEEP_WORK_IDS.map((id) => {
                     const project = PROJECT_MAP[id]
                     const logged = store.minutesFor(id, 'day', todayDateKey())
@@ -188,6 +212,15 @@ export function DeepWorkTimerHost({
                       </button>
                     )
                   })}
+                  <button
+                    type="button"
+                    className={`deep-dock-backlog${dockMode === 'backlog' ? ' active' : ''}`}
+                    onClick={() =>
+                      setDockMode((m) => (m === 'backlog' ? 'start' : 'backlog'))
+                    }
+                  >
+                    {dockMode === 'backlog' ? 'Cancel backlog' : 'Already going? Backlog…'}
+                  </button>
                 </div>
               )}
             </div>
@@ -200,12 +233,13 @@ export function DeepWorkTimerHost({
         projectName={focusProject?.name ?? ''}
         projectColor={focusProject?.color ?? '#888'}
         initialNote={focusPrompt?.seedNote ?? ''}
+        backlog={focusPrompt?.backlog ?? false}
         onCancel={() => setFocusPrompt(null)}
-        onConfirm={(focusNote) => {
+        onConfirm={(focusNote, startedMinutesAgo) => {
           if (!focusPrompt) return
           const { projectId, minimized } = focusPrompt
           setFocusPrompt(null)
-          beginTimer(projectId, focusNote, minimized)
+          beginTimer(projectId, focusNote, minimized, startedMinutesAgo ?? 0)
         }}
       />
 

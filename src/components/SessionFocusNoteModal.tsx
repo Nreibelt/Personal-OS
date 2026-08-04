@@ -4,11 +4,14 @@ import { useEffect, useRef, useState } from 'react'
 import { countFocusWords, isValidFocusNote, MIN_FOCUS_WORDS } from '../utils/focusNote'
 import { Modal } from './ui/Modal'
 
+const MAX_BACKLOG_MINUTES = 12 * 60
+
 export function SessionFocusNoteModal({
   open,
   projectName,
   projectColor,
   initialNote = '',
+  backlog = false,
   onConfirm,
   onCancel,
 }: {
@@ -16,35 +19,54 @@ export function SessionFocusNoteModal({
   projectName: string
   projectColor: string
   initialNote?: string
-  onConfirm: (focusNote: string) => void
+  /** When true, also ask how many minutes ago the session already started. */
+  backlog?: boolean
+  onConfirm: (focusNote: string, startedMinutesAgo?: number) => void
   onCancel: () => void
 }) {
   const [note, setNote] = useState(initialNote)
+  const [minutesAgo, setMinutesAgo] = useState('')
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const minutesRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
     setNote(initialNote)
-    const id = window.setTimeout(() => inputRef.current?.focus(), 40)
+    setMinutesAgo('')
+    const id = window.setTimeout(() => {
+      if (backlog) minutesRef.current?.focus()
+      else inputRef.current?.focus()
+    }, 40)
     return () => window.clearTimeout(id)
-  }, [open, initialNote])
+  }, [open, initialNote, backlog])
 
   const words = countFocusWords(note)
-  const ready = isValidFocusNote(note)
+  const readyNote = isValidFocusNote(note)
+  const parsedMinutes = Number.parseInt(minutesAgo, 10)
+  const minutesOk =
+    !backlog ||
+    (Number.isFinite(parsedMinutes) && parsedMinutes >= 1 && parsedMinutes <= MAX_BACKLOG_MINUTES)
+  const ready = readyNote && minutesOk
   const remaining = Math.max(0, MIN_FOCUS_WORDS - words)
 
   const submit = () => {
     const trimmed = note.trim().replace(/\s+/g, ' ')
     if (!isValidFocusNote(trimmed)) return
-    onConfirm(trimmed)
+    if (backlog) {
+      if (!minutesOk) return
+      onConfirm(trimmed, parsedMinutes)
+    } else {
+      onConfirm(trimmed)
+    }
     setNote('')
+    setMinutesAgo('')
   }
 
   return (
     <Modal
       open={open}
       onClose={onCancel}
-      title="What are you building?"
+      title={backlog ? 'Backlog a session' : 'What are you building?'}
       size="md"
       className="session-focus-modal"
       footer={
@@ -53,7 +75,7 @@ export function SessionFocusNoteModal({
             Cancel
           </button>
           <button type="button" className="btn-primary" disabled={!ready} onClick={submit}>
-            Start timer
+            {backlog ? 'Start from then' : 'Start timer'}
           </button>
         </>
       }
@@ -63,9 +85,37 @@ export function SessionFocusNoteModal({
         {projectName}
       </p>
       <p className="session-focus-copy">
-        The note locks in before the clock starts. Five words minimum — the specific thing you are
-        building, not what you are exploring.
+        {backlog
+          ? 'Forgot to hit start? Enter how long you have already been going, then lock the build note.'
+          : 'The note locks in before the clock starts. Five words minimum — the specific thing you are building, not what you are exploring.'}
       </p>
+
+      {backlog && (
+        <label className="session-focus-minutes">
+          <span className="field-label">Started how many minutes ago?</span>
+          <input
+            ref={minutesRef}
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={MAX_BACKLOG_MINUTES}
+            step={1}
+            value={minutesAgo}
+            onChange={(e) => setMinutesAgo(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                inputRef.current?.focus()
+              }
+            }}
+            placeholder="e.g. 25"
+            aria-describedby="session-backlog-hint"
+          />
+          <span id="session-backlog-hint" className="session-focus-minutes-hint">
+            Timer opens already running from that mark (max {MAX_BACKLOG_MINUTES} min).
+          </span>
+        </label>
+      )}
 
       <label className="session-focus-note">
         <span className="field-label">Session note</span>
@@ -87,9 +137,13 @@ export function SessionFocusNoteModal({
       </label>
 
       <p id="session-focus-hint" className={`session-focus-hint${ready ? ' ready' : ''}`}>
-        {ready
-          ? `${words} words — locked in. Start when ready.`
-          : `${remaining} more word${remaining === 1 ? '' : 's'} to start`}
+        {!readyNote
+          ? `${remaining} more word${remaining === 1 ? '' : 's'} to start`
+          : backlog && !minutesOk
+            ? 'Enter minutes already worked (1+)'
+            : backlog
+              ? `${words} words — timer will show ~${parsedMinutes}m already elapsed.`
+              : `${words} words — locked in. Start when ready.`}
       </p>
     </Modal>
   )

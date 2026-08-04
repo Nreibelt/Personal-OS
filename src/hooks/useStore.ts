@@ -1407,17 +1407,23 @@ export function useStore() {
   const setSummaryMode = useCallback((summaryMode: SummaryMode) => update({ summaryMode }), [update])
   const setCalendarMonth = useCallback((calendarMonth: string) => update({ calendarMonth }), [update])
 
-  const startTimer = useCallback((projectId: ProjectId, focusNote: string) => {
+  const startTimer = useCallback((
+    projectId: ProjectId,
+    focusNote: string,
+    options?: { startedMinutesAgo?: number },
+  ) => {
     const cleaned = focusNote.trim().replace(/\s+/g, ' ')
     // Deep work clocks never start without a concrete build intention (5+ words).
     if (isDeepWorkId(projectId) && !isValidFocusNote(cleaned)) return
     const now = Date.now()
+    const agoMin = Math.max(0, Math.min(12 * 60, Math.round(options?.startedMinutesAgo ?? 0)))
+    const startedAt = now - agoMin * 60_000
     update((s) => ({
       ...s,
       activeTimer: {
         projectId,
-        startedAt: now,
-        sessionStartedAt: now,
+        startedAt,
+        sessionStartedAt: startedAt,
         focusNote: cleaned,
         elapsedBefore: 0,
         pausedBefore: 0,
