@@ -135,6 +135,8 @@ export interface TimeEntry {
   date: string // YYYY-MM-DD
   minutes: number
   note?: string
+  /** Planned session length when the block started (minutes) */
+  targetMinutes?: number
   /** Epoch ms when the session started (enables duration + time-of-day analytics) */
   startedAt?: number
   /** Epoch ms when the session ended */
@@ -278,7 +280,10 @@ export interface ActiveTimer {
   startedAt: number
   /** Original session start — preserved across pauses */
   sessionStartedAt: number
+  /** Slight Edge Focus — one skill/habit to improve this block */
   focusNote: string
+  /** Planned session length in minutes; used for live progress vs target */
+  targetMinutes?: number
   /** Accumulated active (work) ms before the current segment */
   elapsedBefore: number
   /** Accumulated pause ms from completed pauses */

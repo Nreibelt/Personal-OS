@@ -2714,8 +2714,25 @@ select:focus {
   text-shadow: 0 0 40px rgba(var(--accent-rgb), 0.12);
 }
 
+.timer-slight-edge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0.35rem 0 0.15rem;
+  max-width: 28rem;
+}
+
+.timer-slight-edge-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
 .timer-focus-note {
-  margin: 0.35rem 0 0;
+  margin: 0;
   max-width: 28rem;
   text-align: center;
   font-family: var(--font-display);
@@ -2725,6 +2742,27 @@ select:focus {
   line-height: 1.35;
   color: var(--text);
   opacity: 0.88;
+}
+
+.timer-session-target {
+  width: min(22rem, 86vw);
+  margin: 0.15rem auto 0.85rem;
+}
+
+.timer-session-target .target-bar {
+  height: 5px;
+}
+
+.timer-session-target-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
 }
 
 .timer-today {
@@ -2770,6 +2808,33 @@ select:focus {
   border-radius: var(--radius-lg);
   cursor: pointer;
   box-shadow: var(--panel-highlight), 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 24px rgba(var(--accent-rgb), 0.08);
+}
+
+.mini-timer.has-target {
+  padding-bottom: 0.95rem;
+}
+
+.mini-timer .mini-target-bar {
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.35rem;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.mini-timer .mini-target-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 1px;
+  transition: width 0.35s var(--ease);
+}
+
+.mini-timer.target-hit .mini-target-bar > i {
+  background: var(--success);
 }
 
 .mini-timer .digits {
@@ -8483,6 +8548,53 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+}
+
+.session-focus-sublabel {
+  display: block;
+  margin: -0.15rem 0 0.15rem;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-style: italic;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.session-focus-target {
+  margin-top: var(--space-4);
+}
+
+.session-focus-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.session-focus-preset {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease), color 0.2s var(--ease), background 0.2s var(--ease);
+}
+
+.session-focus-preset:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+.session-focus-preset.active {
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.45);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
 .session-focus-note textarea {
