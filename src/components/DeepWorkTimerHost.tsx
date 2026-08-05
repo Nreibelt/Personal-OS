@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { PROJECT_MAP } from '../data/seed'
 import type { Store } from '../hooks/useStore'
 import { DEEP_WORK_IDS, isDeepWorkId, type DeepWorkId, type ProjectId } from '../types'
-import { isValidFocusNote } from '../utils/focusNote'
 import { formatMinutes, todayDateKey } from '../utils/time'
 import { QuickAddTask } from './QuickAddTask'
 import { SessionFocusNoteModal } from './SessionFocusNoteModal'
@@ -13,7 +12,7 @@ import { TimerOverlay } from './TimerViews'
 /**
  * Platform-wide deep work launcher + timer chrome.
  * Mini dock while browsing; fullscreen only when the user expands (or just started).
- * Deep work starts require a five-word session note before the clock runs.
+ * Deep work starts require Slight Edge Focus + a target timer before the clock runs.
  * Backlog mode backdates the start when you forgot to hit start.
  */
 export function DeepWorkTimerHost({
@@ -54,18 +53,19 @@ export function DeepWorkTimerHost({
   }, [onPendingSessionHandled])
 
   const beginTimer = useCallback(
-    (projectId: ProjectId, focusNote: string, minimized: boolean, startedMinutesAgo = 0) => {
+    (
+      projectId: ProjectId,
+      focusNote: string,
+      minimized: boolean,
+      opts?: { startedMinutesAgo?: number; targetMinutes?: number },
+    ) => {
       startMinimizedRef.current = minimized
-      startTimer(
-        projectId,
-        focusNote,
-        startedMinutesAgo > 0 ? { startedMinutesAgo } : undefined,
-      )
+      startTimer(projectId, focusNote, opts)
     },
     [startTimer],
   )
 
-  /** Deep work always prompts for a note; other projects start with whatever note was passed. */
+  /** Deep work always prompts for Slight Edge Focus + target; other projects start with the note passed. */
   const requestStart = useCallback(
     (projectId: ProjectId, focusNote = '', minimized = false, backlog = false) => {
       if (activeTimer?.projectId === projectId) {
@@ -74,7 +74,7 @@ export function DeepWorkTimerHost({
       }
       if (activeTimer) return
 
-      if (isDeepWorkId(projectId) && (!isValidFocusNote(focusNote) || backlog)) {
+      if (isDeepWorkId(projectId)) {
         setFocusPrompt({
           projectId,
           minimized,
@@ -130,8 +130,8 @@ export function DeepWorkTimerHost({
       return
     }
 
-    // Deep work without a valid note → open the gate; keep pending cleared so we don't re-fire
-    if (isDeepWorkId(pendingSession) && !isValidFocusNote(pendingFocusNote)) {
+    // Deep work always opens the gate for focus + target
+    if (isDeepWorkId(pendingSession)) {
       setFocusPrompt({
         projectId: pendingSession,
         minimized: pendingSessionMinimized,
@@ -190,7 +190,7 @@ export function DeepWorkTimerHost({
                   <p className="deep-dock-hint">
                     {dockMode === 'backlog'
                       ? 'Pick project — then enter how long ago'
-                      : 'Name the build, then start'}
+                      : 'Set focus + target, then start'}
                   </p>
                   {DEEP_WORK_IDS.map((id) => {
                     const project = PROJECT_MAP[id]
@@ -235,11 +235,14 @@ export function DeepWorkTimerHost({
         initialNote={focusPrompt?.seedNote ?? ''}
         backlog={focusPrompt?.backlog ?? false}
         onCancel={() => setFocusPrompt(null)}
-        onConfirm={(focusNote, startedMinutesAgo) => {
+        onConfirm={({ focusNote, targetMinutes, startedMinutesAgo }) => {
           if (!focusPrompt) return
           const { projectId, minimized } = focusPrompt
           setFocusPrompt(null)
-          beginTimer(projectId, focusNote, minimized, startedMinutesAgo ?? 0)
+          beginTimer(projectId, focusNote, minimized, {
+            targetMinutes,
+            startedMinutesAgo: startedMinutesAgo ?? 0,
+          })
         }}
       />
 

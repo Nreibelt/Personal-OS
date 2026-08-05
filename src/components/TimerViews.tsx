@@ -36,6 +36,18 @@ export function TimerOverlay({
   const openCount = todayTasks.filter((t) => !t.done).length
   const minutesLabel = formatMinutes(Math.max(1, Math.round(store.liveTimerSeconds / 60)))
 
+  const targetMinutes = timer.targetMinutes
+  const elapsedMinutes = store.liveTimerSeconds / 60
+  const targetPct =
+    targetMinutes && targetMinutes > 0
+      ? Math.min(100, Math.round((elapsedMinutes / targetMinutes) * 100))
+      : null
+  const targetHit = targetPct != null && targetPct >= 100
+  const remainingToTarget =
+    targetMinutes && targetMinutes > 0
+      ? Math.max(0, Math.ceil(targetMinutes - elapsedMinutes))
+      : null
+
   const commitFinish = (debrief?: SessionDebrief) => {
     setDebriefOpen(false)
     store.finishTimer(debrief)
@@ -46,7 +58,7 @@ export function TimerOverlay({
       <ModalPortal>
         <button
           type="button"
-          className={`mini-timer${paused ? ' paused' : ''}`}
+          className={`mini-timer${paused ? ' paused' : ''}${targetPct != null ? ' has-target' : ''}${targetHit ? ' target-hit' : ''}`}
           onClick={onExpand}
         >
           <span className="dot" style={{ background: project.color, color: project.color }} />
@@ -54,6 +66,11 @@ export function TimerOverlay({
             {paused ? 'PAUSED' : project.name.toUpperCase()}
           </span>
           <span className="digits">{formatTimer(store.liveTimerSeconds)}</span>
+          {targetPct != null && (
+            <span className="mini-target-bar" aria-hidden>
+              <i style={{ width: `${targetPct}%` }} />
+            </span>
+          )}
           {paused && (
             <span className="mini-pause-badge">{formatTimer(store.livePauseSeconds)}</span>
           )}
@@ -78,9 +95,33 @@ export function TimerOverlay({
               {project.name.toUpperCase()}
             </div>
             {timer.focusNote && (
-              <p className="timer-focus-note">{timer.focusNote}</p>
+              <div className="timer-slight-edge">
+                <span className="timer-slight-edge-label">Slight Edge Focus</span>
+                <p className="timer-focus-note">{timer.focusNote}</p>
+              </div>
             )}
             <div className={`timer-digits${paused ? ' frozen' : ''}`}>{formatTimer(store.liveTimerSeconds)}</div>
+
+            {targetMinutes != null && targetPct != null && (
+              <div className="timer-session-target" aria-live="polite">
+                <div className={`target-bar${targetHit ? ' hit' : ''}`}>
+                  <i style={{ width: `${targetPct}%` }} />
+                </div>
+                <div className="timer-session-target-stats">
+                  <span>
+                    {formatMinutes(Math.floor(elapsedMinutes))} / {formatMinutes(targetMinutes)}
+                  </span>
+                  <span className={targetHit ? 'status-hit' : 'status-miss'}>
+                    {targetHit
+                      ? 'TARGET HIT'
+                      : remainingToTarget != null
+                        ? `${remainingToTarget}m to target`
+                        : `${targetPct}%`}
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div className="timer-today">TODAY TOTAL · {formatMinutes(displayToday)}</div>
             {hasPauses && (
               <div className="timer-pause-stats">

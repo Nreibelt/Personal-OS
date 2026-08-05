@@ -1,10 +1,24 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { countFocusWords, isValidFocusNote, MIN_FOCUS_WORDS } from '../utils/focusNote'
+import {
+  countFocusWords,
+  isValidFocusNote,
+  isValidSessionTarget,
+  MAX_SESSION_TARGET_MINUTES,
+  MIN_FOCUS_WORDS,
+  MIN_SESSION_TARGET_MINUTES,
+  SESSION_TARGET_PRESETS,
+} from '../utils/focusNote'
 import { Modal } from './ui/Modal'
 
 const MAX_BACKLOG_MINUTES = 12 * 60
+
+export type SessionFocusConfirm = {
+  focusNote: string
+  targetMinutes: number
+  startedMinutesAgo?: number
+}
 
 export function SessionFocusNoteModal({
   open,
@@ -21,18 +35,21 @@ export function SessionFocusNoteModal({
   initialNote?: string
   /** When true, also ask how many minutes ago the session already started. */
   backlog?: boolean
-  onConfirm: (focusNote: string, startedMinutesAgo?: number) => void
+  onConfirm: (result: SessionFocusConfirm) => void
   onCancel: () => void
 }) {
   const [note, setNote] = useState(initialNote)
   const [minutesAgo, setMinutesAgo] = useState('')
+  const [targetMinutes, setTargetMinutes] = useState('')
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const minutesRef = useRef<HTMLInputElement>(null)
+  const targetRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!open) return
     setNote(initialNote)
     setMinutesAgo('')
+    setTargetMinutes('')
     const id = window.setTimeout(() => {
       if (backlog) minutesRef.current?.focus()
       else inputRef.current?.focus()
@@ -46,20 +63,24 @@ export function SessionFocusNoteModal({
   const minutesOk =
     !backlog ||
     (Number.isFinite(parsedMinutes) && parsedMinutes >= 1 && parsedMinutes <= MAX_BACKLOG_MINUTES)
-  const ready = readyNote && minutesOk
+  const parsedTarget = Number.parseInt(targetMinutes, 10)
+  const targetOk = isValidSessionTarget(parsedTarget)
+  const ready = readyNote && minutesOk && targetOk
   const remaining = Math.max(0, MIN_FOCUS_WORDS - words)
 
   const submit = () => {
     const trimmed = note.trim().replace(/\s+/g, ' ')
     if (!isValidFocusNote(trimmed)) return
+    if (!isValidSessionTarget(parsedTarget)) return
     if (backlog) {
       if (!minutesOk) return
-      onConfirm(trimmed, parsedMinutes)
+      onConfirm({ focusNote: trimmed, targetMinutes: parsedTarget, startedMinutesAgo: parsedMinutes })
     } else {
-      onConfirm(trimmed)
+      onConfirm({ focusNote: trimmed, targetMinutes: parsedTarget })
     }
     setNote('')
     setMinutesAgo('')
+    setTargetMinutes('')
   }
 
   return (
@@ -86,8 +107,8 @@ export function SessionFocusNoteModal({
       </p>
       <p className="session-focus-copy">
         {backlog
-          ? 'Forgot to hit start? Enter how long you have already been going, then lock the build note.'
-          : 'The note locks in before the clock starts. Five words minimum — the specific thing you are building, not what you are exploring.'}
+          ? 'Forgot to hit start? Enter how long you have already been going, then lock your Slight Edge Focus and target.'
+          : 'Lock these in before the clock starts. One edge to sharpen, and how long you plan to run.'}
       </p>
 
       {backlog && (
@@ -118,7 +139,10 @@ export function SessionFocusNoteModal({
       )}
 
       <label className="session-focus-note">
-        <span className="field-label">Session note</span>
+        <span className="field-label">Slight Edge Focus</span>
+        <span className="session-focus-sublabel">
+          (1 thing to improve during this work session, e.g. mental model)
+        </span>
         <textarea
           ref={inputRef}
           value={note}
@@ -126,24 +150,66 @@ export function SessionFocusNoteModal({
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
-              submit()
+              targetRef.current?.focus()
             }
           }}
-          placeholder="e.g. Ship Chase login error states"
+          placeholder="e.g. mental model"
           rows={3}
           maxLength={200}
           aria-describedby="session-focus-hint"
         />
       </label>
 
+      <label className="session-focus-minutes session-focus-target">
+        <span className="field-label">Target timer</span>
+        <span className="session-focus-sublabel">
+          How long this block should run (minutes). Progress shows live against this.
+        </span>
+        <input
+          ref={targetRef}
+          type="number"
+          inputMode="numeric"
+          min={MIN_SESSION_TARGET_MINUTES}
+          max={MAX_SESSION_TARGET_MINUTES}
+          step={1}
+          value={targetMinutes}
+          onChange={(e) => setTargetMinutes(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              submit()
+            }
+          }}
+          placeholder="e.g. 50"
+          aria-describedby="session-target-hint"
+        />
+        <div className="session-focus-presets" role="group" aria-label="Target presets">
+          {SESSION_TARGET_PRESETS.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              className={`session-focus-preset${parsedTarget === preset ? ' active' : ''}`}
+              onClick={() => setTargetMinutes(String(preset))}
+            >
+              {preset}m
+            </button>
+          ))}
+        </div>
+        <span id="session-target-hint" className="session-focus-minutes-hint">
+          {MIN_SESSION_TARGET_MINUTES}–{MAX_SESSION_TARGET_MINUTES} minutes.
+        </span>
+      </label>
+
       <p id="session-focus-hint" className={`session-focus-hint${ready ? ' ready' : ''}`}>
         {!readyNote
           ? `${remaining} more word${remaining === 1 ? '' : 's'} to start`
-          : backlog && !minutesOk
-            ? 'Enter minutes already worked (1+)'
-            : backlog
-              ? `${words} words — timer will show ~${parsedMinutes}m already elapsed.`
-              : `${words} words — locked in. Start when ready.`}
+          : !targetOk
+            ? `Set a target (${MIN_SESSION_TARGET_MINUTES}+ min)`
+            : backlog && !minutesOk
+              ? 'Enter minutes already worked (1+)'
+              : backlog
+                ? `${words} words · ${parsedTarget}m target — timer will show ~${parsedMinutes}m already elapsed.`
+                : `${words} words · ${parsedTarget}m target — locked in. Start when ready.`}
       </p>
     </Modal>
   )

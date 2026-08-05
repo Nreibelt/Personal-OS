@@ -89,7 +89,7 @@ import {
   recentSessions,
 } from '../utils/sessionAnalytics'
 import { revolutCredentialsChangedEvent } from '../utils/revolutApi'
-import { isValidFocusNote } from '../utils/focusNote'
+import { isValidFocusNote, isValidSessionTarget } from '../utils/focusNote'
 import { repairJournalEntryDate } from '../utils/journalDate'
 
 const STORAGE_KEY = 'batcave-deep-work-os-v2'
@@ -107,11 +107,16 @@ function migrateActiveTimer(raw: unknown): ActiveTimer | null {
   if (!t.projectId || typeof t.startedAt !== 'number') return null
   const sessionStartedAt =
     typeof t.sessionStartedAt === 'number' ? t.sessionStartedAt : t.startedAt
+  const targetMinutes =
+    typeof t.targetMinutes === 'number' && Number.isFinite(t.targetMinutes) && t.targetMinutes > 0
+      ? Math.round(t.targetMinutes)
+      : undefined
   return {
     projectId: t.projectId,
     startedAt: t.startedAt,
     sessionStartedAt,
     focusNote: typeof t.focusNote === 'string' ? t.focusNote : '',
+    targetMinutes,
     elapsedBefore: typeof t.elapsedBefore === 'number' ? t.elapsedBefore : 0,
     pausedBefore: typeof t.pausedBefore === 'number' ? t.pausedBefore : 0,
     pausedAt: typeof t.pausedAt === 'number' ? t.pausedAt : undefined,
@@ -147,12 +152,17 @@ function migrateTimeEntry(raw: unknown): TimeEntry | null {
   const date =
     startedAt != null ? todayDateKey(new Date(startedAt)) : e.date
   const debrief = migrateSessionDebrief(e.debrief)
+  const targetMinutes =
+    typeof e.targetMinutes === 'number' && Number.isFinite(e.targetMinutes) && e.targetMinutes > 0
+      ? Math.round(e.targetMinutes)
+      : undefined
   return {
     id: e.id,
     projectId: e.projectId,
     date,
     minutes: e.minutes,
     note: e.note,
+    targetMinutes,
     startedAt,
     endedAt: typeof e.endedAt === 'number' ? e.endedAt : undefined,
     pausedMinutes: typeof e.pausedMinutes === 'number' ? e.pausedMinutes : undefined,
@@ -1410,11 +1420,18 @@ export function useStore() {
   const startTimer = useCallback((
     projectId: ProjectId,
     focusNote: string,
-    options?: { startedMinutesAgo?: number },
+    options?: { startedMinutesAgo?: number; targetMinutes?: number },
   ) => {
     const cleaned = focusNote.trim().replace(/\s+/g, ' ')
-    // Deep work clocks never start without a concrete build intention (5+ words).
+    // Deep work clocks never start without a Slight Edge Focus note.
     if (isDeepWorkId(projectId) && !isValidFocusNote(cleaned)) return
+    const rawTarget = options?.targetMinutes
+    const targetMinutes =
+      rawTarget != null && isValidSessionTarget(Math.round(rawTarget))
+        ? Math.round(rawTarget)
+        : undefined
+    // Deep work also needs a session target so progress can show live.
+    if (isDeepWorkId(projectId) && targetMinutes == null) return
     const now = Date.now()
     const agoMin = Math.max(0, Math.min(12 * 60, Math.round(options?.startedMinutesAgo ?? 0)))
     const startedAt = now - agoMin * 60_000
@@ -1425,6 +1442,7 @@ export function useStore() {
         startedAt,
         sessionStartedAt: startedAt,
         focusNote: cleaned,
+        targetMinutes,
         elapsedBefore: 0,
         pausedBefore: 0,
         pauseCount: 0,
@@ -1495,6 +1513,7 @@ export function useStore() {
         date: sessionDate,
         minutes,
         note: t.focusNote || undefined,
+        targetMinutes: t.targetMinutes,
         startedAt: t.sessionStartedAt,
         endedAt: now,
         pausedMinutes: pausedMinutes > 0 ? pausedMinutes : undefined,
