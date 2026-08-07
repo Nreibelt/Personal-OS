@@ -18,6 +18,8 @@ export type SessionFocusConfirm = {
   focusNote: string
   targetMinutes: number
   startedMinutesAgo?: number
+  /** Backlog only: write the time entry now instead of opening a live timer. */
+  logAsDone?: boolean
 }
 
 export function SessionFocusNoteModal({
@@ -68,13 +70,18 @@ export function SessionFocusNoteModal({
   const ready = readyNote && minutesOk && targetOk
   const remaining = Math.max(0, MIN_FOCUS_WORDS - words)
 
-  const submit = () => {
+  const submit = (logAsDone = false) => {
     const trimmed = note.trim().replace(/\s+/g, ' ')
     if (!isValidFocusNote(trimmed)) return
     if (!isValidSessionTarget(parsedTarget)) return
     if (backlog) {
       if (!minutesOk) return
-      onConfirm({ focusNote: trimmed, targetMinutes: parsedTarget, startedMinutesAgo: parsedMinutes })
+      onConfirm({
+        focusNote: trimmed,
+        targetMinutes: parsedTarget,
+        startedMinutesAgo: parsedMinutes,
+        logAsDone: logAsDone || undefined,
+      })
     } else {
       onConfirm({ focusNote: trimmed, targetMinutes: parsedTarget })
     }
@@ -95,7 +102,17 @@ export function SessionFocusNoteModal({
           <button type="button" className="ghost-btn" onClick={onCancel}>
             Cancel
           </button>
-          <button type="button" className="btn-primary" disabled={!ready} onClick={submit}>
+          {backlog && (
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={!ready}
+              onClick={() => submit(true)}
+            >
+              Log as done
+            </button>
+          )}
+          <button type="button" className="btn-primary" disabled={!ready} onClick={() => submit(false)}>
             {backlog ? 'Start from then' : 'Start timer'}
           </button>
         </>
@@ -107,13 +124,13 @@ export function SessionFocusNoteModal({
       </p>
       <p className="session-focus-copy">
         {backlog
-          ? 'Forgot to hit start? Enter how long you have already been going, then lock your Slight Edge Focus and target.'
+          ? 'Forgot to hit start or finish? Enter how long you worked, lock Slight Edge Focus + target, then log it or resume the clock.'
           : 'Lock these in before the clock starts. One edge to sharpen, and how long you plan to run.'}
       </p>
 
       {backlog && (
         <label className="session-focus-minutes">
-          <span className="field-label">Started how many minutes ago?</span>
+          <span className="field-label">How many minutes did you work?</span>
           <input
             ref={minutesRef}
             type="number"
@@ -129,11 +146,12 @@ export function SessionFocusNoteModal({
                 inputRef.current?.focus()
               }
             }}
-            placeholder="e.g. 25"
+            placeholder="e.g. 45"
             aria-describedby="session-backlog-hint"
           />
           <span id="session-backlog-hint" className="session-focus-minutes-hint">
-            Timer opens already running from that mark (max {MAX_BACKLOG_MINUTES} min).
+            Log as done saves that block now. Start from then opens a live timer already counting
+            (max {MAX_BACKLOG_MINUTES} min).
           </span>
         </label>
       )}
@@ -177,7 +195,7 @@ export function SessionFocusNoteModal({
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault()
-              submit()
+              submit(false)
             }
           }}
           placeholder="e.g. 50"
@@ -206,9 +224,9 @@ export function SessionFocusNoteModal({
           : !targetOk
             ? `Set a target (${MIN_SESSION_TARGET_MINUTES}+ min)`
             : backlog && !minutesOk
-              ? 'Enter minutes already worked (1+)'
+              ? 'Enter minutes worked (1+)'
               : backlog
-                ? `${words} words · ${parsedTarget}m target — timer will show ~${parsedMinutes}m already elapsed.`
+                ? `${words} words · ${parsedMinutes}m worked · ${parsedTarget}m target`
                 : `${words} words · ${parsedTarget}m target — locked in. Start when ready.`}
       </p>
     </Modal>
