@@ -9,6 +9,7 @@ import {
   applyRevolutCredentialsToBrowser,
   isThinCloudPayload,
   mergeRevolutCredentials,
+  mergeSessionSafeState,
   preferRicherState,
   withLocalRevolutCredentials,
 } from '../lib/supabase/sync'
@@ -825,6 +826,9 @@ export function useStore() {
   const [cloudSource, setCloudSource] = useState<'local' | 'remote' | null>(null)
   const skipNextCloudSave = useRef(false)
   const saveTimer = useRef<number | null>(null)
+  /** Latest in-memory state — cloud hydrate must not use a stale snapshot. */
+  const stateRef = useRef(state)
+  stateRef.current = state
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
@@ -868,7 +872,11 @@ export function useStore() {
           return
         }
 
-        const local = withLocalRevolutCredentials(loadState())
+        // Fresh disk + live memory: covers finishes / timers that landed while we waited.
+        const disk = withLocalRevolutCredentials(loadState())
+        const memory = withLocalRevolutCredentials(stateRef.current)
+        const local = mergeSessionSafeState(memory, disk)
+
         const { data, error } = await client
           .from('user_app_state')
           .select('state, updated_at')
@@ -894,10 +902,17 @@ export function useStore() {
             remote.revolutCredentials,
             local.revolutCredentials,
           )
-          const pick = preferRicherState(local, withLocalRevolutCredentials(remote))
-          chosen = pick.winner
+          const remoteReady = withLocalRevolutCredentials(remote)
+          const pick = preferRicherState(local, remoteReady)
+          // Winner for bulk fields, but always keep union of sessions + any live timer.
+          chosen = mergeSessionSafeState(pick.winner, pick.source === 'local' ? remoteReady : local)
           source = pick.source
         }
+
+        // Re-fold anything the user did during the network round-trip (finish, start, discard).
+        // Memory wins for the live timer so discard/finish are not undone.
+        const latest = withLocalRevolutCredentials(stateRef.current)
+        chosen = mergeSessionSafeState(chosen, latest, { timerMode: 'prefer-other' })
 
         // Always persist the chosen snapshot so browser data lands under this Clerk user
         const saved = await upsertCloudState(chosen)
@@ -905,6 +920,7 @@ export function useStore() {
 
         applyRevolutCredentialsToBrowser(saved.revolutCredentials)
         skipNextCloudSave.current = true
+        stateRef.current = saved
         setState(saved)
         setCloudSource(source)
         setCloudSync('ready')
@@ -935,6 +951,7 @@ export function useStore() {
         .then((saved) => {
           if (saved.revolutCredentials !== state.revolutCredentials) {
             skipNextCloudSave.current = true
+            stateRef.current = saved
             setState(saved)
           }
         })
@@ -965,6 +982,7 @@ export function useStore() {
       const saved = await upsertCloudState(merged)
       applyRevolutCredentialsToBrowser(saved.revolutCredentials)
       skipNextCloudSave.current = true
+      stateRef.current = saved
       setState(saved)
       setCloudSource('local')
       setCloudError(null)
@@ -991,7 +1009,11 @@ export function useStore() {
   }, [])
 
   const update = useCallback((patch: Partial<AppState> | ((s: AppState) => AppState)) => {
-    setState((s) => (typeof patch === 'function' ? patch(s) : { ...s, ...patch }))
+    setState((s) => {
+      const next = typeof patch === 'function' ? patch(s) : { ...s, ...patch }
+      stateRef.current = next
+      return next
+    })
   }, [])
 
   const patchLedger = useCallback(
@@ -1529,6 +1551,50 @@ export function useStore() {
       }
     })
   }, [update])
+
+  /**
+   * Log a session that already ended (forgot to hit Finish / never started the timer).
+   * Writes a time entry directly — no live clock.
+   */
+  const logCompletedSession = useCallback(
+    (
+      projectId: ProjectId,
+      focusNote: string,
+      minutes: number,
+      options?: { targetMinutes?: number; endedAt?: number },
+    ) => {
+      const cleaned = focusNote.trim().replace(/\s+/g, ' ')
+      if (isDeepWorkId(projectId) && !isValidFocusNote(cleaned)) return null
+      const mins = Math.max(1, Math.min(12 * 60, Math.round(minutes)))
+      const rawTarget = options?.targetMinutes
+      const targetMinutes =
+        rawTarget != null && isValidSessionTarget(Math.round(rawTarget))
+          ? Math.round(rawTarget)
+          : undefined
+      if (isDeepWorkId(projectId) && targetMinutes == null) return null
+
+      const endedAt = options?.endedAt ?? Date.now()
+      const startedAt = endedAt - mins * 60_000
+      const sessionDate = todayDateKey(new Date(startedAt))
+      const entry: TimeEntry = {
+        id: uid('te'),
+        projectId,
+        date: sessionDate,
+        minutes: mins,
+        note: cleaned || undefined,
+        targetMinutes,
+        startedAt,
+        endedAt,
+      }
+      update((s) => ({
+        ...s,
+        selectedDate: sessionDate,
+        timeEntries: [...s.timeEntries, entry],
+      }))
+      return entry.id
+    },
+    [update],
+  )
 
   const appendMentorMessage = useCallback((message: Omit<MentorMessage, 'id' | 'createdAt'> & {
     id?: string
@@ -2697,6 +2763,7 @@ export function useStore() {
     pauseTimer,
     resumeTimer,
     finishTimer,
+    logCompletedSession,
     discardTimer,
     appendMentorMessage,
     setMentorMessages,

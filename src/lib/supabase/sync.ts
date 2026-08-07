@@ -1,10 +1,69 @@
-import type { AppState, FinanceLedger, RevolutCredentials } from '@/types'
+import type { ActiveTimer, AppState, FinanceLedger, RevolutCredentials, TimeEntry } from '@/types'
 import {
   loadRevolutAppSecret,
   loadRevolutRefreshToken,
   saveRevolutAppSecret,
   saveRevolutRefreshToken,
 } from '@/utils/revolutApi'
+
+/** Union time entries by id so a sync pick never drops a session that only one side has. */
+export function mergeTimeEntries(a: TimeEntry[] = [], b: TimeEntry[] = []): TimeEntry[] {
+  const map = new Map<string, TimeEntry>()
+  for (const entry of a) {
+    if (entry?.id) map.set(entry.id, entry)
+  }
+  for (const entry of b) {
+    if (!entry?.id) continue
+    const prev = map.get(entry.id)
+    // Prefer the copy that has a debrief / richer pause data when ids collide.
+    if (!prev) {
+      map.set(entry.id, entry)
+      continue
+    }
+    const prevScore = (prev.debrief ? 2 : 0) + (prev.pauses?.length || 0)
+    const nextScore = (entry.debrief ? 2 : 0) + (entry.pauses?.length || 0)
+    if (nextScore > prevScore) map.set(entry.id, entry)
+  }
+  return Array.from(map.values())
+}
+
+/**
+ * Never drop a live timer on hydrate. If both sides have one, keep the older
+ * session start (the block that has been running longer).
+ */
+export function pickActiveTimer(
+  local: ActiveTimer | null | undefined,
+  remote: ActiveTimer | null | undefined,
+): ActiveTimer | null {
+  if (local && remote) {
+    return local.sessionStartedAt <= remote.sessionStartedAt ? local : remote
+  }
+  return local ?? remote ?? null
+}
+
+/**
+ * After preferRicherState picks a base snapshot, fold in sessions + live timers
+ * from the other side so cloud hydrate cannot erase in-progress or just-finished work.
+ *
+ * timerMode:
+ * - prefer-either: keep a timer if either side has one (default for local↔remote)
+ * - prefer-other: other is authoritative (use after hydrate so discard/finish stick)
+ */
+export function mergeSessionSafeState(
+  base: AppState,
+  other: AppState,
+  options?: { timerMode?: 'prefer-either' | 'prefer-other' },
+): AppState {
+  const timerMode = options?.timerMode ?? 'prefer-either'
+  return {
+    ...base,
+    timeEntries: mergeTimeEntries(base.timeEntries, other.timeEntries),
+    activeTimer:
+      timerMode === 'prefer-other'
+        ? other.activeTimer ?? null
+        : pickActiveTimer(base.activeTimer, other.activeTimer),
+  }
+}
 
 /** Pull Revolut browser secrets into the AppState payload for cloud upsert. */
 export function withLocalRevolutCredentials(state: AppState): AppState {

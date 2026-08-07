@@ -5,7 +5,10 @@ import type { SessionDebrief } from '../types'
 import { formatMinutes, formatTimer, todayDateKey } from '../utils/time'
 import { SessionDebriefModal } from './SessionDebriefModal'
 import { TaskRow } from './TaskRow'
+import { ConfirmDialog } from './ui/ConfirmDialog'
 import { ModalPortal } from './ui/ModalPortal'
+
+const DISCARD_CONFIRM_AFTER_SEC = 5 * 60
 
 export function TimerOverlay({
   store,
@@ -21,6 +24,7 @@ export function TimerOverlay({
   const timer = store.state.activeTimer
   const [taskText, setTaskText] = useState('')
   const [debriefOpen, setDebriefOpen] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
 
   if (!timer) return null
 
@@ -53,7 +57,15 @@ export function TimerOverlay({
     store.finishTimer(debrief)
   }
 
-  if (minimized && !debriefOpen) {
+  const requestDiscard = () => {
+    if (store.liveTimerSeconds >= DISCARD_CONFIRM_AFTER_SEC) {
+      setDiscardOpen(true)
+      return
+    }
+    store.discardTimer()
+  }
+
+  if (minimized && !debriefOpen && !discardOpen) {
     return (
       <ModalPortal>
         <button
@@ -81,7 +93,7 @@ export function TimerOverlay({
 
   return (
     <ModalPortal>
-      {!debriefOpen && (
+      {!debriefOpen && !discardOpen && (
         <div className={`timer-overlay${paused ? ' timer-paused' : ''}`}>
           <div className="timer-stage">
             {paused && (
@@ -193,7 +205,7 @@ export function TimerOverlay({
                 className="ghost-btn"
                 type="button"
                 style={{ marginTop: '0.5rem' }}
-                onClick={() => store.discardTimer()}
+                onClick={requestDiscard}
               >
                 Discard
               </button>
@@ -208,6 +220,20 @@ export function TimerOverlay({
         minutesLabel={minutesLabel}
         onSubmit={(debrief) => commitFinish(debrief)}
         onSkip={() => commitFinish()}
+      />
+
+      <ConfirmDialog
+        open={discardOpen}
+        title="Discard this session?"
+        message={`${minutesLabel} on ${project.name} will not be logged. This cannot be undone.`}
+        confirmLabel="Discard"
+        cancelLabel="Keep timer"
+        danger
+        onCancel={() => setDiscardOpen(false)}
+        onConfirm={() => {
+          setDiscardOpen(false)
+          store.discardTimer()
+        }}
       />
     </ModalPortal>
   )

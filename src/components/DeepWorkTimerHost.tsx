@@ -47,6 +47,7 @@ export function DeepWorkTimerHost({
 
   const activeTimer = store.state.activeTimer
   const startTimer = store.startTimer
+  const logCompletedSession = store.logCompletedSession
 
   const clearPending = useCallback(() => {
     onPendingSessionHandled?.()
@@ -235,10 +236,14 @@ export function DeepWorkTimerHost({
         initialNote={focusPrompt?.seedNote ?? ''}
         backlog={focusPrompt?.backlog ?? false}
         onCancel={() => setFocusPrompt(null)}
-        onConfirm={({ focusNote, targetMinutes, startedMinutesAgo }) => {
+        onConfirm={({ focusNote, targetMinutes, startedMinutesAgo, logAsDone }) => {
           if (!focusPrompt) return
           const { projectId, minimized } = focusPrompt
           setFocusPrompt(null)
+          if (logAsDone && startedMinutesAgo != null) {
+            logCompletedSession(projectId, focusNote, startedMinutesAgo, { targetMinutes })
+            return
+          }
           beginTimer(projectId, focusNote, minimized, {
             targetMinutes,
             startedMinutesAgo: startedMinutesAgo ?? 0,
