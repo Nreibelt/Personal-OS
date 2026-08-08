@@ -6297,6 +6297,140 @@ a.btn-secondary.compact {
   }
 }
 
+/* Company logins */
+.company-logins-capture {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 1.15rem;
+}
+
+.company-logins-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  min-width: 0;
+  align-items: center;
+}
+
+.company-logins-fields .platform-check {
+  grid-column: 1 / -1;
+}
+
+.company-logins-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 50%), var(--bg-raised);
+  box-shadow: var(--panel-highlight);
+}
+
+.company-logins-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 36rem;
+}
+
+.company-logins-table th,
+.company-logins-table td {
+  padding: 0.75rem 0.9rem;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--line);
+}
+
+.company-logins-table th {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.company-logins-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.company-login-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.company-login-link:hover {
+  text-decoration: underline;
+}
+
+.company-login-platform,
+.company-login-username {
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.company-login-empty {
+  color: var(--text-dim);
+}
+
+.company-login-password {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.company-login-secret {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.company-login-2fa {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.company-login-2fa.on {
+  color: var(--accent);
+}
+
+.company-login-2fa.off {
+  color: var(--text-dim);
+}
+
+.company-login-actions {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.company-login-edit {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.company-login-edit .platform-check,
+.company-login-edit .btn-row {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 900px) {
+  .company-logins-capture {
+    grid-template-columns: 1fr;
+  }
+
+  .company-logins-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Company Decision Gate */
 .company-decisions-count {
   font-family: var(--font-mono);

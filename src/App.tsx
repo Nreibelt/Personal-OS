@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { CompanyDecisionGateView } from './components/business/CompanyDecisionGateView'
 import { CompanyDocumentsView } from './components/business/CompanyDocumentsView'
 import { CompanyIdeasView } from './components/business/CompanyIdeasView'
+import { CompanyLoginsView } from './components/business/CompanyLoginsView'
 import { CompanyTodosView } from './components/business/CompanyTodosView'
 import { AutopilotView } from './components/AutopilotView'
 import { CalendarView } from './components/CalendarView'
@@ -62,6 +63,7 @@ const BUSINESS_TABS: {
   { id: 'finance', label: 'Finance', shortLabel: 'Finance', mark: '$', enabled: true },
   { id: 'documents', label: 'Documents', shortLabel: 'Docs', mark: 'D', enabled: true },
   { id: 'ideas', label: 'Ideas', shortLabel: 'Ideas', mark: 'I', enabled: true },
+  { id: 'logins', label: 'Logins', shortLabel: 'Logins', mark: 'L', enabled: true },
   { id: 'decisions', label: 'Decision Gate', shortLabel: 'Decide', mark: 'G', enabled: true },
   { id: 'metaAds', label: 'Meta Ads', shortLabel: 'Ads', mark: 'A', enabled: false },
   { id: 'coldEmail', label: 'Cold Email', shortLabel: 'Email', mark: 'E', enabled: false },
@@ -69,7 +71,7 @@ const BUSINESS_TABS: {
 ]
 
 const BUSINESS_PRIMARY: BusinessTab[] = ['todos', 'finance', 'documents', 'ideas']
-const BUSINESS_MORE: BusinessTab[] = ['decisions']
+const BUSINESS_MORE: BusinessTab[] = ['logins', 'decisions']
 
 function readLayer(): AppLayer {
   try {
@@ -97,6 +99,7 @@ function readBusinessTab(): BusinessTab {
       raw === 'finance' ||
       raw === 'documents' ||
       raw === 'ideas' ||
+      raw === 'logins' ||
       raw === 'decisions'
     ) {
       return raw
@@ -500,6 +503,7 @@ export default function App() {
                 <CompanyDocumentsView store={store} onDirtyChange={setDocsDirty} />
               )}
               {businessTab === 'ideas' && <CompanyIdeasView store={store} />}
+              {businessTab === 'logins' && <CompanyLoginsView store={store} />}
               {businessTab === 'decisions' && <CompanyDecisionGateView store={store} />}
             </>
           ) : (
@@ -560,7 +564,13 @@ export default function App() {
                       <NavGlyph kind={t.id} mark={t.mark} />
                       <span>
                         <strong>{t.label}</strong>
-                        <em>{t.id === 'decisions' ? 'Open loops' : t.shortLabel}</em>
+                        <em>
+                          {t.id === 'decisions'
+                            ? 'Open loops'
+                            : t.id === 'logins'
+                              ? 'Credentials'
+                              : t.shortLabel}
+                        </em>
                       </span>
                     </button>
                   ))}

@@ -407,6 +407,7 @@ export type BusinessTab =
   | 'finance'
   | 'documents'
   | 'ideas'
+  | 'logins'
   | 'decisions'
   | 'metaAds'
   | 'coldEmail'
@@ -588,6 +589,8 @@ export interface AppState {
   companyDocuments: CompanyDocument[]
   /** Batcave idea dump */
   companyIdeas: CompanyIdea[]
+  /** Batcave platform logins / credentials vault */
+  companyLogins: CompanyLogin[]
   /** Batcave Decision Gate — open loops & pending choices */
   companyDecisions: CompanyDecision[]
   /** AI mentor — chat, journal OCR text, pattern insights */
@@ -609,6 +612,22 @@ export interface CompanyIdea {
   id: string
   title: string
   text: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** Saved login for a company platform / tool */
+export interface CompanyLogin {
+  id: string
+  /** Optional label (e.g. Stripe). Falls back to URL host when empty. */
+  platform: string
+  /** Clickable link to the platform */
+  url: string
+  /** Username or email */
+  username: string
+  password: string
+  /** Whether 2FA is enabled on this account */
+  twoFactorEnabled: boolean
   createdAt: string
   updatedAt: string
 }

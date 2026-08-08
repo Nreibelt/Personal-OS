@@ -250,6 +250,7 @@ export function createSeedState(): AppState {
     visionGoals: [],
     companyDocuments: [],
     companyIdeas: [],
+    companyLogins: [],
     companyDecisions: [],
     mentor: emptyMentorState(),
   }
