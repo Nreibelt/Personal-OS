@@ -7078,6 +7078,25 @@ a.btn-secondary.compact {
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
+.session-list-date {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+
+.session-list-date input[type='date'] {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.25rem 0.4rem;
+}
+
 .session-list-project {
   color: var(--text);
 }
@@ -8676,6 +8695,30 @@ select:focus {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
+}
+
+.session-focus-date {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+
+.session-focus-date-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.session-focus-date-row input[type='date'] {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.45rem 0.55rem;
 }
 
 .session-focus-note {

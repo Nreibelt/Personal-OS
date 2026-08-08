@@ -9,7 +9,7 @@ import {
   entriesWithDebrief,
 } from '../utils/debriefAnalytics'
 import { filterEntriesByScope, hourInAppTz } from '../utils/sessionAnalytics'
-import { formatLongDate, formatMinutes, formatTimer } from '../utils/time'
+import { addDays, formatLongDate, formatMinutes, formatTimer, todayDateKey } from '../utils/time'
 import { SESSION_TAGS } from '../types'
 import { HudPanel } from './HudPanel'
 
@@ -288,6 +288,7 @@ export function SessionAnalytics({ store }: { store: Store }) {
                     entry.startedAt != null
                       ? `${hourInAppTz(entry.startedAt) % 12 || 12}${hourInAppTz(entry.startedAt) >= 12 ? 'pm' : 'am'}`
                       : entry.date
+                  const yesterday = addDays(todayDateKey(), -1)
                   return (
                     <li key={entry.id} className="session-list-item">
                       <span className="dot" style={{ background: project.color, color: project.color }} />
@@ -302,6 +303,29 @@ export function SessionAnalytics({ store }: { store: Store }) {
                       {(entry.pauseCount ?? 0) > 0 && (
                         <span className="session-list-pause">{entry.pauseCount} pause{entry.pauseCount === 1 ? '' : 's'}</span>
                       )}
+                      <label className="session-list-date">
+                        <input
+                          type="date"
+                          value={entry.date}
+                          max={todayDateKey()}
+                          onChange={(e) => {
+                            const next = e.target.value
+                            if (next && next !== entry.date) {
+                              store.updateTimeEntryDate(entry.id, next)
+                            }
+                          }}
+                          aria-label={`Move ${project.name} ${formatMinutes(entry.minutes)} session date`}
+                        />
+                        {entry.date !== yesterday && (
+                          <button
+                            type="button"
+                            className="ghost-btn compact"
+                            onClick={() => store.updateTimeEntryDate(entry.id, yesterday)}
+                          >
+                            Yesterday
+                          </button>
+                        )}
+                      </label>
                     </li>
                   )
                 })}

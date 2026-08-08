@@ -1581,13 +1581,14 @@ export function useStore() {
   /**
    * Log a session that already ended (forgot to hit Finish / never started the timer).
    * Writes a time entry directly — no live clock.
+   * Optional `date` (YYYY-MM-DD) pins the session to that Bali calendar day.
    */
   const logCompletedSession = useCallback(
     (
       projectId: ProjectId,
       focusNote: string,
       minutes: number,
-      options?: { targetMinutes?: number; endedAt?: number },
+      options?: { targetMinutes?: number; endedAt?: number; date?: string },
     ) => {
       const cleaned = focusNote.trim().replace(/\s+/g, ' ')
       if (isDeepWorkId(projectId) && !isValidFocusNote(cleaned)) return null
@@ -1599,9 +1600,22 @@ export function useStore() {
           : undefined
       if (isDeepWorkId(projectId) && targetMinutes == null) return null
 
-      const endedAt = options?.endedAt ?? Date.now()
-      const startedAt = endedAt - mins * 60_000
-      const sessionDate = todayDateKey(new Date(startedAt))
+      let endedAt = options?.endedAt ?? Date.now()
+      let startedAt = endedAt - mins * 60_000
+      let sessionDate = todayDateKey(new Date(startedAt))
+      const pinnedDate =
+        typeof options?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(options.date)
+          ? options.date
+          : null
+      if (pinnedDate && pinnedDate !== sessionDate) {
+        const dayShift =
+          (parseDateKey(pinnedDate).getTime() - parseDateKey(sessionDate).getTime()) /
+          86_400_000
+        const shiftMs = Math.round(dayShift) * 86_400_000
+        startedAt += shiftMs
+        endedAt += shiftMs
+        sessionDate = pinnedDate
+      }
       const entry: TimeEntry = {
         id: uid('te'),
         projectId,
@@ -1618,6 +1632,30 @@ export function useStore() {
         timeEntries: [...s.timeEntries, entry],
       }))
       return entry.id
+    },
+    [update],
+  )
+
+  /** Move a saved session onto another Bali calendar day (shifts timestamps with it). */
+  const updateTimeEntryDate = useCallback(
+    (id: string, date: string) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return
+      update((s) => ({
+        ...s,
+        timeEntries: s.timeEntries.map((entry) => {
+          if (entry.id !== id || entry.date === date) return entry
+          const dayShift =
+            (parseDateKey(date).getTime() - parseDateKey(entry.date).getTime()) / 86_400_000
+          const shiftMs = Math.round(dayShift) * 86_400_000
+          return {
+            ...entry,
+            date,
+            startedAt:
+              entry.startedAt != null ? entry.startedAt + shiftMs : entry.startedAt,
+            endedAt: entry.endedAt != null ? entry.endedAt + shiftMs : entry.endedAt,
+          }
+        }),
+      }))
     },
     [update],
   )
@@ -2871,6 +2909,7 @@ export function useStore() {
     resumeTimer,
     finishTimer,
     logCompletedSession,
+    updateTimeEntryDate,
     discardTimer,
     appendMentorMessage,
     setMentorMessages,
