@@ -7,7 +7,7 @@ import type {
 } from '../types'
 import { addDays, startOfWeekMonday, weekDays } from './time'
 
-export const FREQUENCIES: ExpenseFrequency[] = ['daily', 'weekly', 'monthly']
+export const FREQUENCIES: ExpenseFrequency[] = ['daily', 'weekly', 'monthly', 'yearly']
 
 export function formatMoney(amount: number): string {
   const n = Number.isFinite(amount) ? amount : 0
@@ -22,6 +22,7 @@ export function formatMoney(amount: number): string {
 export function toMonthlyAmount(amount: number, frequency: ExpenseFrequency): number {
   if (frequency === 'daily') return amount * 30
   if (frequency === 'weekly') return amount * (52 / 12)
+  if (frequency === 'yearly') return amount / 12
   return amount
 }
 
@@ -70,6 +71,17 @@ export function periodDatesFor(
     return { start: dates[0], end: dates[6], dates }
   }
   const [y, m] = date.split('-').map(Number)
+  if (frequency === 'yearly') {
+    const start = `${y}-01-01`
+    const end = `${y}-12-31`
+    const dates: string[] = []
+    let cursor = start
+    while (cursor <= end) {
+      dates.push(cursor)
+      cursor = addDays(cursor, 1)
+    }
+    return { start, end, dates }
+  }
   const start = `${y}-${String(m).padStart(2, '0')}-01`
   const lastDay = new Date(y, m, 0).getDate()
   const end = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`

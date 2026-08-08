@@ -197,7 +197,9 @@ export function CashTrackerPanel({
                           ? 'day'
                           : row.frequency === 'weekly'
                             ? 'week'
-                            : 'month'
+                            : row.frequency === 'yearly'
+                              ? 'year'
+                              : 'month'
                       }`}
                 </div>
               </li>
