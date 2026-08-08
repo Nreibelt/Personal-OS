@@ -22,6 +22,7 @@ import type {
   CompanyDecision,
   CompanyDecisionOption,
   CompanyIdea,
+  CompanyLogin,
   DailyBodyLog,
   DailyDeepWorkSplit,
   DeepWorkId,
@@ -793,6 +794,31 @@ function normalizeAppState(parsed: Partial<AppState>, options?: { recoverLocal?:
           }
         })
       : seed.companyIdeas,
+    companyLogins: Array.isArray(parsed.companyLogins)
+      ? parsed.companyLogins
+          .map((row) => {
+            const raw = row as Partial<CompanyLogin>
+            if (!raw || typeof raw.id !== 'string') return null
+            const url = typeof raw.url === 'string' ? raw.url.trim() : ''
+            const platform = typeof raw.platform === 'string' ? raw.platform.trim() : ''
+            const username = typeof raw.username === 'string' ? raw.username.trim() : ''
+            const password = typeof raw.password === 'string' ? raw.password : ''
+            if (!url && !platform && !username) return null
+            return {
+              id: raw.id,
+              platform,
+              url,
+              username,
+              password,
+              twoFactorEnabled: Boolean(raw.twoFactorEnabled),
+              createdAt:
+                typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString(),
+              updatedAt:
+                typeof raw.updatedAt === 'string' ? raw.updatedAt : new Date().toISOString(),
+            } satisfies CompanyLogin
+          })
+          .filter((row): row is CompanyLogin => row != null)
+      : seed.companyLogins,
     companyDecisions: migrateCompanyDecisions(parsed.companyDecisions, seed.companyDecisions),
     timeEntries: migrateTimeEntries(parsed.timeEntries, seed.timeEntries),
     activeTimer: migrateActiveTimer(parsed.activeTimer),
@@ -2211,6 +2237,7 @@ export function useStore() {
         revolutSync: s.revolutSync,
         companyDocuments: s.companyDocuments,
         companyIdeas: s.companyIdeas,
+        companyLogins: s.companyLogins,
         companyDecisions: s.companyDecisions,
         visionGoals: s.visionGoals,
         autopilotCompletions: s.autopilotCompletions,
@@ -2371,6 +2398,86 @@ export function useStore() {
       update((s) => ({
         ...s,
         companyIdeas: s.companyIdeas.filter((idea) => idea.id !== id),
+      }))
+    },
+    [update],
+  )
+
+  const addCompanyLogin = useCallback(
+    (input: {
+      platform: string
+      url: string
+      username: string
+      password: string
+      twoFactorEnabled: boolean
+    }) => {
+      const platform = input.platform.trim()
+      const url = input.url.trim()
+      const username = input.username.trim()
+      const password = input.password
+      if (!platform && !url && !username) return
+      const now = new Date().toISOString()
+      update((s) => ({
+        ...s,
+        companyLogins: [
+          {
+            id: uid('login'),
+            platform,
+            url,
+            username,
+            password,
+            twoFactorEnabled: Boolean(input.twoFactorEnabled),
+            createdAt: now,
+            updatedAt: now,
+          },
+          ...(s.companyLogins ?? []),
+        ],
+      }))
+    },
+    [update],
+  )
+
+  const updateCompanyLogin = useCallback(
+    (
+      id: string,
+      patch: Partial<{
+        platform: string
+        url: string
+        username: string
+        password: string
+        twoFactorEnabled: boolean
+      }>,
+    ) => {
+      const now = new Date().toISOString()
+      update((s) => ({
+        ...s,
+        companyLogins: (s.companyLogins ?? []).map((login) => {
+          if (login.id !== id) return login
+          return {
+            ...login,
+            platform:
+              patch.platform !== undefined ? patch.platform.trim() : login.platform,
+            url: patch.url !== undefined ? patch.url.trim() : login.url,
+            username:
+              patch.username !== undefined ? patch.username.trim() : login.username,
+            password: patch.password !== undefined ? patch.password : login.password,
+            twoFactorEnabled:
+              patch.twoFactorEnabled !== undefined
+                ? Boolean(patch.twoFactorEnabled)
+                : login.twoFactorEnabled,
+            updatedAt: now,
+          }
+        }),
+      }))
+    },
+    [update],
+  )
+
+  const removeCompanyLogin = useCallback(
+    (id: string) => {
+      update((s) => ({
+        ...s,
+        companyLogins: (s.companyLogins ?? []).filter((login) => login.id !== id),
       }))
     },
     [update],
@@ -2802,6 +2909,9 @@ export function useStore() {
     addCompanyIdea,
     updateCompanyIdea,
     removeCompanyIdea,
+    addCompanyLogin,
+    updateCompanyLogin,
+    removeCompanyLogin,
     addCompanyDecision,
     updateCompanyDecision,
     addCompanyDecisionOption,
