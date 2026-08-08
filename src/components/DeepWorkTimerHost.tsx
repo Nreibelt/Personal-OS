@@ -236,12 +236,15 @@ export function DeepWorkTimerHost({
         initialNote={focusPrompt?.seedNote ?? ''}
         backlog={focusPrompt?.backlog ?? false}
         onCancel={() => setFocusPrompt(null)}
-        onConfirm={({ focusNote, targetMinutes, startedMinutesAgo, logAsDone }) => {
+        onConfirm={({ focusNote, targetMinutes, startedMinutesAgo, logAsDone, sessionDate }) => {
           if (!focusPrompt) return
           const { projectId, minimized } = focusPrompt
           setFocusPrompt(null)
           if (logAsDone && startedMinutesAgo != null) {
-            logCompletedSession(projectId, focusNote, startedMinutesAgo, { targetMinutes })
+            logCompletedSession(projectId, focusNote, startedMinutesAgo, {
+              targetMinutes,
+              date: sessionDate,
+            })
             return
           }
           beginTimer(projectId, focusNote, minimized, {

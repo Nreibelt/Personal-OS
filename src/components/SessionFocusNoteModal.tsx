@@ -10,6 +10,7 @@ import {
   MIN_SESSION_TARGET_MINUTES,
   SESSION_TARGET_PRESETS,
 } from '../utils/focusNote'
+import { addDays, todayDateKey } from '../utils/time'
 import { Modal } from './ui/Modal'
 
 const MAX_BACKLOG_MINUTES = 12 * 60
@@ -20,6 +21,8 @@ export type SessionFocusConfirm = {
   startedMinutesAgo?: number
   /** Backlog only: write the time entry now instead of opening a live timer. */
   logAsDone?: boolean
+  /** Backlog only: Bali calendar day for the session (YYYY-MM-DD). */
+  sessionDate?: string
 }
 
 export function SessionFocusNoteModal({
@@ -40,9 +43,12 @@ export function SessionFocusNoteModal({
   onConfirm: (result: SessionFocusConfirm) => void
   onCancel: () => void
 }) {
+  const today = todayDateKey()
+  const yesterday = addDays(today, -1)
   const [note, setNote] = useState(initialNote)
   const [minutesAgo, setMinutesAgo] = useState('')
   const [targetMinutes, setTargetMinutes] = useState('')
+  const [sessionDate, setSessionDate] = useState(today)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const minutesRef = useRef<HTMLInputElement>(null)
   const targetRef = useRef<HTMLInputElement>(null)
@@ -52,11 +58,12 @@ export function SessionFocusNoteModal({
     setNote(initialNote)
     setMinutesAgo('')
     setTargetMinutes('')
-    const id = window.setTimeout(() => {
+    setSessionDate(todayDateKey())
+    // Focus the first empty required field
+    requestAnimationFrame(() => {
       if (backlog) minutesRef.current?.focus()
       else inputRef.current?.focus()
-    }, 40)
-    return () => window.clearTimeout(id)
+    })
   }, [open, initialNote, backlog])
 
   const words = countFocusWords(note)
@@ -64,10 +71,13 @@ export function SessionFocusNoteModal({
   const parsedMinutes = Number.parseInt(minutesAgo, 10)
   const minutesOk =
     !backlog ||
-    (Number.isFinite(parsedMinutes) && parsedMinutes >= 1 && parsedMinutes <= MAX_BACKLOG_MINUTES)
+    (Number.isFinite(parsedMinutes) &&
+      parsedMinutes >= 1 &&
+      parsedMinutes <= MAX_BACKLOG_MINUTES)
   const parsedTarget = Number.parseInt(targetMinutes, 10)
   const targetOk = isValidSessionTarget(parsedTarget)
-  const ready = readyNote && minutesOk && targetOk
+  const dateOk = !backlog || /^\d{4}-\d{2}-\d{2}$/.test(sessionDate)
+  const ready = readyNote && minutesOk && targetOk && dateOk
   const remaining = Math.max(0, MIN_FOCUS_WORDS - words)
 
   const submit = (logAsDone = false) => {
@@ -75,12 +85,13 @@ export function SessionFocusNoteModal({
     if (!isValidFocusNote(trimmed)) return
     if (!isValidSessionTarget(parsedTarget)) return
     if (backlog) {
-      if (!minutesOk) return
+      if (!minutesOk || !dateOk) return
       onConfirm({
         focusNote: trimmed,
         targetMinutes: parsedTarget,
         startedMinutesAgo: parsedMinutes,
         logAsDone: logAsDone || undefined,
+        sessionDate,
       })
     } else {
       onConfirm({ focusNote: trimmed, targetMinutes: parsedTarget })
@@ -88,6 +99,7 @@ export function SessionFocusNoteModal({
     setNote('')
     setMinutesAgo('')
     setTargetMinutes('')
+    setSessionDate(todayDateKey())
   }
 
   return (
@@ -124,7 +136,7 @@ export function SessionFocusNoteModal({
       </p>
       <p className="session-focus-copy">
         {backlog
-          ? 'Forgot to hit start or finish? Enter how long you worked, lock Slight Edge Focus + target, then log it or resume the clock.'
+          ? 'Forgot to hit start or finish? Enter how long you worked, pick the day, lock Slight Edge Focus + target, then log it or resume the clock.'
           : 'Lock these in before the clock starts. One edge to sharpen, and how long you plan to run.'}
       </p>
 
@@ -150,10 +162,41 @@ export function SessionFocusNoteModal({
             aria-describedby="session-backlog-hint"
           />
           <span id="session-backlog-hint" className="session-focus-minutes-hint">
-            Log as done saves that block now. Start from then opens a live timer already counting
-            (max {MAX_BACKLOG_MINUTES} min).
+            Log as done saves that block on the day you pick. Start from then opens a live timer
+            already counting (max {MAX_BACKLOG_MINUTES} min).
           </span>
         </label>
+      )}
+
+      {backlog && (
+        <div className="session-focus-date">
+          <span className="field-label">Which day was this?</span>
+          <div className="session-focus-date-row">
+            <input
+              type="date"
+              value={sessionDate}
+              max={today}
+              onChange={(e) => setSessionDate(e.target.value)}
+              aria-label="Session date"
+            />
+            <div className="session-focus-presets" role="group" aria-label="Day presets">
+              <button
+                type="button"
+                className={`session-focus-preset${sessionDate === yesterday ? ' active' : ''}`}
+                onClick={() => setSessionDate(yesterday)}
+              >
+                Yesterday
+              </button>
+              <button
+                type="button"
+                className={`session-focus-preset${sessionDate === today ? ' active' : ''}`}
+                onClick={() => setSessionDate(today)}
+              >
+                Today
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <label className="session-focus-note">
@@ -225,9 +268,11 @@ export function SessionFocusNoteModal({
             ? `Set a target (${MIN_SESSION_TARGET_MINUTES}+ min)`
             : backlog && !minutesOk
               ? 'Enter minutes worked (1+)'
-              : backlog
-                ? `${words} words · ${parsedMinutes}m worked · ${parsedTarget}m target`
-                : `${words} words · ${parsedTarget}m target — locked in. Start when ready.`}
+              : backlog && !dateOk
+                ? 'Pick the day this work happened'
+                : backlog
+                  ? `${words} words · ${parsedMinutes}m worked · ${parsedTarget}m target`
+                  : `${words} words · ${parsedTarget}m target — locked in. Start when ready.`}
       </p>
     </Modal>
   )
