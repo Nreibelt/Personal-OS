@@ -564,7 +564,13 @@ export default function App() {
                       <NavGlyph kind={t.id} mark={t.mark} />
                       <span>
                         <strong>{t.label}</strong>
-                        <em>{t.id === 'decisions' ? 'Open loops' : t.shortLabel}</em>
+                        <em>
+                          {t.id === 'decisions'
+                            ? 'Open loops'
+                            : t.id === 'logins'
+                              ? 'Credentials'
+                              : t.shortLabel}
+                        </em>
                       </span>
                     </button>
                   ))}
