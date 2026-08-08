@@ -438,7 +438,7 @@ export interface CompanyTask {
 
 export type FinanceRealm = 'personal' | 'company'
 
-export type ExpenseFrequency = 'daily' | 'weekly' | 'monthly'
+export type ExpenseFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly'
 
 /** Set-expense category / bucket. Bills is seeded as a preset parent for micro expenses. */
 export interface ExpenseCategory {
